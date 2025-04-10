@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI聊天 - MCP演示</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <!-- 添加Markdown解析库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- 添加代码高亮库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+    <style>
+        /* 导航栏样式优化 */
+        .navbar {
+            background-color: #1976d2;
+            color: white;
+            display: flex;
+            padding: 0;
+            margin: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .navbar-links {
+            display: flex;
+        }
+        
+        .navbar-links a {
+            color: white;
+            text-decoration: none;
+            padding: 15px 20px;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            height: 100%;
+        }
+        
+        .navbar-links a:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        .navbar-links a.active {
+            background-color: rgba(255,255,255,0.2);
+            font-weight: bold;
+        }
+        
+        /* 修改页面容器宽度 - 扩大主容器 */
+        .container {
+            max-width: 1600px; /* 增加容器最大宽度 */
+            margin: 0 auto;
+            padding: 0 20px; /* 减少水平内边距 */
+            width: 98%; /* 使容器宽度接近屏幕宽度 */
+        }
+        
+        /* 聊天容器样式优化 */
+        .chat-container {
+            width: 100%; /* 使用全宽 */
+            margin: 0 auto;
+            padding: 10px; /* 减少内边距 */
+        }
+        
+        textarea {
+            min-height: 120px;
+            margin-bottom: 20px;
+            resize: vertical;
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        
+        .send-button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .send-button:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        .send-button:disabled {
+            background-color: var(--border-color);
+            cursor: not-allowed;
+        }
+        
+        .send-button svg {
+            margin-right: 8px;
+        }
+        
+        .result {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 8px;
+            background-color: rgba(25, 118, 210, 0.05);
+            border: 1px solid rgba(25, 118, 210, 0.1);
+        }
+        
+        .result h3 {
+            color: var(--primary-dark);
+            margin: 0 0 12px 0;
+            font-weight: 500;
+        }
+        
+        .response-content {
+            background-color: var(--card-background);
+            padding: 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            margin: 0;
+            font-size: 16px;
+            min-height: 60px;
+            overflow-x: auto;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .response-time {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .response-time-value {
+            font-weight: 500;
+            color: var(--primary-color);
+            margin-left: 4px;
+        }
+
+        .token-usage {
+            margin-top: 12px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .token-usage span {
+            margin-right: 16px;
+        }
+
+        .token-label {
+            font-weight: 500;
+            color: var(--primary-color);
+        }
+
+        .options-group {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .option-item {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .option-item label {
+            margin-bottom: 6px;
+        }
+
+        .option-item select,
+        .option-item input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+        
+        /* 对话框风格样式优化 */
+        .chat-messages {
+            margin: 10px 0; /* 减小外边距 */
+            padding: 15px; /* 减小内边距 */
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: #f5f5f5;
+            max-height: 750px; /* 增加最大高度 */
+            min-height: 450px; /* 增加最小高度 */
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-message {
+            display: flex;
+            margin-bottom: 15px; /* 减小消息间距 */
+            animation: message-appear 0.3s ease-out;
+        }
+        
+        .chat-message:last-child {
+            margin-bottom: 0;
+        }
+        
+        @keyframes message-appear {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .chat-bubble {
+            max-width: 85%; /* 增大气泡最大宽度 */
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        
+        .chat-message.user {
+            justify-content: flex-end;
+        }
+        
+        .chat-message.user .chat-bubble {
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 8px 8px 0 8px;
+        }
+        
+        .chat-message.ai .chat-bubble {
+            background-color: white;
+            color: var(--text-primary);
+            border-radius: 8px 8px 8px 0;
+        }
+        
+        /* 思考容器样式 */
+        .reasoning-container {
+            margin: 10px 0 15px 0;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            overflow: hidden;
+            transition: background-color 0.2s;
+            display: block !important; /* 确保始终显示 */
+        }
+        
+        .reasoning-container.collapsed {
+            background-color: #f1f3f5;
+        }
+        
+        .reasoning-header {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background-color: #e9ecef;
+            cursor: pointer;
+            color: #495057;
+            font-size: 0.9em;
+            user-select: none;
+            transition: background-color 0.2s;
+        }
+        
+        .reasoning-header:hover {
+            background-color: #dee2e6;
+        }
+        
+        .reasoning-header svg {
+            margin-right: 8px;
+            transition: transform 0.2s;
+        }
+        
+        .reasoning-header .title-text {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .reasoning-header .thinking-time {
+            margin-left: 10px;
+            font-size: 0.85em;
+            color: #6c757d;
+            background-color: rgba(108, 117, 125, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .reasoning-header .thinking-time svg {
+            margin-right: 4px;
+            width: 12px;
+            height: 12px;
+        }
+        
+        .reasoning-container.collapsed .reasoning-header svg {
+            transform: rotate(-90deg);
+        }
+        
+        .reasoning-content {
+            padding: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #ffffff;
+            border-top: 1px solid #e9ecef;
+            font-size: 0.9em;
+            line-height: 1.5;
+            color: #495057;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+        }
+        
+        .reasoning-container.collapsed .reasoning-content {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            overflow: hidden;
+            border-top: none;
+        }
+        
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+            color: white;
+            flex-shrink: 0; /* 防止头像缩小 */
+        }
+        
+        .chat-message.user .avatar {
+            order: 2;
+            margin-right: 0;
+            margin-left: 10px;
+            background-color: var(--primary-dark);
+        }
+        
+        .chat-message.ai .avatar {
+            background: linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* 打字机效果的光标 */
+        .cursor {
+            display: inline-block;
+            width: 0;
+            height: 1.2em;
+            background-color: currentColor;
+            margin-left: 2px;
+            animation: blink 1s step-end infinite;
+        }
+        
+        @keyframes blink {
+            from, to { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        
+        /* 消息信息区 */
+        .message-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: rgba(0, 0, 0, 0.5);
+            margin-top: 8px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(0, 0, 0, 0.08);
+        }
+        
+        .chat-message.user .message-info {
+            color: rgba(255, 255, 255, 0.7);
+            border-top-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .token-info {
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+        
+        .message-time {
+            display: flex;
+            align-items: center;
+            color: rgba(0, 0, 0, 0.5);
+        }
+        
+        /* 复制和清除按钮 */
+        .chat-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-bottom: 12px; /* 减小按钮下方间距 */
+        }
+        
+        .chat-actions button {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+        
+        .chat-actions button:hover {
+            background-color: var(--background-hover);
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .chat-actions button svg {
+            margin-right: 6px;
+            width: 16px;
+            height: 16px;
+        }
+        
+        /* 模式切换选项卡 */
+        .mode-tabs {
+            display: flex;
+            gap: 1px;
+            margin-bottom: 15px; /* 减小下方间距 */
+            background-color: var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+            width: fit-content;
+        }
+        
+        .mode-tabs button {
+            background-color: var(--card-background);
+            border: none;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        
+        .mode-tabs button.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        /* 工具提示 */
+        .tooltip-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+        }
+        
+        .tooltip {
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+        }
+        
+        .tooltip.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        /* AI思考中状态样式 */
+        .ai-thinking {
+            display: flex;
+            align-items: center;
+            color: var(--text-secondary);
+            font-size: 15px;
+            gap: 10px;
+            padding: 5px 0;
+        }
+        
+        .thinking-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(25, 118, 210, 0.2);
+            border-top: 2px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Markdown渲染样式 */
+        .markdown-content {
+            line-height: 1.6;
+        }
+        
+        .markdown-content p {
+            margin: 0.5em 0;
+        }
+        
+        .markdown-content strong {
+            font-weight: 600;
+            color: #222;
+        }
+        
+        .markdown-content code {
+            background: #f0f0f0;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
+            font-size: 0.9em;
+        }
+        
+        .markdown-content pre {
+            background: #f6f8fa;
+            padding: 1em;
+            border-radius: 6px;
+            overflow: auto;
+            margin: 0.8em 0;
+        }
+        
+        .markdown-content pre code {
+            background: transparent;
+            padding: 0;
+            white-space: pre;
+            font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
+        }
+        
+        .markdown-content blockquote {
+            margin: 0.8em 0;
+            padding: 0 1em;
+            color: #6a737d;
+            border-left: 3px solid #dfe2e5;
+        }
+        
+        .markdown-content ul, .markdown-content ol {
+            padding-left: 2em;
+        }
+        
+        /* 供应商选择样式 */
+        .provider-select {
+            margin-bottom: 15px; /* 减小下方间距 */
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 2px solid var(--primary-color);
+            font-size: 16px;
+            background-color: var(--card-background);
+        }
+        
+        /* 工具开关样式 */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .toggle {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: var(--primary-color);
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+        
+        .toggle-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        /* 工具调用消息样式 */
+        .tool-call {
+            background-color: #f0f7ff;
+            border: 1px solid #d0e3ff;
+            border-radius: 6px;
+            margin: 12px 0;
+            padding: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            transition: box-shadow 0.2s ease;
+        }
+        
+        .tool-call:hover {
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .tool-call-header {
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #0366d6;
+            justify-content: space-between; /* 使头部内容两端对齐 */
+        }
+        
+        .tool-call-title {
+            display: flex;
+            align-items: center;
+        }
+        
+        .tool-call-title svg {
+            margin-right: 6px;
+        }
+        
+        .tool-call-status {
+            display: flex;
+            align-items: center;
+            font-size: 12px;
+            color: #666;
+            gap: 8px; /* 增加状态元素间距 */
+            flex-wrap: wrap; /* 允许在小屏幕上换行 */
+        }
+        
+        .tool-execution-time {
+            background-color: #e6f7ff;
+            border: 1px solid #91d5ff;
+            color: #0050b3;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        
+        .tool-token-usage {
+            background-color: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #389e0d;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        
+        .status-success {
+            color: #28a745;
+        }
+        
+        .status-error {
+            color: #dc3545;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 4px;
+        }
+        
+        .status-indicator.success {
+            background-color: #28a745;
+        }
+        
+        .status-indicator.error {
+            background-color: #dc3545;
+        }
+        
+        /* 折叠按钮 */
+        .tool-call-toggle {
+            margin-left: 8px;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+        
+        .tool-call-toggle:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        
+        .tool-call-toggle svg {
+            transition: transform 0.3s;
+        }
+        
+        .tool-call.collapsed .tool-call-toggle svg {
+            transform: rotate(-90deg);
+        }
+        
+        .tool-call-args {
+            font-family: monospace;
+            background-color: #f8f8f8;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #e1e4e8;
+            margin-bottom: 8px;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;      /* 允许文本换行 */
+            word-wrap: break-word;      /* 在长单词或URL内部进行换行 */
+            overflow-x: auto;           /* 允许水平滚动 */
+            max-height: 250px;          /* 限制最大高度 */
+            overflow-y: auto;           /* 允许垂直滚动 */
+        }
+        
+        /* 参数加载提示样式 */
+        .args-loading {
+            color: #6c757d;
+            font-style: italic;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 40px;
+        }
+        
+        .args-loading::before {
+            content: "";
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #6c757d;
+            border-radius: 50%;
+            border-top-color: transparent;
+            margin-right: 8px;
+            animation: args-loading-spin 1s linear infinite;
+        }
+        
+        @keyframes args-loading-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .tool-call-content {
+            transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+            overflow: hidden;
+            max-height: 2000px; /* 足够大的高度，以适应内容 */
+            opacity: 1;
+        }
+        
+        .tool-call.collapsed .tool-call-content {
+            max-height: 0;
+            opacity: 0;
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+        
+        .tool-call-result {
+            border: 1px solid #e1e4e8;
+            border-left: 3px solid #0366d6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 8px;
+            color: #1a1a1a;
+        }
+        
+        .tool-call-result pre {
+            margin: 0;
+            padding: 8px;
+            white-space: pre-wrap;       /* 允许文本换行 */
+            word-wrap: break-word;       /* 在长单词或URL内部进行换行 */
+            overflow-x: auto;            /* 允许水平滚动 */
+            max-height: 300px;           /* 限制最大高度 */
+            overflow-y: auto;            /* 允许垂直滚动 */
+            background-color: #f6f8fa;
+            border-radius: 3px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .tool-call-result strong {
+            display: block;
+            margin-bottom: 6px;
+        }
+        
+        /* 错误结果样式 */
+        .tool-call-result.error {
+            background-color: #fff0f0;
+            border-left: 3px solid #e74c3c;
+        }
+
+        .tool-call-result .error {
+            color: #e74c3c;
+        }
+
+        .tool-call-result .error-result {
+            background-color: #fff5f5;
+            border: 1px solid #ffcccc;
+            color: #e74c3c;
+        }
+        
+        /* 工具调用元信息样式 */
+        .tool-meta-container {
+            margin-top: 8px;
+            border-top: 1px dashed #e1e4e8;
+            padding-top: 8px;
+            font-size: 12px;
+            color: #6a737d;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .tool-meta-info {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 6px;
+            background-color: #f1f8ff;
+            border-radius: 4px;
+            border: 1px solid #d1e5ff;
+        }
+        
+        .tool-meta-info.execution-time {
+            background-color: #f1f8ff;
+            border-color: #d1e5ff;
+        }
+        
+        .tool-meta-info.token-usage {
+            background-color: #f8f9fa;
+            border-color: #eaecef;
+        }
+        
+        .token-usage .total-tokens {
+            font-weight: 600;
+            color: #0366d6;
+        }
+        
+        /* 工具结果中详细Token信息样式 */
+        .token-details {
+            background-color: #f8f9fa;
+            border: 1px solid #eaecef;
+            border-radius: 4px;
+            padding: 4px 8px;
+            margin-top: 10px;
+        }
+        
+        .token-details .tool-meta-info {
+            width: 100%;
+            justify-content: flex-start;
+            border: none;
+            background: transparent;
+        }
+        
+        /* 响应式设计增强 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+                width: 100%;
+            }
+            
+            .chat-container {
+                padding: 5px;
+            }
+            
+            .chat-bubble {
+                max-width: 90%;
+            }
+            
+            .chat-messages {
+                padding: 10px;
+                max-height: 500px;
+            }
+            
+            .options-group {
+                gap: 10px;
+            }
+            
+            .option-item {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-links">
+            <a href="/">首页</a>
+            <a href="/ai.html" class="active">AI聊天</a>
+            <a href="/info.html">服务信息</a>
+            <a href="/settings.html">配置管理</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="chat-container" style="margin-top: 10px;">
+            <!-- 供应商选择 -->
+            <div class="provider-group">
+                <label for="provider">选择AI供应商:</label>
+                <select id="provider" class="provider-select">
+                    <!-- 选项会通过JS动态加载 -->
+                </select>
+            </div>
+            
+            <!-- 会话信息 -->
+            <div class="session-info-container">
+                <div id="current-session-display" class="current-session-display">
+                    <!-- 会话名称将通过JS动态加载 -->
+                    <span>当前会话: </span><span id="session-name">加载中...</span>
+                </div>
+                <button id="new-session" class="action-button">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                    新建会话
+                </button>
+            </div>
+            
+            <!-- 模式切换选项卡 -->
+            <div class="mode-tabs">
+                <button id="mode-stream" class="active">流式响应</button>
+                <button id="mode-regular">标准响应</button>
+            </div>
+            
+            <!-- 复制和清除按钮 -->
+            <div class="chat-actions">
+                <button id="view-history">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+                    </svg>
+                    历史记录
+                </button>
+                <button id="clear-chat">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                    清除对话
+                </button>
+                <button id="copy-chat">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                    </svg>
+                    复制对话
+                </button>
+            </div>
+            
+            <!-- 聊天消息显示区域 -->
+            <div id="chat-messages" class="chat-messages"></div>
+            
+            <!-- 聊天选项 -->
+            <div class="options-group">
+                <div class="option-item">
+                    <label for="model">模型选择:</label>
+                    <select id="model">
+                        <!-- 模型选项将通过JS动态加载 -->
+                    </select>
+                </div>
+                <div class="option-item">
+                    <label for="temperature">温度 (0-1):</label>
+                    <input type="number" id="temperature" value="0.7" min="0" max="1" step="0.1">
+                </div>
+                <div class="option-item">
+                    <label for="max-tokens">最大生成长度:</label>
+                    <input type="number" id="max-tokens" value="2048" min="1" max="8192">
+                </div>
+                <div class="option-item">
+                    <label for="enable-mcp-tools">工具调用:</label>
+                    <div class="toggle-container">
+                        <label class="toggle">
+                            <input type="checkbox" id="enable-mcp-tools" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">启用MCP工具</span>
+                    </div>
+                </div>
+                <div class="option-item">
+                    <label for="enable-param-validation">参数校验:</label>
+                    <div class="toggle-container">
+                        <label class="toggle">
+                            <input type="checkbox" id="enable-param-validation">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">启用参数校验</span>
+                    </div>
+                </div>
+                <div class="option-item">
+                    <label for="enable-message-history">历史消息:</label>
+                    <div class="toggle-container">
+                        <label class="toggle">
+                            <input type="checkbox" id="enable-message-history">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">启用历史记录</span>
+                        <input type="number" id="message-history-count" value="3" min="1" max="10" class="history-count" style="width: 50px; margin-left: 10px;">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 消息输入区域 -->
+            <div>
+                <label for="message">输入消息:</label>
+                <textarea id="message" placeholder="请输入您想询问AI的问题..."></textarea>
+            </div>
+            
+            <!-- 发送按钮 -->
+            <button id="send-button" class="send-button">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                发送到AI
+            </button>
+            
+            <!-- 响应结果区域（仅用于标准模式） -->
+            <div id="result" class="result hidden">
+                <h3>AI回复</h3>
+                <div id="response-time" class="response-time"></div>
+                <div id="response-content" class="response-content"></div>
+                <div id="token-usage" class="token-usage"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 工具提示 -->
+    <div class="tooltip-container">
+        <div id="tooltip" class="tooltip"></div>
+    </div>
+    
+    <!-- 历史记录模态窗口 -->
+    <div id="history-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>聊天历史记录</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="history-container">
+                    <div class="session-list">
+                        <div class="session-list-header">
+                            <h3>会话列表</h3>
+                            <div class="session-search">
+                                <input type="text" id="session-search" placeholder="搜索会话...">
+                            </div>
+                        </div>
+                        <div id="sessions-container" class="sessions-container">
+                            <!-- 会话列表将通过JS动态加载 -->
+                            <div class="loading-sessions">正在加载会话列表...</div>
+                        </div>
+                    </div>
+                    <div class="session-detail">
+                        <div class="session-detail-header">
+                            <h3 id="session-detail-title">会话详情</h3>
+                            <div class="session-actions">
+                                <button id="load-session" class="action-button" disabled>加载会话</button>
+                                <button id="delete-session" class="action-button danger" disabled>删除会话</button>
+                            </div>
+                        </div>
+                        <div id="session-messages" class="session-messages">
+                            <div class="no-session-selected">请从左侧选择一个会话</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        /* 模态窗口样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            width: 80%;
+            max-width: 1200px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            animation: slideDown 0.3s;
+        }
+        
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .modal-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            color: #212529;
+            font-size: 1.4rem;
+        }
+        
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        
+        .close:hover {
+            color: #333;
+        }
+        
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        /* 历史记录样式 */
+        .history-container {
+            display: flex;
+            height: 60vh;
+            gap: 20px;
+        }
+        
+        .session-list {
+            width: 30%;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .session-detail {
+            flex: 1;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .session-list-header, .session-detail-header {
+            padding: 15px;
+            border-bottom: 1px solid #dee2e6;
+            background-color: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .session-list-header h3, .session-detail-header h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.1rem;
+            color: #495057;
+        }
+        
+        .session-search input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .sessions-container {
+            padding: 10px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .session-item {
+            padding: 12px;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .session-item:last-child {
+            border-bottom: none;
+        }
+        
+        .session-item:hover {
+            background-color: #f1f3f5;
+        }
+        
+        .session-item.active {
+            background-color: #e7f5ff;
+            border-left: 3px solid #339af0;
+        }
+        
+        .session-name {
+            font-weight: 500;
+            color: #212529;
+            margin-bottom: 5px;
+        }
+        
+        .session-info {
+            font-size: 12px;
+            color: #6c757d;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .session-provider {
+            font-size: 11px;
+            color: #6c757d;
+            margin-top: 5px;
+            background-color: #e7f5ff;
+            border-radius: 4px;
+            padding: 2px 6px;
+            display: inline-block;
+        }
+        
+        .session-date {
+            font-style: italic;
+        }
+        
+        .session-count {
+            background-color: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 11px;
+        }
+        
+        .session-messages {
+            padding: 15px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .no-session-selected {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .no-sessions {
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .session-message {
+            padding: 10px;
+            border-bottom: 1px solid #f1f3f5;
+            margin-bottom: 10px;
+        }
+        
+        .session-message-user {
+            font-weight: 500;
+            margin-bottom: 5px;
+            color: #495057;
+        }
+        
+        .session-message-content {
+            color: #212529;
+        }
+        
+        .session-message-time {
+            font-size: 12px;
+            color: #adb5bd;
+            margin-top: 5px;
+            text-align: right;
+        }
+        
+        .session-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .action-button {
+            padding: 6px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            color: #495057;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .action-button:hover:not(:disabled) {
+            background-color: #e9ecef;
+        }
+        
+        .action-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .action-button.danger {
+            border-color: #fa5252;
+            color: #fa5252;
+        }
+        
+        .action-button.danger:hover:not(:disabled) {
+            background-color: #fff5f5;
+        }
+        
+        .loading-sessions {
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                margin: 10% auto;
+            }
+            
+            .history-container {
+                flex-direction: column;
+                height: auto;
+            }
+            
+            .session-list {
+                width: 100%;
+                margin-bottom: 20px;
+                max-height: 40vh;
+            }
+            
+            .session-detail {
+                height: 40vh;
+            }
+        }
+    </style>
+    
+    <style>
+        /* 会话信息容器样式 */
+        .session-info-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            margin-top: 10px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .current-session-display {
+            font-size: 14px;
+            color: #495057;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        #session-name {
+            font-weight: 500;
+            color: #212529;
+        }
+        
+        #new-session {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background-color: #e7f5ff;
+            color: #339af0;
+            border: 1px solid #339af0;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        #new-session:hover {
+            background-color: #d0ebff;
+        }
+        
+        #new-session svg {
+            width: 16px;
+            height: 16px;
+        }
+    </style>
+    
+    <script src="/js/ai.js"></script>
+</body>
+</html> 

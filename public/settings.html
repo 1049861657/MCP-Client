@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI配置管理 - MCP演示</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        :root {
+            --sidebar-width: 240px;
+            --primary-color: #2196F3;
+            --primary-light: #BBDEFB;
+            --primary-dark: #1976D2;
+            --success-color: #4CAF50;
+            --warning-color: #FFC107;
+            --error-color: #F44336;
+            --bg-light: #F5F7FA;
+            --bg-dark: #ffffff;
+            --text-primary: #263238;
+            --text-secondary: #607D8B;
+            --text-light: #B0BEC5;
+            --border-light: #ECEFF1;
+            --border-dark: #CFD8DC;
+            --shadow-sm: 0 2px 4px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 8px rgba(0,0,0,0.1);
+            --shadow-lg: 0 8px 16px rgba(0,0,0,0.1);
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --transition: all 0.3s ease;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-light);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        /* 导航栏样式 */
+        .navbar {
+            background-color: #1976d2;
+            color: white;
+            display: flex;
+            padding: 0;
+            margin: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 20;
+            height: 50px;
+        }
+        
+        .navbar-links {
+            display: flex;
+        }
+        
+        .navbar-links a {
+            color: white;
+            text-decoration: none;
+            padding: 15px 20px;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            height: 100%;
+        }
+        
+        .navbar-links a:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        .navbar-links a.active {
+            background-color: rgba(255,255,255,0.2);
+            font-weight: bold;
+        }
+        
+        /* 侧边栏样式 */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary-color));
+            color: white;
+            position: fixed;
+            top: 50px; /* 从导航栏下方开始 */
+            height: calc(100vh - 50px); /* 减去导航栏高度 */
+            overflow-y: auto;
+            box-shadow: var(--shadow-md);
+            z-index: 10;
+            display: flex;
+            flex-direction: column; /* 使用flex布局，便于底部元素定位 */
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
+        
+        .sidebar-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .sidebar-providers {
+            padding: 10px 0;
+        }
+        
+        .sidebar-provider-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: var(--transition);
+            border-left: 3px solid transparent;
+            display: flex;
+            align-items: center;
+        }
+        
+        .sidebar-provider-item:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar-provider-item.active {
+            background-color: rgba(255,255,255,0.2);
+            border-left-color: white;
+        }
+        
+        .sidebar-provider-item .provider-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 12px;
+            background-color: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .add-provider-btn {
+            margin: 15px 20px;
+            padding: 8px 15px;
+            background-color: rgba(255,255,255,0.1);
+            border: 1px dashed rgba(255,255,255,0.3);
+            border-radius: var(--radius-sm);
+            color: white;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        
+        .add-provider-btn:hover {
+            background-color: rgba(255,255,255,0.2);
+        }
+        
+        /* 侧边栏底部样式 */
+        .sidebar-footer {
+            margin-top: auto; /* 将元素推到底部 */
+            padding: 15px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            background-color: rgba(0,0,0,0.1);
+        }
+        
+        /* 默认提供商在侧边栏的样式 */
+        .sidebar .default-provider-compact {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        
+        .sidebar .default-provider-compact label {
+            margin: 0;
+            font-weight: 500;
+            color: white;
+            white-space: nowrap;
+            font-size: 0.85rem;
+        }
+        
+        .sidebar .default-provider-select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: var(--radius-sm);
+            font-size: 0.9375rem;
+            color: white;
+            background-color: rgba(255,255,255,0.1);
+            transition: var(--transition);
+        }
+        
+        .sidebar .default-provider-select:focus {
+            border-color: rgba(255,255,255,0.5);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.1);
+        }
+        
+        .sidebar .default-provider-select option {
+            background-color: var(--primary-dark);
+            color: white;
+        }
+        
+        /* 主内容区域样式 */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            padding: 30px 20px 20px 20px; /* 增加顶部内边距 */
+            position: relative;
+            margin-top: 50px; /* 添加顶部边距，为导航栏留出空间 */
+        }
+        
+        .page-header {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        
+        .page-header h1 {
+            margin: 0 0 8px 0;
+            font-size: 2rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .page-header p {
+            margin: 0;
+            color: var(--text-secondary);
+        }
+        
+        /* 提供商卡片样式 */
+        .provider-card {
+            background-color: var(--bg-dark);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 30px;
+            overflow: hidden;
+            transition: var(--transition);
+        }
+        
+        .provider-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+        
+        .provider-card-header {
+            padding: 16px 20px;
+            background-color: var(--primary-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .provider-card-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 500;
+            color: var(--primary-dark);
+        }
+        
+        .provider-card-content {
+            padding: 20px;
+        }
+        
+        .form-section {
+            margin-bottom: 24px;
+        }
+        
+        .form-section-title {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+        }
+        
+        .form-section-title svg {
+            margin-right: 8px;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+        }
+        
+        .form-row {
+            margin-bottom: 16px;
+        }
+        
+        .form-row label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .form-row input, .form-row select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-dark);
+            border-radius: var(--radius-sm);
+            font-size: 0.9375rem;
+            color: var(--text-primary);
+            transition: var(--transition);
+        }
+        
+        .form-row input:focus, .form-row select:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+        
+        /* 模型列表样式 */
+        .models-container {
+            background-color: var(--bg-light);
+            border-radius: var(--radius-sm);
+            padding: 4px;
+            margin-top: 12px;
+        }
+        
+        .model-item {
+            display: flex;
+            align-items: center;
+            background-color: white;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-light);
+            transition: var(--transition);
+        }
+        
+        .model-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .model-item:hover {
+            border-color: var(--border-dark);
+        }
+        
+        .model-item.default-model {
+            background-color: rgba(33, 150, 243, 0.05);
+            border-left: 3px solid var(--primary-color);
+        }
+        
+        .model-radio {
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .model-radio input[type="radio"] {
+            width: 18px;
+            height: 18px;
+            margin: 0;
+            cursor: pointer;
+        }
+        
+        .model-radio label {
+            margin-left: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            color: var(--primary-dark);
+            background-color: var(--primary-light);
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+        
+        .model-values {
+            display: flex;
+            flex: 1;
+            gap: 12px;
+        }
+        
+        .model-value, .model-label {
+            flex: 1;
+        }
+        
+        .model-value input, .model-label input {
+            border: 1px solid var(--border-light);
+            transition: var(--transition);
+        }
+        
+        .model-item:hover .model-value input,
+        .model-item:hover .model-label input {
+            border-color: var(--border-dark);
+        }
+        
+        .model-actions {
+            margin-left: 12px;
+        }
+        
+        /* 添加模型按钮 */
+        .add-model {
+            padding: 12px;
+            margin-top: 16px;
+            background-color: var(--bg-light);
+            border: 1px dashed var(--border-dark);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        
+        .add-model:hover {
+            background-color: rgba(33, 150, 243, 0.05);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+        
+        .add-model svg {
+            margin-right: 8px;
+        }
+        
+        /* 按钮样式 */
+        .btn {
+            padding: 10px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 0.9375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn svg {
+            margin-right: 8px;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        .btn-danger {
+            background-color: var(--error-color);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #d32f2f;
+        }
+        
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid var(--border-dark);
+            color: var(--text-secondary);
+        }
+        
+        .btn-outline:hover {
+            background-color: var(--bg-light);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+        
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.8125rem;
+        }
+        
+        /* API密钥输入框 */
+        .api-key-field {
+            position: relative;
+        }
+        
+        .api-key-field input {
+            padding-right: 40px;
+        }
+        
+        .toggle-password {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+        
+        .toggle-password:hover {
+            color: var(--primary-color);
+        }
+        
+        /* 底部操作区 */
+        .action-bar {
+            display: flex;
+            justify-content: flex-end; /* 更改为右对齐，因为左侧元素被移除 */
+            padding: 20px;
+            background-color: var(--bg-light);
+            border-top: 1px solid var(--border-light);
+            position: sticky;
+            bottom: 0;
+            align-items: center;
+            margin-top: 30px; /* 添加顶部边距 */
+        }
+        
+        /* 通知样式 */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: var(--radius-sm);
+            box-shadow: var(--shadow-md);
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.3s, transform 0.3s;
+            display: flex;
+            align-items: center;
+        }
+        
+        .notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .notification.success {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .notification.error {
+            background-color: var(--error-color);
+            color: white;
+        }
+        
+        .notification svg {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-links">
+            <a href="/">首页</a>
+            <a href="/ai.html">AI聊天</a>
+            <a href="/info.html">服务信息</a>
+            <a href="/settings.html" class="active">配置管理</a>
+        </div>
+    </nav>
+    
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>AI配置管理</h2>
+        </div>
+        <div class="sidebar-providers" id="sidebar-providers-list">
+            <!-- 由JS动态填充 -->
+        </div>
+        <div class="add-provider-btn" id="add-provider">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 0a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2H9v6a1 1 0 1 1-2 0V9H1a1 1 0 0 1 0-2h6V1a1 1 0 0 1 1-1z"/>
+            </svg>
+            添加新提供商
+        </div>
+        <div class="sidebar-footer">
+            <div class="default-provider-compact">
+                <label for="default-provider">默认提供商：</label>
+                <select id="default-provider" class="default-provider-select">
+                    <!-- 选项将通过JS动态生成 -->
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主内容区域 -->
+    <div class="main-content">
+        
+        <!-- 提供商卡片容器 -->
+        <div id="providers-container">
+            <!-- 提供商卡片将通过JS动态生成 -->
+        </div>
+
+        <!-- 底部操作区 -->
+        <div class="action-bar">
+            <button id="save-providers" class="btn btn-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M2 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H9.5a1 1 0 0 0-1 1v7.293l2.646-2.647a.5.5 0 0 1 .708.708l-3.5 3.5a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L7.5 9.293V2a2 2 0 0 1 2-2H14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h2.5a.5.5 0 0 1 0 1H2z"/>
+                </svg>
+                保存配置
+            </button>
+        </div>
+    </div>
+    
+    <!-- 通知提示框 -->
+    <div id="notification" class="notification success">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+        </svg>
+        <span id="notification-text">保存成功！</span>
+    </div>
+    
+    <script src="/js/settings.js"></script>
+</body>
+</html> 

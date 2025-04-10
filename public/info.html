@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP服务信息 - MCP客户端</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        :root {
+            --primary-color: #1976d2;
+            --primary-light: #4791db;
+            --primary-dark: #115293;
+            --success-color: #388e3c;
+            --error-color: #d32f2f;
+            --background-color: #f5f7f9;
+            --card-background: #ffffff;
+            --border-color: #e0e0e0;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            text-align: center;
+            margin: 20px 0;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        
+        .info-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .card {
+            background-color: var(--card-background);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 24px;
+            margin-bottom: 24px;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+        }
+        
+        .card h2 {
+            margin-top: 0;
+            color: var(--primary-dark);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+            font-weight: 500;
+            font-size: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .connection-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+            margin-left: 15px;
+            vertical-align: middle;
+        }
+        
+        .connection-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--error-color);
+            transition: .4s;
+            border-radius: 34px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+        
+        input:checked + .slider {
+            background-color: var(--success-color);
+        }
+        
+        input:focus + .slider {
+            box-shadow: 0 0 2px var(--success-color);
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+        
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+            margin-top: 0;
+            color: var(--primary-dark);
+            font-weight: 500;
+            font-size: 20px;
+        }
+        
+        .server-title {
+            display: flex;
+            align-items: center;
+        }
+        
+        .connection-status {
+            margin-left: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: normal;
+        }
+        
+        .info-row {
+            display: flex;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+        
+        .info-label {
+            width: 150px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        
+        .info-value {
+            flex: 1;
+        }
+        
+        .connection-active {
+            color: var(--success-color);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+        
+        .connection-active::before {
+            content: "";
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--success-color);
+            margin-right: 8px;
+        }
+        
+        .connection-inactive {
+            color: var(--error-color);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+        
+        .connection-inactive::before {
+            content: "";
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--error-color);
+            margin-right: 8px;
+        }
+        
+        .connection-button {
+            margin-top: 16px;
+            padding: 10px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            text-align: center;
+            display: inline-block;
+        }
+        
+        .connect-button {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .connect-button:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        .disconnect-button {
+            background-color: var(--error-color);
+            color: white;
+        }
+        
+        .disconnect-button:hover {
+            background-color: #b71c1c;
+        }
+        
+        .tool-list {
+            list-style: none;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+        
+        .tool-item {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.3s ease;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .tool-item:hover {
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary-light);
+        }
+        
+        .tool-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .tool-name {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        
+        .param-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            font-size: 0.95em;
+        }
+        
+        .param-table th, .param-table td {
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            text-align: left;
+        }
+        
+        .param-table th {
+            background-color: rgba(25, 118, 210, 0.08);
+            color: var(--primary-dark);
+            font-weight: 500;
+        }
+        
+        .navbar {
+            display: flex;
+            background-color: var(--primary-color);
+            padding: 0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .navbar-links {
+            display: flex;
+        }
+        
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            padding: 16px 24px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        
+        .navbar a:hover, .navbar a.active {
+            background-color: var(--primary-dark);
+        }
+        
+        .client-info {
+            display: flex;
+            align-items: center;
+            color: white;
+            padding: 0 24px;
+        }
+        
+        .client-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            color: white;
+        }
+        
+        .client-name {
+            font-weight: 500;
+            margin-right: 4px;
+        }
+        
+        .client-version {
+            color: rgba(255, 255, 255, 0.85);
+            font-weight: 500;
+            font-size: 0.9em;
+            background-color: rgba(255, 255, 255, 0.15);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        
+        #loading {
+            text-align: center;
+            padding: 60px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 20px;
+            border: 4px solid rgba(25, 118, 210, 0.2);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .server-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 24px;
+            justify-content: center;
+            background-color: var(--card-background);
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            padding: 16px;
+        }
+        
+        .server-tab {
+            padding: 10px 18px;
+            background-color: var(--background-color);
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+        
+        .server-tab:hover {
+            background-color: rgba(25, 118, 210, 0.08);
+            border-color: var(--primary-light);
+        }
+        
+        .server-tab.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        
+        .server-status-badge {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-left: 8px;
+        }
+        
+        .server-status-connected {
+            background-color: var(--success-color);
+            box-shadow: 0 0 0 2px rgba(56, 142, 60, 0.2);
+        }
+        
+        .server-status-disconnected {
+            background-color: var(--error-color);
+            box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.2);
+        }
+        
+        .server-status-text {
+            font-size: 12px;
+            margin-left: 4px;
+            opacity: 0.8;
+        }
+        
+        .error {
+            background-color: rgba(211, 47, 47, 0.1);
+            border-left: 4px solid var(--error-color);
+            padding: 16px;
+            border-radius: 4px;
+            color: var(--error-color);
+        }
+        
+        @media (max-width: 768px) {
+            .info-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .info-label {
+                width: 100%;
+                margin-bottom: 4px;
+            }
+            
+            .tool-list {
+                grid-template-columns: 1fr;
+            }
+            
+            .navbar {
+                flex-direction: column;
+            }
+            
+            .client-info {
+                padding: 8px 16px;
+                justify-content: center;
+                background-color: rgba(0, 0, 0, 0.1);
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-links">
+            <a href="/">首页</a>
+            <a href="/ai.html">AI聊天</a>
+            <a href="/info.html" class="active">服务信息</a>
+            <a href="/settings.html">配置管理</a>
+        </div>
+        <div id="client-info" class="client-info" style="display: none;">
+            <svg class="client-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+            <span id="client-name" class="client-name"></span>
+            <span id="client-version" class="client-version"></span>
+        </div>
+    </nav>
+
+    <h1>MCP服务和工具信息</h1>
+    
+    <div class="info-container">
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>正在加载服务信息...</p>
+        </div>
+
+        <div id="servers-selector" class="server-tabs" style="display: none;">
+            <div style="width: 100%; margin-bottom: 10px; font-weight: 500; color: var(--primary-dark); text-align: center;">
+                选择服务器
+            </div>
+        </div>
+
+        <div id="server-info" class="card" style="display: none;">
+            <div class="server-header">
+                <div class="server-title">
+                    服务器信息
+                </div>
+                <label class="connection-switch" title="开/关服务器连接">
+                    <input type="checkbox" id="connection-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="info-row">
+                <div class="info-label">名称：</div>
+                <div id="server-name" class="info-value"></div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">版本：</div>
+                <div id="server-version" class="info-value"></div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">连接命令：</div>
+                <div id="server-command" class="info-value"></div>
+            </div>
+        </div>
+
+        <div id="tools-info" class="card" style="display: none;">
+            <h2>可用工具</h2>
+            <div id="tools-container"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const loadingDiv = document.getElementById('loading');
+            const serverInfoDiv = document.getElementById('server-info');
+            const clientInfoDiv = document.getElementById('client-info');
+            const toolsInfoDiv = document.getElementById('tools-info');
+            const toolsContainer = document.getElementById('tools-container');
+            const serversSelector = document.getElementById('servers-selector');
+            
+            let currentData = null;
+            
+            // 更新页面信息
+            function updatePageInfo(data) {
+                currentData = data;
+                
+                // 显示服务器选择器
+                updateServerTabs(data.availableServers, data.currentServerId);
+                
+                // 更新客户端信息到导航栏
+                document.getElementById('client-name').textContent = data.client.name;
+                document.getElementById('client-version').textContent = 'v' + data.client.version;
+                document.getElementById('client-info').style.display = 'flex';
+                
+                // 显示服务器信息
+                document.getElementById('server-name').textContent = data.server.name;
+                document.getElementById('server-version').textContent = data.server.version;
+                
+                // 确定当前服务器的连接状态
+                const isConnected = data.server.status === '已连接';
+                console.log('当前服务器状态:', data.server.status, '已连接:', isConnected);
+                
+                // 更新连接开关状态但不触发连接
+                const connectionToggle = document.getElementById('connection-toggle');
+                
+                // 先移除事件监听器，然后更新状态，避免触发onChange事件
+                connectionToggle.onchange = null;
+                connectionToggle.checked = isConnected;
+                connectionToggle.disabled = false;
+                
+                // 然后再添加事件监听器
+                connectionToggle.onchange = function() {
+                    if (this.checked) {
+                        connectServer(data.server.id);
+                    } else {
+                        disconnectServer();
+                    }
+                };
+                
+                // 设置工具区域的显示状态
+                if (isConnected) {
+                    toolsInfoDiv.style.display = 'block';
+                } else {
+                    toolsInfoDiv.style.display = 'none';
+                }
+                
+                document.getElementById('server-command').textContent = 
+                    `${data.server.connectionDetails.command} ${data.server.connectionDetails.args}`;
+                
+                // 只在连接状态时显示工具信息
+                if (isConnected && data.tools && data.tools.length > 0) {
+                    const toolsList = document.createElement('ul');
+                    toolsList.className = 'tool-list';
+                    
+                    data.tools.forEach(tool => {
+                        const toolItem = document.createElement('li');
+                        toolItem.className = 'tool-item';
+                        
+                        // 工具标题
+                        const toolHeader = document.createElement('div');
+                        toolHeader.className = 'tool-header';
+                        
+                        const toolName = document.createElement('div');
+                        toolName.className = 'tool-name';
+                        toolName.textContent = tool.name;
+                        
+                        toolHeader.appendChild(toolName);
+                        toolItem.appendChild(toolHeader);
+                        
+                        // 工具描述
+                        const toolDesc = document.createElement('p');
+                        toolDesc.textContent = tool.description;
+                        toolItem.appendChild(toolDesc);
+                        
+                        // 工具参数表格
+                        if (tool.parameters && tool.parameters.length > 0) {
+                            const table = document.createElement('table');
+                            table.className = 'param-table';
+                            
+                            // 表头
+                            const thead = document.createElement('thead');
+                            const headerRow = document.createElement('tr');
+                            
+                            ['参数名', '类型', '描述', '是否必需'].forEach(text => {
+                                const th = document.createElement('th');
+                                th.textContent = text;
+                                headerRow.appendChild(th);
+                            });
+                            
+                            thead.appendChild(headerRow);
+                            table.appendChild(thead);
+                            
+                            // 表体
+                            const tbody = document.createElement('tbody');
+                            
+                            tool.parameters.forEach(param => {
+                                const row = document.createElement('tr');
+                                
+                                const nameCell = document.createElement('td');
+                                nameCell.textContent = param.name;
+                                row.appendChild(nameCell);
+                                
+                                const typeCell = document.createElement('td');
+                                typeCell.textContent = param.type;
+                                row.appendChild(typeCell);
+                                
+                                const descCell = document.createElement('td');
+                                descCell.textContent = param.description;
+                                row.appendChild(descCell);
+                                
+                                const requiredCell = document.createElement('td');
+                                requiredCell.textContent = param.required ? '是' : '否';
+                                row.appendChild(requiredCell);
+                                
+                                tbody.appendChild(row);
+                            });
+                            
+                            table.appendChild(tbody);
+                            toolItem.appendChild(table);
+                        }
+                        
+                        toolsList.appendChild(toolItem);
+                    });
+                    
+                    toolsContainer.innerHTML = '';
+                    toolsContainer.appendChild(toolsList);
+                } else {
+                    toolsContainer.textContent = '没有可用的工具';
+                }
+                
+                // 显示信息区域，隐藏加载区域
+                loadingDiv.style.display = 'none';
+                serversSelector.style.display = 'flex';
+                serverInfoDiv.style.display = 'block';
+                
+                // 只在连接状态时显示工具区域
+                toolsInfoDiv.style.display = isConnected ? 'block' : 'none';
+            }
+            
+            // 更新服务器选项卡
+            function updateServerTabs(servers, currentServerId) {
+                // 保留标题，清空其余内容
+                const titleElement = serversSelector.querySelector('div');
+                serversSelector.innerHTML = '';
+                serversSelector.appendChild(titleElement);
+                
+                if (!servers || !Array.isArray(servers)) return;
+                
+                servers.forEach(server => {
+                    const tab = document.createElement('div');
+                    tab.className = 'server-tab';
+                    if (server.id === currentServerId) {
+                        tab.className += ' active';
+                    }
+                    
+                    tab.textContent = server.name;
+                    
+                    // 添加状态指示器
+                    const statusBadge = document.createElement('span');
+                    statusBadge.className = 'server-status-badge';
+                    if (server.status === '已连接') {
+                        statusBadge.className += ' server-status-connected';
+                    } else {
+                        statusBadge.className += ' server-status-disconnected';
+                    }
+                    tab.appendChild(statusBadge);
+
+                    // 添加点击事件
+                    tab.addEventListener('click', () => switchServer(server.id));
+                    
+                    serversSelector.appendChild(tab);
+                });
+            }
+            
+            // 切换服务器
+            async function switchServer(serverId) {
+                try {
+                    loadingDiv.style.display = 'block';
+                    serverInfoDiv.style.display = 'none';
+                    toolsInfoDiv.style.display = 'none';
+                    
+                    // 不要自动连接，只切换
+                    console.log('切换服务器，不强制连接:', serverId);
+                    const response = await fetch(`/api/server/switch/${serverId}`, {
+                        method: 'POST'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('切换服务器失败');
+                    }
+                    
+                    const data = await response.json();
+                    updatePageInfo(data);
+                    
+                } catch (error) {
+                    console.error('切换服务器失败:', error);
+                    loadingDiv.innerHTML = `
+                        <div class="error">
+                            <p>切换服务器失败: ${error.message}</p>
+                        </div>
+                    `;
+                    loadingDiv.style.display = 'block';
+                }
+            }
+            
+            // 连接服务器
+            async function connectServer(serverId) {
+                try {
+                    const toggle = document.getElementById('connection-toggle');
+                    toggle.disabled = true;
+                    
+                    // 显示连接状态
+                    console.log('用户手动开启连接，尝试连接服务器:', serverId);
+                    
+                    // 先切换到该服务器并请求连接
+                    const response = await fetch(`/api/server/switch/${serverId}?connect=true`, {
+                        method: 'POST'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('连接服务器失败');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // 验证连接是否成功
+                    if (data.server.status !== '已连接') {
+                        throw new Error('服务器连接未成功建立');
+                    }
+                    
+                    console.log('服务器连接成功');
+                    updatePageInfo(data);
+                    
+                } catch (error) {
+                    console.error('连接服务器失败:', error);
+                    const toggle = document.getElementById('connection-toggle');
+                    toggle.disabled = false;
+                    toggle.checked = false;
+                    
+                    alert(`连接服务器失败: ${error.message}`);
+                }
+            }
+            
+            // 断开服务器连接
+            async function disconnectServer() {
+                try {
+                    const toggle = document.getElementById('connection-toggle');
+                    toggle.disabled = true;
+                    
+                    console.log('用户手动关闭连接，发送断开连接请求');
+                    const response = await fetch('/api/server/disconnect', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    console.log('断开连接请求状态:', response.status);
+                    
+                    if (!response.ok) {
+                        throw new Error(`断开服务器连接失败: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('断开连接响应数据:', data);
+                    updatePageInfo(data);
+                    
+                } catch (error) {
+                    console.error('断开服务器连接失败:', error);
+                    const toggle = document.getElementById('connection-toggle');
+                    toggle.disabled = false;
+                    toggle.checked = true;
+                    
+                    alert(`断开服务器连接失败: ${error.message}`);
+                }
+            }
+            
+            try {
+                // 获取MCP服务信息
+                const response = await fetch('/api/info');
+                
+                if (!response.ok) {
+                    throw new Error('获取服务信息失败');
+                }
+                
+                const data = await response.json();
+                updatePageInfo(data);
+                
+                // 初始检查连接状态，设置工具区域的显示状态
+                const isConnected = data.server.status === '已连接';
+                if (!isConnected) {
+                    toolsInfoDiv.style.display = 'none';
+                }
+                
+            } catch (error) {
+                console.error('获取服务信息失败:', error);
+                loadingDiv.innerHTML = `
+                    <div class="error">
+                        <p>获取服务信息失败: ${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html> 
