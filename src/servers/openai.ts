@@ -760,55 +760,6 @@ export class OpenAI {
       totalTokens: 0
     };
   }
-  
-  /**
-   * 根据工具名称获取工具参数模式
-   * @param toolName 工具名称
-   * @returns 工具参数模式，如果工具不存在则返回null
-   */
-  private async getToolSchemaByName(toolName: string): Promise<{properties: Record<string, any>, required?: string[]} | null> {
-    try {
-      // 获取MCP服务器上可用的工具
-      const serverInfo = await mcpClient.getServerInfo();
-      const mcpTools = serverInfo.tools;
-      
-      if (!mcpTools || mcpTools.length === 0) {
-        Logger.warn('OPENAI', `当前服务器没有可用的工具，无法获取工具${toolName}的参数模式`);
-        return null;
-      }
-      
-      // 查找指定名称的工具
-      const tool = mcpTools.find(t => t.name === toolName);
-      if (!tool) {
-        Logger.warn('OPENAI', `未找到名为${toolName}的工具`);
-        return null;
-      }
-      
-      // 构建参数Schema
-      const properties: Record<string, any> = {};
-      const required: string[] = [];
-      
-      // 处理工具参数
-      for (const param of tool.parameters) {
-        properties[param.name] = {
-          type: param.type,
-          description: param.description
-        };
-        
-        if (param.required) {
-          required.push(param.name);
-        }
-      }
-      
-      return {
-        properties,
-        required: required.length > 0 ? required : undefined
-      };
-    } catch (error) {
-      Logger.error('OPENAI', `获取工具${toolName}参数模式失败:`, error);
-      return null;
-    }
-  }
 
   /**
    * 根据提供商名称获取客户端实例用于参数验证

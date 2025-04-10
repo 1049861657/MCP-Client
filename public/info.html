@@ -501,6 +501,10 @@
                 <div id="server-version" class="info-value"></div>
             </div>
             <div class="info-row">
+                <div class="info-label">连接类型：</div>
+                <div id="server-connection-type" class="info-value"></div>
+            </div>
+            <div class="info-row">
                 <div class="info-label">连接命令：</div>
                 <div id="server-command" class="info-value"></div>
             </div>
@@ -567,8 +571,19 @@
                     toolsInfoDiv.style.display = 'none';
                 }
                 
-                document.getElementById('server-command').textContent = 
-                    `${data.server.connectionDetails.command} ${data.server.connectionDetails.args}`;
+                // 显示连接类型（友好名称）
+                const connectionType = data.server.connectionDetails.connectionType;
+                let connectionTypeName = '';
+                if (connectionType === 'stdio') {
+                    connectionTypeName = 'Stdio (标准输入输出)';
+                } else if (connectionType === 'sse') {
+                    connectionTypeName = 'SSE (服务器发送事件)';
+                } else {
+                    connectionTypeName = connectionType || '未知';
+                }
+                document.getElementById('server-connection-type').textContent = connectionTypeName;
+                
+                document.getElementById('server-command').textContent = data.server.connectionDetails.displayCommand;
                 
                 // 只在连接状态时显示工具信息
                 if (isConnected && data.tools && data.tools.length > 0) {

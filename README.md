@@ -1,14 +1,37 @@
 # MCP 工具调用演示 (TypeScript版 + Web界面)
 
-这是一个使用 Model Context Protocol (MCP) SDK 的工具调用演示，使用TypeScript编写，包含一个Web界面来交互式调用Echo工具。项目采用模块化设计，具有良好的可扩展性。
+这是一个基于 Model Context Protocol (MCP) 的工具调用框架，旨在实现AI大模型与外部工具的无缝连接。项目使用TypeScript开发，提供完整的Web界面，支持多种AI模型与工具的交互调用，为AI应用开发提供标准化的工具调用能力。
 
-## 功能
+## 什么是MCP (Model Context Protocol)
 
-- 连接到 MCP 服务器
-- 调用echo工具
-- 提供Web界面，允许用户输入消息并获取Echo工具的响应
+MCP是一个开放协议，专为大型语言模型(LLM)与外部工具的交互而设计。它解决了以下核心问题：
 
-## 项目结构
+- **标准化工具调用**：定义了LLM调用外部工具的统一接口和数据格式
+- **双向通信**：支持模型向工具发送请求，并接收工具返回的结果
+- **参数验证**：提供输入参数的结构化定义和验证机制
+- **工具发现**：允许模型动态发现可用的工具及其能力
+
+本项目实现了MCP协议的客户端和服务器组件，允许您轻松地将自定义工具集成到AI应用中。
+
+## 核心功能
+
+- **MCP服务器连接管理**：支持stdio和SSE两种连接方式
+- **工具注册与调用**：简化工具的注册和调用流程
+- **多模型接入**：兼容多种大型语言模型，包括OpenAI、Deepseek等
+- **Web可视化界面**：完整的工具调用演示和管理界面
+- **实时状态监控**：监控MCP服务器和工具的运行状态
+- **高可扩展性**：模块化设计，易于扩展新工具和能力
+
+## 系统架构
+
+本项目采用多层架构设计，包括：
+
+1. **Web前端层**：提供用户交互界面
+2. **API服务层**：处理HTTP请求和响应
+3. **MCP核心层**：实现MCP协议的客户端和服务器
+4. **工具扩展层**：支持自定义工具的注册和调用
+
+### 项目结构
 
 ```
 MCP-Client/
@@ -17,26 +40,33 @@ MCP-Client/
 ├── README.md           # 项目说明文档
 ├── src/                # 源代码目录
 │   ├── api/            # API控制器和路由
-│   │   ├── echo.controller.ts  # Echo工具控制器
-│   │   └── routes.ts           # API路由定义
+│   │   ├── tool-calling.controller.ts  # 工具调用控制器
+│   │   ├── info.controller.ts          # 服务信息控制器
+│   │   └── routes.ts                   # API路由定义
 │   ├── config/         # 配置文件
-│   │   └── app.config.ts       # 应用配置
+│   │   └── app.config.ts               # 应用配置
 │   ├── core/           # 核心功能模块
-│   │   ├── client.ts           # MCP客户端实现
-│   │   └── server.ts           # MCP服务器实现
+│   │   ├── client.ts                   # MCP客户端实现
+│   │   └── server.ts                   # MCP服务器实现
 │   ├── interfaces/     # 接口定义
-│   │   └── mcp.interfaces.ts   # MCP相关接口
+│   │   └── mcp.interfaces.ts           # MCP相关接口
 │   ├── utils/          # 工具类
-│   │   └── logger.ts           # 日志工具
+│   │   └── logger.ts                   # 日志工具
 │   ├── types/          # 类型定义
-│   │   └── express.d.ts        # Express类型声明
+│   │   └── express.d.ts                # Express类型声明
+│   ├── servers/        # 服务器实现
+│   │   └── echo-MCP.ts                 # Echo工具服务器
 │   └── app.ts          # 应用入口
 ├── public/             # 静态文件目录
 │   ├── css/            # 样式文件
-│   │   └── styles.css          # 主样式表
+│   │   └── styles.css                  # 主样式表
 │   ├── js/             # JavaScript文件
-│   │   └── app.js              # 前端脚本
-│   └── index.html      # Web界面HTML
+│   │   ├── index.js                    # 首页脚本
+│   │   └── ai.js                       # AI聊天页面脚本
+│   ├── index.html      # 首页
+│   ├── ai.html         # AI聊天页面
+│   ├── info.html       # 服务信息页面
+│   └── settings.html   # 配置管理页面
 └── dist/               # 编译后的JavaScript文件
 ```
 
@@ -50,72 +80,54 @@ npm install
 
 ## 构建和运行
 
-构建项目：
 
 ```bash
-npm run build
+npm run start
 ```
 
-运行应用：
+应用将在 http://localhost:3000 启动
 
-```bash
-npm start
-```
+## 页面功能说明
 
-开发模式（监视文件变化并自动重启）：
+### 首页 (index.html)
 
-```bash
-npm run dev
-```
+首页提供项目概述和主要功能导航：
 
-然后在浏览器中访问：http://localhost:3000
+- 核心功能展示
+- 支持的AI模型和供应商介绍
+- 页面导航链接
 
-## Web界面使用
+### AI聊天页面 (ai.html)
 
-1. 打开浏览器访问 http://localhost:3000
-2. 在文本框中输入要发送的消息
-3. 点击"发送到Echo工具"按钮
-4. 页面将显示工具调用结果
+提供与AI模型的交互界面：
 
-## 项目扩展指南
+1. 选择AI提供商和模型
+2. 输入问题或指令
+3. 查看AI响应，包括工具调用过程
+4. 查看token使用情况和响应时间
 
-### 添加新工具
+### 服务信息页面 (info.html)
 
-1. 在 `src/core/server.ts` 中注册新工具
-2. 在 `src/interfaces/mcp.interfaces.ts` 添加相关接口
-3. 在 `src/core/client.ts` 添加新的方法调用工具
-4. 在 `src/api` 中创建控制器和路由
-5. 在前端添加相应的UI和逻辑
+显示MCP服务器的状态和工具信息：
 
-### 添加新页面
+1. 查看当前连接的服务器信息
+2. 切换不同的MCP服务器
+3. 查看可用工具列表及其参数
 
-1. 在 `public` 目录中创建新的HTML文件
-2. 添加相应的CSS和JavaScript文件
-3. 在 `src/api` 中添加相应的API接口
+### 配置管理页面 (settings.html)
 
-## 工具API
+管理系统配置：
 
-服务器提供的工具功能：
+1. 配置AI提供商信息
+2. 设置系统功能参数
+3. 管理服务器连接配置
 
-**Echo工具**：返回一个简单的工具调用结果
-```typescript
-// 服务器定义 (TypeScript)
-const messageSchema = {
-  message: z.string()
-};
 
-server.tool(
-  "echo",
-  messageSchema,
-  async (params) => ({
-    content: [{ type: "text", text: `Tool echo: ${params.message}` }]
-  })
-);
+## 扩展开发指南
 
-// 客户端使用 (TypeScript)
-interface EchoToolParams {
-  message: string;
-}
+### 添加新的AI模型
 
-mcpClient.callEchoTool("工具消息");
-``` 
+1. 在 `config/ai-providers.json` 中添加新的模型供应商
+2. 在 `src/api/openai.controller.ts` 中添加对新模型的支持
+3. 在前端界面中添加模型选项
+

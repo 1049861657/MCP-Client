@@ -49,4 +49,7 @@ export interface APISettings {
 // 用户设置接口
 export interface UserSettings {
   [key: string]: APISettings;
-} 
+}
+
+// 连接类型
+export type ConnectionType = 'stdio' | 'sse'; 

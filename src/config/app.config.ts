@@ -68,14 +68,22 @@ export const MCPConfig = {
     {
       id: "echo-server",
       name: "Echo服务器",
+      connectionType: "stdio",
       command: "node",
       args: ["dist/servers/echo-MCP.js"]
     },
     {
       id: "advanced-server",
       name: "高级工具服务器",
+      connectionType: "stdio",
       command: "node",
       args: ["E:\\testProject\\MCP\\dist\\index.js"]
+    },
+    {
+      id: "sse-server",
+      name: "SSE服务器",
+      connectionType: "sse",
+      sseUrl: "http://192.168.1.173:3001/sse"
     }
   ],
   defaultServerId: "advanced-server",

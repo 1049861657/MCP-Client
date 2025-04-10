@@ -56,8 +56,10 @@ export interface ToolInfo {
 export interface MCPServerConfig {
   id: string;
   name: string;
-  command: string;
-  args: string[];
+  connectionType?: 'stdio' | 'sse';  // 连接类型，默认为stdio
+  command?: string;                  // stdio连接需要
+  args?: string[];                   // stdio连接需要
+  sseUrl?: string;                   // sse连接需要
 }
 
 /**
@@ -69,8 +71,11 @@ export interface ServerInfo {
   version: string;
   status: string;
   connectionDetails: {
-    command: string;
-    args: string;
+    connectionType: 'stdio' | 'sse';
+    command?: string;
+    args?: string;
+    sseUrl?: string;
+    displayCommand?: string; // 用于UI显示的连接命令
   };
 }
 
