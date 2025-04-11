@@ -22,7 +22,8 @@ window.AIChatApp = {
         mcpTools: [], // 存储可用的MCP工具
         enableMessageHistory: false, // 是否启用历史消息
         messageHistoryCount: 3, // 历史消息数量，默认为3
-        sessionId: '' // 当前会话的唯一标识符，每个供应商有自己的会话列表
+        sessionId: '', // 当前会话的唯一标识符，每个供应商有自己的会话列表
+        isEventsInitialized: false
     },
     
     // 数据库引用
@@ -79,7 +80,10 @@ window.AIChatApp = {
             enableMCPTools: document.getElementById('enable-mcp-tools'),
             enableParamValidation: document.getElementById('enable-param-validation'),
             enableMessageHistory: document.getElementById('enable-message-history'),
-            messageHistoryCount: document.getElementById('message-history-count')
+            messageHistoryCount: document.getElementById('message-history-count'),
+            openSettings: document.getElementById('open-settings'),
+            viewHistory: document.getElementById('view-history'),
+            newSession: document.getElementById('new-session')
         };
         
         // 检查关键元素是否存在
@@ -110,6 +114,10 @@ window.AIChatApp = {
         window.AIChatUtils.init(this);
         console.log('工具模块初始化完成');
         
+        // 设置事件监听器
+        this.setupEventListeners();
+        console.log('事件监听器初始化完成');
+        
         // 从API获取特性配置
         this.fetchFeatureConfig()
             .then(() => {
@@ -130,11 +138,115 @@ window.AIChatApp = {
                 
                 // 更新会话显示
                 this.updateSessionDisplay();
+                
+                // 加载保存的设置
+                this.UI.loadSettings();
+                
+                // 触发自定义事件，通知其他组件应用已初始化
+                const event = new CustomEvent('AIChatAppInitialized');
+                document.dispatchEvent(event);
+                console.log('已触发AIChatAppInitialized事件');
             })
             .catch(error => {
                 console.error('初始化失败:', error);
                 throw error; // 重新抛出错误，让调用者处理
             });
+    },
+    
+    // 设置事件监听器
+    setupEventListeners() {
+        // 检查是否已经设置过事件监听器，防止重复绑定
+        if (this.state.isEventsInitialized) {
+            console.log('事件监听器已初始化，跳过重复绑定');
+            return;
+        }
+
+        console.log('设置事件监听器...');
+        
+        // 模式切换 - 现在使用单选按钮
+        const { modeStream, modeRegular } = this.elements;
+        if (modeStream && modeRegular) {
+            modeStream.addEventListener('change', () => {
+                if (modeStream.checked) {
+                    this.setMode('stream');
+                }
+            });
+            modeRegular.addEventListener('change', () => {
+                if (modeRegular.checked) {
+                    this.setMode('regular');
+                }
+            });
+        }
+        
+        // 清除和复制按钮
+        const { clearChat, copyChat } = this.elements;
+        if (clearChat) {
+            clearChat.addEventListener('click', () => this.clearChat());
+        }
+        if (copyChat) {
+            copyChat.addEventListener('click', () => this.copyChat());
+        }
+        
+        // 发送按钮和回车发送
+        const { sendButton, message } = this.elements;
+        if (sendButton) {
+            sendButton.addEventListener('click', () => this.handleSend());
+        }
+        if (message) {
+            message.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.handleSend();
+                }
+            });
+        }
+        
+        // 切换供应商时更新模型列表
+        const { provider } = this.elements;
+        if (provider) {
+            provider.addEventListener('change', () => this.updateModelOptions());
+        }
+        
+        // 历史记录按钮
+        const { viewHistory } = this.elements;
+        if (viewHistory) {
+            viewHistory.addEventListener('click', () => this.UI.showHistoryModal());
+        }
+        
+        // 新建会话按钮
+        const { newSession } = this.elements;
+        if (newSession) {
+            newSession.addEventListener('click', () => this.createNewSession());
+        }
+        
+        // 打开设置面板
+        const { openSettings } = this.elements;
+        if (openSettings) {
+            openSettings.addEventListener('click', () => this.UI.showSettingsModal());
+        }
+        
+        // 切换工具开关的事件
+        const { enableMCPTools, enableParamValidation, enableMessageHistory } = this.elements;
+        if (enableMCPTools) {
+            enableMCPTools.addEventListener('change', (e) => {
+                this.state.enableMCPTools = e.target.checked;
+            });
+        }
+        if (enableParamValidation) {
+            enableParamValidation.addEventListener('change', (e) => {
+                this.state.enableParamValidation = e.target.checked;
+            });
+        }
+        if (enableMessageHistory) {
+            enableMessageHistory.addEventListener('change', (e) => {
+                this.state.enableMessageHistory = e.target.checked;
+            });
+        }
+        
+        // 标记事件监听器已初始化
+        this.state.isEventsInitialized = true;
+        
+        console.log('事件监听器设置完成');
     },
     
     // 更新会话显示
@@ -403,10 +515,9 @@ window.AIChatApp = {
             return;
         }
         
-        if (confirm('确定要清除所有对话吗？')) {
-            this.elements.chatMessages.innerHTML = '';
-            this.UI.showTooltip('对话已清除');
-        }
+        // 移除确认对话框，直接执行清除操作
+        this.elements.chatMessages.innerHTML = '';
+        this.UI.showTooltip('对话已清除');
     },
     
     // 复制对话

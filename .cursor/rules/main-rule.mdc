@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+任何代码中不要做失败方案，直接抛出问题

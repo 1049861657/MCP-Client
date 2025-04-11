@@ -278,62 +278,6 @@
             font-weight: 500;
         }
         
-        .navbar {
-            display: flex;
-            background-color: var(--primary-color);
-            padding: 0;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .navbar-links {
-            display: flex;
-        }
-        
-        .navbar a {
-            color: white;
-            text-decoration: none;
-            padding: 16px 24px;
-            font-weight: 500;
-            transition: background-color 0.2s;
-        }
-        
-        .navbar a:hover, .navbar a.active {
-            background-color: var(--primary-dark);
-        }
-        
-        .client-info {
-            display: flex;
-            align-items: center;
-            color: white;
-            padding: 0 24px;
-        }
-        
-        .client-icon {
-            width: 20px;
-            height: 20px;
-            margin-right: 8px;
-            color: white;
-        }
-        
-        .client-name {
-            font-weight: 500;
-            margin-right: 4px;
-        }
-        
-        .client-version {
-            color: rgba(255, 255, 255, 0.85);
-            font-weight: 500;
-            font-size: 0.9em;
-            background-color: rgba(255, 255, 255, 0.15);
-            padding: 2px 8px;
-            border-radius: 10px;
-        }
-        
         #loading {
             text-align: center;
             padding: 60px;
@@ -435,38 +379,11 @@
             .tool-list {
                 grid-template-columns: 1fr;
             }
-            
-            .navbar {
-                flex-direction: column;
-            }
-            
-            .client-info {
-                padding: 8px 16px;
-                justify-content: center;
-                background-color: rgba(0, 0, 0, 0.1);
-                width: 100%;
-            }
         }
     </style>
+    <script src="/js/navbar.js"></script>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="navbar-links">
-            <a href="/">首页</a>
-            <a href="/ai.html">AI聊天</a>
-            <a href="/info.html" class="active">服务信息</a>
-            <a href="/settings.html">配置管理</a>
-        </div>
-        <div id="client-info" class="client-info" style="display: none;">
-            <svg class="client-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="8" y1="21" x2="16" y2="21"></line>
-                <line x1="12" y1="17" x2="12" y2="21"></line>
-            </svg>
-            <span id="client-name" class="client-name"></span>
-            <span id="client-version" class="client-version"></span>
-        </div>
-    </nav>
 
     <h1>MCP服务和工具信息</h1>
     

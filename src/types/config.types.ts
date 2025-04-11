@@ -52,4 +52,32 @@ export interface UserSettings {
 }
 
 // 连接类型
-export type ConnectionType = 'stdio' | 'sse'; 
+export type ConnectionType = 'stdio' | 'sse';
+
+// MCP服务器配置接口
+export interface MCPServer {
+  id: string;
+  name: string;
+  connectionType: ConnectionType;
+  command?: string;
+  args?: string[];
+  sseUrl?: string;
+}
+
+// MCP客户端配置接口
+export interface MCPClient {
+  name: string;
+  version: string;
+  capabilities: {
+    tools: Record<string, any>;
+  };
+}
+
+// MCP配置接口
+export interface MCPConfigType {
+  client: MCPClient;
+  servers: MCPServer[];
+  defaultServerId: string;
+  autoConnect: boolean;
+  toolPrompt: string;
+} 

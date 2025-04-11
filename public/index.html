@@ -6,48 +6,6 @@
     <title>MCP客户端 - 模型上下文协议</title>
     <link rel="stylesheet" href="/css/styles.css">
     <style>
-        /* 导航栏样式优化 */
-        .navbar {
-            background-color: #1976d2;
-            color: white;
-            display: flex;
-            padding: 0;
-            margin: 0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .navbar-brand {
-            padding: 15px 20px;
-            font-size: 18px;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            border-right: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .navbar-links {
-            display: flex;
-        }
-        
-        .navbar-links a {
-            color: white;
-            text-decoration: none;
-            padding: 15px 20px;
-            transition: background-color 0.3s;
-            display: flex;
-            align-items: center;
-            height: 100%;
-        }
-        
-        .navbar-links a:hover {
-            background-color: rgba(255,255,255,0.1);
-        }
-        
-        .navbar-links a.active {
-            background-color: rgba(255,255,255,0.2);
-            font-weight: bold;
-        }
-        
         /* 英雄区域样式增强 */
         .hero-section {
             background: linear-gradient(135deg, #1976d2, #0d47a1, #1565c0);
@@ -368,17 +326,10 @@
             font-weight: 600;
         }
     </style>
+    <script src="/js/navbar.js"></script>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="navbar-links">
-            <a href="/" class="active">首页</a>
-            <a href="/ai.html">AI聊天</a>
-            <a href="/info.html">服务信息</a>
-            <a href="/settings.html">配置管理</a>
-        </div>
-    </nav>
-
+    
     <!-- 英雄区域 -->
     <section class="hero-section">
         <h1 class="hero-title">MCP 工具调用平台</h1>

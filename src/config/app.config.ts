@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { AIProvidersConfigType, ProviderTypeInfo } from '../types/config.types.js';
+import { AIProvidersConfigType, ProviderTypeInfo, MCPConfigType } from '../types/config.types.js';
 
 // 获取当前目录路径
 const __filename = fileURLToPath(import.meta.url);
@@ -31,6 +31,9 @@ export const ProviderTypes: ProviderTypeInfo[] = [
 // 加载AI提供商配置
 const aiProvidersConfig = loadJSONConfig<AIProvidersConfigType>('ai-providers.json');
 
+// 加载MCP配置
+const mcpConfig = loadJSONConfig<MCPConfigType>('mcp-config.json');
+
 /**
  * 应用程序配置
  */
@@ -56,39 +59,4 @@ export const AIProvidersConfig = aiProvidersConfig;
 /**
  * MCP配置
  */
-export const MCPConfig = {
-  client: {
-    name: "mcp-web-client",
-    version: "1.0.0",
-    capabilities: {
-      tools: {}
-    }
-  },
-  servers: [
-    {
-      id: "echo-server",
-      name: "Echo服务器",
-      connectionType: "stdio",
-      command: "node",
-      args: ["dist/servers/echo-MCP.js"]
-    },
-    {
-      id: "advanced-server",
-      name: "高级工具服务器",
-      connectionType: "stdio",
-      command: "node",
-      args: ["E:\\testProject\\MCP\\dist\\index.js"]
-    },
-    {
-      id: "sse-server",
-      name: "SSE服务器",
-      connectionType: "sse",
-      sseUrl: "http://192.168.1.173:3001/sse"
-    }
-  ],
-  defaultServerId: "advanced-server",
-  autoConnect: true,  // 是否在应用启动时自动连接服务器
-  
-  // MCP工具调用预设词
-  toolPrompt: "先通过listAllApis获取可用的工具,然后根据用户的需求选择合适的工具,最后通过调用工具来解决问题。调用工具只能选择MCP列出来的tools。"
-}; 
+export const MCPConfig = mcpConfig; 

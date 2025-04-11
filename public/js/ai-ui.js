@@ -22,24 +22,24 @@ window.AIChatUI = {
         const isStreamMode = window.AIChatApp.state.isStreamMode;
         
         // 确保所有需要的DOM元素都存在
-        if (!modeStream || !modeRegular || !chatMessages || !result) {
+        if (!chatMessages || !result) {
             console.error('UI更新失败: 一些必要的DOM元素不存在', { 
-                modeStream: !!modeStream, 
-                modeRegular: !!modeRegular, 
                 chatMessages: !!chatMessages, 
                 result: !!result 
             });
             return; // 如果元素不存在，提前返回避免报错
         }
         
+        // 更新单选按钮状态以匹配当前模式
+        if (modeStream && modeRegular) {
+            modeStream.checked = isStreamMode;
+            modeRegular.checked = !isStreamMode;
+        }
+        
         if (isStreamMode) {
-            modeStream.classList.add('active');
-            modeRegular.classList.remove('active');
             result.classList.add('hidden');
             chatMessages.style.display = 'flex';
         } else {
-            modeRegular.classList.add('active');
-            modeStream.classList.remove('active');
             result.classList.remove('hidden');
             chatMessages.style.display = 'none';
         }
@@ -1041,7 +1041,7 @@ window.AIChatUI = {
                 
                 sessionItem.innerHTML = `
                     <div class="session-name">会话: ${sessionIdDisplay}</div>
-                    <div class="session-info">
+                    <div class="session-modal-info">
                         <span class="session-date">${formattedDate}</span>
                         <span class="session-count">${session.messageCount || 0} 条消息</span>
                     </div>
@@ -1177,71 +1177,278 @@ window.AIChatUI = {
     
     // 设置会话操作按钮事件
     setupSessionActions(sessionId) {
+        // 设置按钮动作
         const loadButton = document.getElementById('load-session');
         const deleteButton = document.getElementById('delete-session');
         
-        if (loadButton) {
-            loadButton.onclick = () => {
-                if (confirm('确定要加载此会话吗？当前对话将被清除。')) {
-                    // 加载会话
-                    window.AIChatData.loadSession(sessionId)
-                        .then(() => {
-                            // 关闭模态窗口
-                            document.getElementById('history-modal').style.display = 'none';
-                        })
-                        .catch(error => {
-                            console.error('加载会话失败:', error);
-                            this.showTooltip(`加载会话失败: ${error.message}`);
-                        });
+        if (!loadButton || !deleteButton) {
+            console.error('未找到会话操作按钮');
+            return;
+        }
+        
+        // 加载会话
+        loadButton.onclick = async () => {
+            // 移除确认对话框，直接执行加载操作
+            try {
+                // 获取会话详情
+                const messages = await window.AIChatData.getSessionMessages(sessionId);
+                console.log('获取到会话消息:', messages);
+                
+                // 验证消息数组
+                if (!Array.isArray(messages)) {
+                    console.error('会话数据结构错误:', messages);
+                    throw new Error('会话数据结构错误');
                 }
+                
+                if (messages.length === 0) {
+                    console.warn('该会话没有消息记录');
+                    window.AIChatApp.state.sessionId = sessionId;
+                    window.AIChatApp.clearChat();
+                    window.AIChatApp.updateSessionDisplay();
+                    
+                    // 隐藏模态窗口
+                    const modal = document.getElementById('history-modal');
+                    modal.style.display = 'none';
+                    
+                    this.showTooltip('已加载空会话');
+                    return;
+                }
+                
+                // 清空当前聊天记录
+                window.AIChatApp.clearChat();
+                
+                // 设置当前会话ID
+                window.AIChatApp.state.sessionId = sessionId;
+                
+                // 更新会话显示
+                window.AIChatApp.updateSessionDisplay();
+                
+                // 添加消息到聊天界面（仅显示最新的10条消息）
+                const displayMessages = messages.slice(-10);
+                displayMessages.forEach(msg => {
+                    if (msg.role === 'user') {
+                        this.addUserMessage(msg.content);
+                    } else if (msg.role === 'assistant') {
+                        const aiMessage = this.addAIMessage(msg.content);
+                        this.finalizeAIMessageWithoutTimeUpdate(aiMessage);
+                    }
+                });
+                
+                // 隐藏模态窗口
+                const modal = document.getElementById('history-modal');
+                modal.style.display = 'none';
+                
+                this.showTooltip('已加载会话');
+            } catch (error) {
+                console.error('加载会话失败:', error);
+                this.showTooltip('加载会话失败: ' + error.message);
+            }
+        };
+        
+        // 删除会话
+        deleteButton.onclick = async () => {
+            // 确认删除
+            const confirmed = confirm('确定要删除此会话吗？此操作无法撤销！');
+            if (!confirmed) return;
+            
+            try {
+                // 从数据库中删除会话
+                await window.AIChatData.deleteSessionMessages(sessionId);
+                
+                // 刷新会话列表
+                this.loadSessionList();
+                
+                // 清空详情区域
+                const sessionMessages = document.getElementById('session-messages');
+                sessionMessages.innerHTML = `<div class="no-session-selected">请从左侧选择一个会话</div>`;
+                
+                // 禁用按钮
+                loadButton.disabled = true;
+                deleteButton.disabled = true;
+                
+                // 更新标题
+                document.getElementById('session-detail-title').textContent = '会话详情';
+                
+                this.showTooltip('已删除会话');
+                
+                // 自动加载当前供应商的最新会话
+                window.AIChatData.loadLatestProviderSession()
+                    .then(() => {
+                        // 更新会话显示
+                        window.AIChatApp.updateSessionDisplay();
+                        
+                        // 关闭历史记录模态窗口
+                        const modal = document.getElementById('history-modal');
+                        if (modal) {
+                            modal.style.display = 'none';
+                        }
+                        
+                        this.showTooltip('已加载最新会话');
+                    })
+                    .catch(error => {
+                        console.error('自动加载最新会话失败:', error);
+                        this.showTooltip('加载最新会话失败，请手动选择会话');
+                    });
+            } catch (error) {
+                console.error('删除会话失败:', error);
+                this.showTooltip('删除会话失败: ' + error.message);
+            }
+        };
+    },
+    
+    // 显示设置面板
+    showSettingsModal() {
+        const modal = document.getElementById('settings-modal');
+        if (!modal) {
+            console.error('未找到设置模态窗口');
+            return;
+        }
+        
+        // 显示模态窗口
+        modal.style.display = 'block';
+        
+        // 设置关闭按钮事件
+        const closeBtn = modal.querySelector('.close');
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                modal.style.display = 'none';
             };
         }
         
-        if (deleteButton) {
-            deleteButton.onclick = () => {
-                if (confirm('确定要删除此会话吗？此操作不可恢复。')) {
-                    // 删除会话
-                    window.AIChatData.deleteSessionMessages(sessionId)
-                        .then(count => {
-                            this.showTooltip(`已删除 ${count} 条消息`);
-                            
-                            // 检查被删除的会话是否是当前显示的会话
-                            const isCurrentSession = sessionId === window.AIChatApp.state.sessionId;
-                            
-                            // 重新加载会话列表
-                            this.loadSessionList();
-                            
-                            // 清空详情区域
-                            document.getElementById('session-messages').innerHTML = 
-                                '<div class="no-session-selected">请从左侧选择一个会话</div>';
-                            
-                            // 禁用操作按钮
-                            if (loadButton) loadButton.disabled = true;
-                            if (deleteButton) deleteButton.disabled = true;
-                            
-                            // 如果删除的是当前显示的会话，自动加载最新会话
-                            if (isCurrentSession) {
-                                console.log('删除的是当前显示的会话，自动加载最新会话');
-                                
-                                // 关闭历史记录模态窗口
-                                document.getElementById('history-modal').style.display = 'none';
-                                
-                                // 加载当前供应商的最新会话
-                                window.AIChatData.loadLatestProviderSession(window.AIChatApp)
-                                    .then(() => {
-                                        console.log('成功加载最新会话');
-                                    })
-                                    .catch(error => {
-                                        console.error('自动加载最新会话失败:', error);
-                                    });
-                            }
-                        })
-                        .catch(error => {
-                            console.error('删除会话失败:', error);
-                            this.showTooltip(`删除会话失败: ${error.message}`);
-                        });
-                }
+        // 点击模态窗口外部关闭
+        window.onclick = (event) => {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+        
+        // 重置设置按钮事件
+        const resetBtn = document.getElementById('reset-settings');
+        if (resetBtn) {
+            resetBtn.onclick = () => {
+                this.resetSettings();
+                this.showTooltip('设置已重置为默认值');
             };
+        }
+    },
+    
+    // 保存设置
+    saveSettings() {
+        // 获取设置值
+        const app = window.AIChatApp;
+        const elements = app.elements;
+        
+        // 更新响应模式设置
+        app.state.isStreamMode = elements.modeStream.checked;
+        
+        // 更新UI以反映新的模式设置
+        app.UI.updateUIForMode();
+        
+        // 更新模型设置
+        app.state.model = elements.model.value;
+        app.state.temperature = parseFloat(elements.temperature.value);
+        app.state.maxTokens = parseInt(elements.maxTokens.value);
+        
+        // 更新工具设置
+        app.state.enableMCPTools = elements.enableMCPTools.checked;
+        app.state.enableParamValidation = elements.enableParamValidation.checked;
+        
+        // 更新历史消息设置
+        app.state.enableMessageHistory = elements.enableMessageHistory.checked;
+        app.state.messageHistoryCount = parseInt(elements.messageHistoryCount.value);
+        
+        // 保存到本地存储
+        try {
+            const settings = {
+                isStreamMode: app.state.isStreamMode,
+                model: app.state.model,
+                temperature: app.state.temperature,
+                maxTokens: app.state.maxTokens,
+                enableMCPTools: app.state.enableMCPTools,
+                enableParamValidation: app.state.enableParamValidation,
+                enableMessageHistory: app.state.enableMessageHistory,
+                messageHistoryCount: app.state.messageHistoryCount
+            };
+            
+            localStorage.setItem('aiChatSettings', JSON.stringify(settings));
+        } catch (error) {
+            console.error('保存设置到本地存储失败:', error);
+        }
+    },
+    
+    // 重置设置为默认值
+    resetSettings() {
+        const app = window.AIChatApp;
+        const elements = app.elements;
+        
+        // 重置为默认值
+        elements.modeStream.checked = true;
+        elements.modeRegular.checked = false;
+        elements.temperature.value = 0.7;
+        elements.maxTokens.value = 2048;
+        elements.enableMCPTools.checked = true;
+        elements.enableParamValidation.checked = false;
+        elements.enableMessageHistory.checked = false;
+        elements.messageHistoryCount.value = 3;
+        
+        // 保存设置
+        this.saveSettings();
+    },
+    
+    // 加载设置
+    loadSettings() {
+        try {
+            const settingsJson = localStorage.getItem('aiChatSettings');
+            if (!settingsJson) return;
+            
+            const settings = JSON.parse(settingsJson);
+            const app = window.AIChatApp;
+            const elements = app.elements;
+            
+            // 应用响应模式设置
+            if (typeof settings.isStreamMode === 'boolean') {
+                elements.modeStream.checked = settings.isStreamMode;
+                elements.modeRegular.checked = !settings.isStreamMode;
+                app.state.isStreamMode = settings.isStreamMode;
+                
+                // 更新UI以反映加载的模式设置
+                app.UI.updateUIForMode();
+            }
+            
+            // 应用设置
+            if (settings.model && elements.model.querySelector(`option[value="${settings.model}"]`)) {
+                elements.model.value = settings.model;
+            }
+            
+            if (typeof settings.temperature === 'number') {
+                elements.temperature.value = settings.temperature;
+            }
+            
+            if (typeof settings.maxTokens === 'number') {
+                elements.maxTokens.value = settings.maxTokens;
+            }
+            
+            if (typeof settings.enableMCPTools === 'boolean') {
+                elements.enableMCPTools.checked = settings.enableMCPTools;
+                app.state.enableMCPTools = settings.enableMCPTools;
+            }
+            
+            if (typeof settings.enableParamValidation === 'boolean') {
+                elements.enableParamValidation.checked = settings.enableParamValidation;
+                app.state.enableParamValidation = settings.enableParamValidation;
+            }
+            
+            if (typeof settings.enableMessageHistory === 'boolean') {
+                elements.enableMessageHistory.checked = settings.enableMessageHistory;
+                app.state.enableMessageHistory = settings.enableMessageHistory;
+            }
+            
+            if (typeof settings.messageHistoryCount === 'number') {
+                elements.messageHistoryCount.value = settings.messageHistoryCount;
+                app.state.messageHistoryCount = settings.messageHistoryCount;
+            }
+        } catch (error) {
+            console.error('加载设置失败:', error);
         }
     }
 }; 

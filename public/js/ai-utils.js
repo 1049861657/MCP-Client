@@ -18,21 +18,17 @@ window.AIChatUtils = {
     
     // 初始化事件监听器
     initEvents() {
-        console.log('初始化事件监听器...');
+        console.log('初始化工具模块事件增强功能...');
         
         const app = this.app;
         
-        // 模式切换
-        if (!app.elements.modeRegular || !app.elements.modeStream) {
-            throw new Error('模式切换按钮未找到');
-        }
-        app.elements.modeRegular.addEventListener('click', () => app.setMode('regular'));
-        app.elements.modeStream.addEventListener('click', () => app.setMode('stream'));
-        
-        // MCP工具开关
+        // MCP工具开关的增强功能绑定
         if (app.elements.enableMCPTools) {
-            app.elements.enableMCPTools.addEventListener('change', () => {
-                app.state.enableMCPTools = app.elements.enableMCPTools.checked;
+            // 只添加显示提示功能，不重新绑定事件
+            const existingHandler = app.elements.enableMCPTools.onchange;
+            app.elements.enableMCPTools.onchange = (e) => {
+                // 先执行原有处理器
+                if (existingHandler) existingHandler.call(app.elements.enableMCPTools, e);
                 
                 // 如果启用了工具，尝试加载工具列表
                 if (app.state.enableMCPTools) {
@@ -43,13 +39,16 @@ window.AIChatUtils = {
                 }
                 
                 console.log('MCP工具模式:', app.state.enableMCPTools ? '启用' : '禁用');
-            });
+            };
         }
         
-        // 参数校验开关
+        // 参数校验开关的增强功能绑定
         if (app.elements.enableParamValidation) {
-            app.elements.enableParamValidation.addEventListener('change', () => {
-                app.state.enableParamValidation = app.elements.enableParamValidation.checked;
+            // 只添加显示提示功能，不重新绑定事件
+            const existingHandler = app.elements.enableParamValidation.onchange;
+            app.elements.enableParamValidation.onchange = (e) => {
+                // 先执行原有处理器
+                if (existingHandler) existingHandler.call(app.elements.enableParamValidation, e);
                 
                 // 显示提示
                 if (app.state.enableParamValidation) {
@@ -59,129 +58,54 @@ window.AIChatUtils = {
                 }
                 
                 console.log('参数校验模式:', app.state.enableParamValidation ? '启用' : '禁用');
-            });
+            };
         }
         
-        // 消息历史开关
-        if (app.elements.enableMessageHistory) {
-            app.elements.enableMessageHistory.addEventListener('change', () => {
-                app.state.enableMessageHistory = app.elements.enableMessageHistory.checked;
+        // 供应商变化的增强功能绑定
+        if (app.elements.provider) {
+            // 只添加扩展功能，不重新绑定事件
+            const existingHandler = app.elements.provider.onchange;
+            app.elements.provider.onchange = (e) => {
+                // 先执行原有处理器
+                if (existingHandler) existingHandler.call(app.elements.provider, e);
                 
-                // 启用或禁用消息数量输入框
-                if (app.elements.messageHistoryCount) {
-                    app.elements.messageHistoryCount.disabled = !app.state.enableMessageHistory;
+                // 清空当前聊天界面
+                if (app.elements.chatMessages) {
+                    app.elements.chatMessages.innerHTML = '';
                 }
                 
-                console.log('消息历史模式:', app.state.enableMessageHistory ? '启用' : '禁用');
-            });
-        }
-        
-        // 消息历史数量
-        if (app.elements.messageHistoryCount) {
-            app.elements.messageHistoryCount.addEventListener('change', () => {
-                app.state.messageHistoryCount = parseInt(app.elements.messageHistoryCount.value, 10) || 3;
-                console.log('消息历史数量:', app.state.messageHistoryCount);
-            });
-        }
-        
-        // 聊天功能
-        if (!app.elements.sendButton) {
-            throw new Error('发送按钮未找到');
-        }
-        app.elements.sendButton.addEventListener('click', () => app.handleSend());
-        
-        if (!app.elements.clearChat) {
-            throw new Error('清除聊天按钮未找到');
-        }
-        app.elements.clearChat.addEventListener('click', () => app.clearChat());
-        
-        if (!app.elements.copyChat) {
-            throw new Error('复制聊天按钮未找到');
-        }
-        app.elements.copyChat.addEventListener('click', () => app.copyChat());
-        
-        // 历史记录按钮
-        const viewHistoryButton = document.getElementById('view-history');
-        if (viewHistoryButton) {
-            viewHistoryButton.addEventListener('click', () => {
-                // 调用UI模块显示历史记录模态窗口
-                app.UI.showHistoryModal();
-            });
-        }
-        
-        // 新建会话按钮
-        const newSessionButton = document.getElementById('new-session');
-        if (newSessionButton) {
-            newSessionButton.addEventListener('click', () => {
-                // 确认是否创建新会话
-                if (confirm('确定要创建新会话吗？当前对话将被清除。')) {
+                // 清空消息历史数组
+                app.state.messageHistory = [];
+                
+                const newProvider = app.elements.provider.value;
+                const providerText = app.elements.provider.options[app.elements.provider.selectedIndex].text || '未知供应商';
+                console.log(`已切换到供应商: ${newProvider} (${providerText})`);
+                
+                // 加载当前供应商的最新会话或创建新会话
+                if (window.AIChatData.db.isReady) {
+                    console.log('供应商已切换，尝试加载该供应商的最新会话');
+                    window.AIChatData.loadLatestProviderSession()
+                        .then(() => {
+                            // 加载或创建会话后更新会话显示
+                            app.updateSessionDisplay();
+                        })
+                        .catch(error => {
+                            console.error('自动加载最新会话失败:', error);
+                            // 确保在任何出错情况下都创建新会话
+                            window.AIChatData.createNewSession();
+                        });
+                } else {
+                    // 如果数据库未就绪，创建新会话
+                    console.log('数据库未就绪，创建新会话');
                     window.AIChatData.createNewSession();
                 }
-            });
+                
+                // 显示提示消息
+                app.UI.showTooltip(`已切换到 ${providerText}`);
+            };
         }
         
-        // 供应商变化
-        if (!app.elements.provider) {
-            throw new Error('供应商选择下拉框未找到');
-        }
-        app.elements.provider.addEventListener('change', () => {
-            // 清空当前聊天界面
-            if (app.elements.chatMessages) {
-                app.elements.chatMessages.innerHTML = '';
-            }
-            
-            // 清空消息历史数组
-            app.state.messageHistory = [];
-            
-            // 更新模型选项
-            app.updateModelOptions();
-            
-            const newProvider = app.elements.provider.value;
-            const providerText = app.elements.provider.options[app.elements.provider.selectedIndex].text || '未知供应商';
-            console.log(`已切换到供应商: ${newProvider} (${providerText})`);
-            
-            // 加载当前供应商的最新会话或创建新会话
-            if (window.AIChatData.db.isReady) {
-                console.log('供应商已切换，尝试加载该供应商的最新会话');
-                window.AIChatData.loadLatestProviderSession()
-                    .then(() => {
-                        // 加载或创建会话后更新会话显示
-                        app.updateSessionDisplay();
-                    })
-                    .catch(error => {
-                        console.error('自动加载最新会话失败:', error);
-                        // 确保在任何出错情况下都创建新会话
-                        window.AIChatData.createNewSession();
-                    });
-            } else {
-                // 如果数据库未就绪，创建新会话
-                console.log('数据库未就绪，创建新会话');
-                window.AIChatData.createNewSession();
-            }
-            
-            // 显示提示消息
-            app.UI.showTooltip(`已切换到 ${providerText}`);
-        });
-        
-        // 按键监听
-        if (!app.elements.message) {
-            throw new Error('消息输入框未找到');
-        }
-        app.elements.message.addEventListener('keydown', (e) => {
-            // 如果按下的是回车键
-            if (e.key === 'Enter') {
-                // 如果同时按下Shift键，允许换行
-                if (e.shiftKey) {
-                    return; // 默认行为是添加换行
-                }
-                else if (!app.elements.sendButton.disabled) {
-                    e.preventDefault(); // 阻止默认的换行行为
-                    app.elements.sendButton.click(); // 触发发送按钮点击
-                }
-            }
-        });
-        
-        console.log('所有事件监听器初始化完成');
+        console.log('工具模块事件增强功能初始化完成');
     },
     
     // 加载MCP工具
@@ -314,4 +238,61 @@ window.AIChatTimeManager = {
         // 确保信息区可见
         messageInfo.classList.remove('hidden');
     }
-}; 
+};
+
+/**
+ * 快捷消息功能
+ * 处理快捷消息按钮的点击事件和预设消息的填充
+ */
+window.QuickMessageManager = {
+    init() {
+        // 获取DOM元素
+        const quickMessageBtn = document.getElementById('quick-message');
+        const quickMessageDropdown = document.getElementById('quick-message-dropdown');
+        const quickMessageItems = document.querySelectorAll('.quick-message-item');
+        const messageInput = document.getElementById('message');
+        
+        // 如果没有找到必要的元素，则退出
+        if (!quickMessageBtn || !quickMessageDropdown || !messageInput) {
+            console.error('初始化快捷消息功能失败: 缺少必要的DOM元素');
+            return;
+        }
+        
+        // 点击快捷消息按钮时显示/隐藏下拉菜单
+        quickMessageBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+            quickMessageDropdown.classList.toggle('show');
+        });
+        
+        // 点击文档其他区域时隐藏下拉菜单
+        document.addEventListener('click', () => {
+            if (quickMessageDropdown.classList.contains('show')) {
+                quickMessageDropdown.classList.remove('show');
+            }
+        });
+        
+        // 点击下拉菜单项时填充消息到输入框
+        quickMessageItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const message = item.dataset.message || item.textContent;
+                messageInput.value = message;
+                quickMessageDropdown.classList.remove('show');
+                
+                // 让输入框获得焦点
+                messageInput.focus();
+                
+                // 如果存在AIChatUI，显示提示
+                if (window.AIChatUI && window.AIChatUI.showTooltip) {
+                    window.AIChatUI.showTooltip('已填充快捷消息', 1500);
+                }
+            });
+        });
+        
+        console.log('快捷消息功能初始化完成');
+    }
+};
+
+// 在window.AIChatApp初始化后初始化快捷消息功能
+document.addEventListener('AIChatAppInitialized', () => {
+    window.QuickMessageManager.init();
+}); 
