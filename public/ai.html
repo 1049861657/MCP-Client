@@ -18,6 +18,9 @@
             margin: 0 auto;
             padding: 0 20px; /* 减少水平内边距 */
             width: 98%; /* 使容器宽度接近屏幕宽度 */
+            height: calc(100vh - 60px); /* 固定高度，减去导航栏高度 */
+            display: flex;
+            flex-direction: column;
         }
         
         /* 聊天容器样式优化 */
@@ -25,6 +28,10 @@
             width: 100%; /* 使用全宽 */
             margin: 0 auto;
             padding: 10px; /* 减少内边距 */
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* 防止外部滚动 */
         }
         
         /* 聊天消息显示区域 */
@@ -34,11 +41,12 @@
             border: 1px solid var(--border-color);
             border-radius: 8px;
             background-color: #f5f5f5;
-            max-height: 750px; /* 增加最大高度 */
-            min-height: 450px; /* 增加最小高度 */
-            overflow-y: auto;
+            height: 80vh; /* 使用视口高度的百分比 */
+            min-height: 450px; /* 保留最小高度 */
+            overflow-y: auto; /* 只允许垂直方向滚动 */
             display: flex;
             flex-direction: column;
+            flex: 1; /* 占用容器剩余空间 */
         }
         
         /* 输入区域整体容器 */
@@ -200,6 +208,15 @@
             textarea {
                 padding-right: 120px;
             }
+            
+            .chat-messages {
+                padding: 10px;
+                height: 70vh; /* 较小屏幕上使用较小的高度 */
+            }
+            
+            .chat-bubble {
+                max-width: 90%;
+            }
         }
         
         .result {
@@ -288,19 +305,6 @@
         }
         
         /* 对话框风格样式优化 */
-        .chat-messages {
-            margin: 10px 0; /* 减小外边距 */
-            padding: 15px; /* 减小内边距 */
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            background-color: #f5f5f5;
-            max-height: 750px; /* 增加最大高度 */
-            min-height: 450px; /* 增加最小高度 */
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-        }
-        
         .chat-message {
             display: flex;
             margin-bottom: 15px; /* 减小消息间距 */
