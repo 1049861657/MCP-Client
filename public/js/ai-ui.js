@@ -84,7 +84,7 @@ window.AIChatUI = {
             <div class="chat-bubble">
                 ${text}
                 <div class="message-info">
-                    <div class="message-time">${window.AIChatTimeManager.getTimeString()}</div>
+                    <div class="message-time">${window.AIChatApp.timeManager.getTimeString()}</div>
                 </div>
             </div>
         `;
@@ -118,7 +118,7 @@ window.AIChatUI = {
             <div class="chat-bubble">
                 ${initialContent}
                 <div class="message-info">
-                    <div class="message-time">${window.AIChatTimeManager.getTimeString()}</div>
+                    <div class="message-time">${window.AIChatApp.timeManager.getTimeString()}</div>
                     <div class="token-info"></div>
                 </div>
             </div>
@@ -201,7 +201,7 @@ window.AIChatUI = {
             // 恢复时间元素
             const newMessageTime = document.createElement('div');
             newMessageTime.className = 'message-time';
-            newMessageTime.textContent = messageTimeContent || window.AIChatTimeManager.getTimeString();
+            newMessageTime.textContent = messageTimeContent || window.AIChatApp.timeManager.getTimeString();
             newMessageInfo.appendChild(newMessageTime);
             
             // 恢复令牌信息
@@ -971,8 +971,8 @@ window.AIChatUI = {
             listHeader.textContent = `${currentProvider} 会话列表`;
         }
         
-        // 从数据库加载会话
-        window.AIChatApp.getAllChatSessions()
+        // 从数据库加载会话，传入当前供应商以过滤结果
+        window.AIChatData.getAllChatSessions(currentProvider)
             .then(sessions => {
                 if (sessions.length === 0) {
                     sessionsContainer.innerHTML = '<div class="no-sessions">暂无聊天会话</div>';
@@ -1123,7 +1123,7 @@ window.AIChatUI = {
         sessionMessages.innerHTML = '<div class="loading-sessions">正在加载会话消息...</div>';
         
         // 加载会话消息
-        window.AIChatApp.getSessionMessages(sessionId)
+        window.AIChatData.getSessionMessages(sessionId)
             .then(messages => {
                 this.renderSessionMessages(messages, sessionId);
             })
@@ -1184,7 +1184,7 @@ window.AIChatUI = {
             loadButton.onclick = () => {
                 if (confirm('确定要加载此会话吗？当前对话将被清除。')) {
                     // 加载会话
-                    window.AIChatApp.loadSession(sessionId)
+                    window.AIChatData.loadSession(sessionId)
                         .then(() => {
                             // 关闭模态窗口
                             document.getElementById('history-modal').style.display = 'none';
@@ -1201,7 +1201,7 @@ window.AIChatUI = {
             deleteButton.onclick = () => {
                 if (confirm('确定要删除此会话吗？此操作不可恢复。')) {
                     // 删除会话
-                    window.AIChatApp.deleteSessionMessages(sessionId)
+                    window.AIChatData.deleteSessionMessages(sessionId)
                         .then(count => {
                             this.showTooltip(`已删除 ${count} 条消息`);
                             
@@ -1227,7 +1227,7 @@ window.AIChatUI = {
                                 document.getElementById('history-modal').style.display = 'none';
                                 
                                 // 加载当前供应商的最新会话
-                                window.AIChatApp.loadLatestProviderSession()
+                                window.AIChatData.loadLatestProviderSession(window.AIChatApp)
                                     .then(() => {
                                         console.log('成功加载最新会话');
                                     })
@@ -1243,105 +1243,5 @@ window.AIChatUI = {
                 }
             };
         }
-    }
-};
-
-// 时间管理工具
-window.AIChatTimeManager = {
-    // 标准时间格式化（简短格式，仅时分秒）
-    getTimeString() {
-        const now = new Date();
-        return now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-    },
-    
-    // 完整时间格式化（包含年月日时分秒）
-    getFullTimeString() {
-        const now = new Date();
-        return now.toLocaleString('zh-CN', { 
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false 
-        });
-    },
-    
-    // 计算客户端耗时（毫秒）
-    calculateElapsedTime(startTime) {
-        return Date.now() - startTime;
-    },
-    
-    // 更新思考时间显示
-    updateThinkingTime(container, timeInSeconds) {
-        if (!container) return;
-        
-        const timeSpan = container.querySelector('.thinking-time span');
-        if (timeSpan && timeInSeconds !== undefined) {
-            // 确保显示的是数字
-            const seconds = parseFloat(timeInSeconds);
-            timeSpan.textContent = isNaN(seconds) ? '0秒' : `${seconds}秒`;
-        }
-    },
-    
-    // 保存思考时间数据
-    saveThinkingTimeData(messageDiv, container, timeInSeconds) {
-        if (!messageDiv || !container || timeInSeconds === undefined) return;
-        
-        // 将思考时间保存到数据属性中
-        container.dataset.thinkingTime = timeInSeconds;
-        messageDiv.dataset.aiThinkingTime = timeInSeconds;
-    },
-    
-    // 格式化时间为合适的单位
-    formatElapsedTime(milliseconds) {
-        // 如果小于1000毫秒，直接显示毫秒
-        if (milliseconds < 1000) {
-            return `${milliseconds}毫秒`;
-        } 
-        // 如果大于1000毫秒，转换为秒并保留2位小数
-        else {
-            const seconds = (milliseconds / 1000).toFixed(2);
-            return `${seconds}秒`;
-        }
-    },
-    
-    // 更新全局时间显示
-    updateGlobalTime(messageDiv, startTime, serverElapsedTime = null) {
-        if (!messageDiv) return;
-        
-        // 如果时间已锁定，跳过更新
-        if (messageDiv.dataset.timeLocked === "true") {
-            console.log('🔒 全局时间已锁定，跳过更新，使用已保存的值');
-            return;
-        }
-        
-        const messageInfo = messageDiv.querySelector('.message-info');
-        if (!messageInfo) return;
-        
-        let formattedTime;
-        
-        // 优先使用服务器返回的时间（单位秒）
-        if (serverElapsedTime !== null) {
-            console.log('更新全局时间 - 使用服务器时间:', serverElapsedTime, '秒');
-            // 确保serverElapsedTime是数值
-            const elapsedSec = parseFloat(serverElapsedTime);
-            formattedTime = isNaN(elapsedSec) ? '未知' : `${elapsedSec}秒`;
-        } else {
-            // 否则使用客户端计算的时间
-            const elapsedTime = this.calculateElapsedTime(startTime);
-            formattedTime = this.formatElapsedTime(elapsedTime);
-            console.log('更新全局时间 - 使用客户端时间:', formattedTime);
-        }
-        
-        // 更新或创建时间元素
-        let timeInfo = messageInfo.querySelector('.message-time');
-        if (!timeInfo) {
-            timeInfo = document.createElement('div');
-            timeInfo.className = 'message-time';
-            messageInfo.appendChild(timeInfo);
-        }
-        
-        // 设置完整格式时间和耗时
-        timeInfo.textContent = `${this.getFullTimeString()} · ${formattedTime}`;
-        
-        // 确保信息区可见
-        messageInfo.classList.remove('hidden');
     }
 }; 

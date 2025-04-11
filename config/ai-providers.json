@@ -37,7 +37,7 @@
       "type": "openai",
       "apiPath": "/api/openai",
       "apiUrl": "https://openrouter.ai/api/v1/",
-      "apiKey": "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",
+      "apiKey": "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",
       "defaultModel": "anthropic/claude-3.7-sonnet",
       "models": [
         {

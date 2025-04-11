@@ -88,7 +88,7 @@ window.AIChatAPI = {
             
             // 更新消息为错误信息
             UI.updateAIMessage(aiMessageDiv, `错误: ${error.message || '与服务器通信失败'}`);
-            window.AIChatTimeManager.updateGlobalTime(aiMessageDiv, startTime, null);
+            window.AIChatApp.timeManager.updateGlobalTime(aiMessageDiv, startTime, null);
             UI.finalizeAIMessage(aiMessageDiv);
         }
     },
@@ -267,7 +267,7 @@ window.AIChatAPI = {
                 
                 if (done) {
                     if (!tokenInfoUpdated) {
-                        window.AIChatTimeManager.updateGlobalTime(aiMessageDiv, startTime, null);
+                        window.AIChatApp.timeManager.updateGlobalTime(aiMessageDiv, startTime, null);
                     }
                     
                     // 确保思考状态被移除
@@ -283,7 +283,7 @@ window.AIChatAPI = {
                         });
                         
                         // 重新保存历史
-                        app.saveMessageHistory();
+                        window.AIChatData.saveMessageHistory();
                     }
                     
                     break;
@@ -316,7 +316,7 @@ window.AIChatAPI = {
         } catch (error) {
             console.error('读取流出错:', error);
             window.AIChatUI.updateAIMessage(aiMessageDiv, `错误: ${error.message || '读取响应流失败'}`);
-            window.AIChatTimeManager.updateGlobalTime(aiMessageDiv, startTime, null);
+            window.AIChatApp.timeManager.updateGlobalTime(aiMessageDiv, startTime, null);
             window.AIChatUI.finalizeAIMessage(aiMessageDiv);
         }
     },
@@ -324,7 +324,7 @@ window.AIChatAPI = {
     // 处理事件数据
     async handleEventData(eventName, eventData, aiMessageDiv, fullText, startTime) {
         const UI = window.AIChatUI;
-        const timeManager = window.AIChatTimeManager;
+        const timeManager = window.AIChatApp.timeManager;
         
         // 处理使用情况数据
         if (eventName === 'usage' && eventData) {
