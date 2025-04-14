@@ -48,7 +48,105 @@ window.AIChatUI = {
     // 解析Markdown文本为HTML
     parseMarkdown(text) {
         try {
-            return marked.parse(text);
+            //1.不解析图片
+            // return marked.parse(text);
+
+            //2.解析图片
+            // 先使用marked解析Markdown
+            let htmlContent = marked.parse(text);
+            
+            // 创建临时DOM元素用于处理HTML
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            
+            // 查找所有文本节点
+            const textNodes = [];
+            const findTextNodes = function(node) {
+                if (node.nodeType === 3) { // 文本节点
+                    textNodes.push(node);
+                } else if (node.nodeType === 1) { // 元素节点
+                    // 跳过已经是图片标签的节点
+                    if (node.tagName === 'IMG' || node.classList.contains('auto-detected-image')) {
+                        return;
+                    }
+                    
+                    // 递归查找子节点
+                    for (let i = 0; i < node.childNodes.length; i++) {
+                        findTextNodes(node.childNodes[i]);
+                    }
+                }
+            };
+            
+            // 查找所有文本节点
+            findTextNodes(tempDiv);
+            
+            // 定义图片URL的正则表达式
+            const imgUrlRegex = /(https?:\/\/[^\s"'<>]+?\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?[^\s"'<>]*)?)/gi;
+            
+            // 处理文本节点中的图片URL
+            textNodes.forEach(textNode => {
+                const content = textNode.nodeValue;
+                if (!content || !imgUrlRegex.test(content)) return;
+                
+                // 重置正则表达式的lastIndex
+                imgUrlRegex.lastIndex = 0;
+                
+                // 收集所有匹配
+                const matches = [];
+                let match;
+                while ((match = imgUrlRegex.exec(content)) !== null) {
+                    matches.push({
+                        url: match[0],
+                        index: match.index,
+                        endIndex: match.index + match[0].length
+                    });
+                }
+                
+                // 如果没有匹配，直接返回
+                if (matches.length === 0) return;
+                
+                // 创建文档片段用于替换
+                const fragment = document.createDocumentFragment();
+                let lastIndex = 0;
+                
+                // 处理每个匹配
+                matches.forEach(match => {
+                    // 添加匹配前的文本
+                    if (match.index > lastIndex) {
+                        fragment.appendChild(document.createTextNode(content.substring(lastIndex, match.index)));
+                    }
+                    
+                    // 创建图片容器和图片元素
+                    const imgContainer = document.createElement('div');
+                    imgContainer.className = 'auto-detected-image';
+                    
+                    const img = document.createElement('img');
+                    img.src = match.url;
+                    img.alt = '图片';
+                    img.loading = 'lazy';
+                    img.onerror = function() {
+                        this.onerror = null;
+                        this.classList.add('image-load-error');
+                    };
+                    
+                    imgContainer.appendChild(img);
+                    fragment.appendChild(imgContainer);
+                    
+                    // 更新lastIndex
+                    lastIndex = match.endIndex;
+                });
+                
+                // 添加匹配后的文本
+                if (lastIndex < content.length) {
+                    fragment.appendChild(document.createTextNode(content.substring(lastIndex)));
+                }
+                
+                // 替换原文本节点
+                textNode.parentNode.replaceChild(fragment, textNode);
+            });
+            
+            // 返回处理后的HTML
+            return tempDiv.innerHTML;
         } catch (e) {
             console.error('Markdown解析错误:', e);
             return text;

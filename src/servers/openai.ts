@@ -648,21 +648,20 @@ export class OpenAI {
       messages = [...message]; // 创建副本，避免修改原始数据
     }
     
-    // // 如果启用了工具调用，添加系统消息
-    // if (enableTools) {
-    //   // 检查是否已有系统消息
-    //   const hasSystemMessage = messages.some(msg => msg.role === 'system');
+    // 如果启用了工具调用，添加系统消息
+    if (enableTools) {
+      // 检查是否已有系统消息
+      const hasSystemMessage = messages.some(msg => msg.role === 'system');
       
-    //   // 如果没有系统消息，添加MCP工具预设词作为系统消息
-    //   if (!hasSystemMessage) {
-    //     messages.unshift({
-    //       role: 'system',
-    //       content: MCPConfig.toolPrompt
-    //     });
+      // 如果没有系统消息，添加MCP工具预设词作为系统消息
+      if (!hasSystemMessage) {
+        messages.unshift({
+          role: 'system',
+          content: MCPConfig.toolPrompt
+        });
         
-    //     Logger.info('OPENAI', `[${this.providerName}] 已添加MCP工具预设词: "${MCPConfig.toolPrompt}"`);
-    //   }
-    // }
+      }
+    }
     
     return messages;
   }

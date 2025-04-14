@@ -504,6 +504,32 @@
     padding-left: 2em;
 }
 
+/* 自动检测图片样式 */
+.auto-detected-image {
+    margin: 1em 0;
+    text-align: center;
+}
+
+.auto-detected-image img {
+    max-width: 100%;
+    max-height: 400px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    object-fit: contain;
+}
+
+.auto-detected-image img.image-load-error {
+    display: none;
+}
+
+.auto-detected-image img.image-load-error::after {
+    content: "图片加载失败";
+    display: block;
+    color: #e53e3e;
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+
 /* 代码语言标签样式 */
 .code-language-label {
     position: absolute;
