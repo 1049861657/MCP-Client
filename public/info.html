@@ -320,6 +320,7 @@
             display: flex;
             align-items: center;
             font-weight: 500;
+            position: relative;
         }
         
         .server-tab:hover {
@@ -365,6 +366,163 @@
             color: var(--error-color);
         }
         
+        /* 新增服务器按钮样式 */
+        .add-server-btn {
+            padding: 10px 18px;
+            background-color: var(--success-color);
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid var(--success-color);
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+            margin-top: 12px;
+            width: fit-content;
+        }
+        
+        .add-server-btn:hover {
+            background-color: #2e7d32;
+        }
+        
+        /* 服务器操作按钮 */
+        .server-actions {
+            display: flex;
+            gap: 5px;
+            margin-left: 8px;
+        }
+        
+        .server-action-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            background: transparent;
+            font-size: 14px;
+        }
+        
+        .edit-btn {
+            color: var(--primary-dark);
+        }
+        
+        .edit-btn:hover {
+            background-color: rgba(25, 118, 210, 0.2);
+        }
+        
+        .delete-btn {
+            color: var(--error-color);
+        }
+        
+        .delete-btn:hover {
+            background-color: rgba(211, 47, 47, 0.2);
+        }
+        
+        /* 服务器表单样式 */
+        .server-form-container {
+            background-color: var(--card-background);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 24px;
+            margin-bottom: 24px;
+            display: none;
+        }
+        
+        .server-form-title {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--primary-dark);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-input:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+        
+        .form-radio-group {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .form-radio-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        
+        .form-radio {
+            margin-right: 6px;
+        }
+        
+        .connection-fields {
+            margin-top: 12px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 12px;
+        }
+        
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        
+        .btn {
+            padding: 10px 16px;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        .btn-cancel {
+            background-color: #f5f5f5;
+            color: var(--text-secondary);
+        }
+        
+        .btn-cancel:hover {
+            background-color: #e0e0e0;
+        }
+        
         @media (max-width: 768px) {
             .info-row {
                 flex-direction: column;
@@ -397,6 +555,65 @@
             <div style="width: 100%; margin-bottom: 10px; font-weight: 500; color: var(--primary-dark); text-align: center;">
                 选择服务器
             </div>
+            <!-- 服务器选项卡将在这里动态添加 -->
+            <div id="add-server-container" style="width: 100%; display: flex; justify-content: center; margin-top: 10px;">
+                <div class="add-server-btn" id="add-server-btn">
+                    + 新增服务器
+                </div>
+            </div>
+        </div>
+
+        <!-- 服务器表单容器 -->
+        <div id="server-form-container" class="server-form-container">
+            <div class="server-form-title" id="form-title">新增服务器</div>
+            <form id="server-form">
+                <input type="hidden" id="form-mode" value="add">
+                <input type="hidden" id="server-id" value="">
+                
+                <div class="form-group">
+                    <label for="server-name" class="form-label">服务器名称*</label>
+                    <input type="text" id="server-name" class="form-input" required placeholder="例如: 我的服务器">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">连接类型*</label>
+                    <div class="form-radio-group">
+                        <label class="form-radio-label">
+                            <input type="radio" name="connection-type" value="stdio" class="form-radio" checked> 
+                            标准输入/输出 (stdio)
+                        </label>
+                        <label class="form-radio-label">
+                            <input type="radio" name="connection-type" value="sse" class="form-radio"> 
+                            服务器发送事件 (sse)
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- stdio 连接配置 -->
+                <div id="stdio-fields" class="connection-fields">
+                    <div class="form-group">
+                        <label for="command" class="form-label">命令*</label>
+                        <input type="text" id="command" class="form-input" placeholder="例如: node">
+                    </div>
+                    <div class="form-group">
+                        <label for="args" class="form-label">参数* (以逗号分隔)</label>
+                        <input type="text" id="args" class="form-input" placeholder="例如: dist/index.js, --port=3000">
+                    </div>
+                </div>
+                
+                <!-- sse 连接配置 -->
+                <div id="sse-fields" class="connection-fields" style="display: none;">
+                    <div class="form-group">
+                        <label for="sse-url" class="form-label">SSE URL*</label>
+                        <input type="text" id="sse-url" class="form-input" placeholder="例如: http://localhost:3000/sse">
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" id="cancel-form" class="btn btn-cancel">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
         </div>
 
         <div id="server-info" class="card" style="display: none;">
@@ -409,13 +626,15 @@
                     <span class="slider"></span>
                 </label>
             </div>
-            <div class="info-row">
-                <div class="info-label">名称：</div>
-                <div id="server-name" class="info-value"></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">版本：</div>
-                <div id="server-version" class="info-value"></div>
+            <div id="server-connected-info" style="display: none;">
+                <div class="info-row">
+                    <div class="info-label">名称：</div>
+                    <div id="server-internal-name" class="info-value"></div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">版本：</div>
+                    <div id="server-version" class="info-value"></div>
+                </div>
             </div>
             <div class="info-row">
                 <div class="info-label">连接类型：</div>
@@ -441,8 +660,210 @@
             const toolsInfoDiv = document.getElementById('tools-info');
             const toolsContainer = document.getElementById('tools-container');
             const serversSelector = document.getElementById('servers-selector');
+            const serverFormContainer = document.getElementById('server-form-container');
+            const serverForm = document.getElementById('server-form');
+            const addServerBtn = document.getElementById('add-server-btn');
+            const cancelFormBtn = document.getElementById('cancel-form');
+            const formTitle = document.getElementById('form-title');
+            const formMode = document.getElementById('form-mode');
+            const serverIdInput = document.getElementById('server-id');
             
             let currentData = null;
+            
+            // 根据连接类型显示相应的表单字段
+            document.querySelectorAll('input[name="connection-type"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value === 'stdio') {
+                        document.getElementById('stdio-fields').style.display = 'block';
+                        document.getElementById('sse-fields').style.display = 'none';
+                    } else {
+                        document.getElementById('stdio-fields').style.display = 'none';
+                        document.getElementById('sse-fields').style.display = 'block';
+                    }
+                });
+            });
+            
+            // 取消表单
+            cancelFormBtn.addEventListener('click', function() {
+                hideServerForm();
+            });
+            
+            // 显示添加服务器表单
+            addServerBtn.addEventListener('click', function() {
+                formTitle.textContent = '新增服务器';
+                formMode.value = 'add';
+                serverIdInput.value = '';
+                serverForm.reset();
+                document.querySelector('input[name="connection-type"][value="stdio"]').checked = true;
+                document.getElementById('stdio-fields').style.display = 'block';
+                document.getElementById('sse-fields').style.display = 'none';
+                
+                showServerForm();
+            });
+            
+            // 处理表单提交
+            serverForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const mode = formMode.value; // 'add' 或 'edit'
+                const connectionType = document.querySelector('input[name="connection-type"]:checked').value;
+                
+                // 构建服务器数据
+                let serverData = {
+                    name: document.getElementById('server-name').value.trim(),
+                    connectionType: connectionType
+                };
+                
+                // 根据连接类型添加字段
+                if (connectionType === 'stdio') {
+                    const command = document.getElementById('command').value.trim();
+                    const argsStr = document.getElementById('args').value.trim();
+                    const args = argsStr.split(',').map(arg => arg.trim());
+                    
+                    serverData.command = command;
+                    serverData.args = args;
+                } else if (connectionType === 'sse') {
+                    serverData.sseUrl = document.getElementById('sse-url').value.trim();
+                }
+                
+                try {
+                    // 显示加载状态
+                    loadingDiv.style.display = 'block';
+                    serverFormContainer.style.display = 'none';
+                    serverInfoDiv.style.display = 'none';
+                    toolsInfoDiv.style.display = 'none';
+                    
+                    let response;
+                    
+                    if (mode === 'add') {
+                        // 生成一个唯一ID
+                        serverData.id = 'server-' + Date.now();
+                        
+                        // 调用添加API
+                        response = await fetch('/api/server/add', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(serverData)
+                        });
+                    } else {
+                        // 获取要编辑的服务器ID
+                        const serverId = serverIdInput.value;
+                        
+                        // 调用更新API
+                        response = await fetch(`/api/server/update/${serverId}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(serverData)
+                        });
+                    }
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.details || error.error || '操作失败');
+                    }
+                    
+                    // 操作成功后主动重新加载配置
+                    await reloadServerConfig();
+                    
+                    // 隐藏表单
+                    hideServerForm();
+                    
+                } catch (error) {
+                    console.error('服务器操作失败:', error);
+                    alert(`操作失败: ${error.message}`);
+                    
+                    // 显示表单
+                    loadingDiv.style.display = 'none';
+                    serverFormContainer.style.display = 'block';
+                }
+            });
+            
+            // 显示服务器表单
+            function showServerForm() {
+                serverFormContainer.style.display = 'block';
+                serverInfoDiv.style.display = 'none';
+                toolsInfoDiv.style.display = 'none';
+            }
+            
+            // 隐藏服务器表单
+            function hideServerForm() {
+                serverFormContainer.style.display = 'none';
+                if (currentData) {
+                    serverInfoDiv.style.display = 'block';
+                    if (currentData.server.status === '已连接') {
+                        toolsInfoDiv.style.display = 'block';
+                    }
+                }
+            }
+            
+            // 显示编辑服务器表单
+            function showEditForm(server) {
+                formTitle.textContent = `编辑服务器: ${server.name}`;
+                formMode.value = 'edit';
+                serverIdInput.value = server.id;
+                
+                // 填充表单字段
+                document.getElementById('server-name').value = server.name;
+                
+                const connectionType = server.connectionDetails.connectionType;
+                document.querySelector(`input[name="connection-type"][value="${connectionType}"]`).checked = true;
+                
+                if (connectionType === 'stdio') {
+                    document.getElementById('stdio-fields').style.display = 'block';
+                    document.getElementById('sse-fields').style.display = 'none';
+                    
+                    document.getElementById('command').value = server.connectionDetails.command || '';
+                    document.getElementById('args').value = server.connectionDetails.args || '';
+                } else {
+                    document.getElementById('stdio-fields').style.display = 'none';
+                    document.getElementById('sse-fields').style.display = 'block';
+                    
+                    document.getElementById('sse-url').value = server.connectionDetails.sseUrl || '';
+                }
+                
+                showServerForm();
+            }
+            
+            // 删除服务器
+            async function deleteServer(serverId, serverName) {
+                if (!confirm(`确定要删除服务器 "${serverName}" 吗？`)) {
+                    return;
+                }
+                
+                try {
+                    loadingDiv.style.display = 'block';
+                    serverInfoDiv.style.display = 'none';
+                    toolsInfoDiv.style.display = 'none';
+                    
+                    const response = await fetch(`/api/server/delete/${serverId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.details || error.error || '删除失败');
+                    }
+                    
+                    // 删除成功后主动重新加载配置
+                    await reloadServerConfig();
+                    
+                } catch (error) {
+                    console.error('删除服务器失败:', error);
+                    alert(`删除失败: ${error.message}`);
+                    loadingDiv.style.display = 'none';
+                    
+                    if (currentData) {
+                        serverInfoDiv.style.display = 'block';
+                        if (currentData.server.status === '已连接') {
+                            toolsInfoDiv.style.display = 'block';
+                        }
+                    }
+                }
+            }
             
             // 更新页面信息
             function updatePageInfo(data) {
@@ -451,18 +872,24 @@
                 // 显示服务器选择器
                 updateServerTabs(data.availableServers, data.currentServerId);
                 
-                // 更新客户端信息到导航栏
-                document.getElementById('client-name').textContent = data.client.name;
-                document.getElementById('client-version').textContent = 'v' + data.client.version;
-                document.getElementById('client-info').style.display = 'flex';
-                
-                // 显示服务器信息
-                document.getElementById('server-name').textContent = data.server.name;
-                document.getElementById('server-version').textContent = data.server.version;
-                
                 // 确定当前服务器的连接状态
                 const isConnected = data.server.status === '已连接';
                 console.log('当前服务器状态:', data.server.status, '已连接:', isConnected);
+                
+                // 根据连接状态控制名称和版本信息的显示
+                const serverConnectedInfo = document.getElementById('server-connected-info');
+                
+                if (isConnected) {
+                    // 只有连接时才显示名称和版本
+                    serverConnectedInfo.style.display = 'block';
+                    
+                    // 使用内部名称作为名称显示
+                    document.getElementById('server-internal-name').textContent = data.server.internalName || data.server.name;
+                    document.getElementById('server-version').textContent = data.server.version;
+                } else {
+                    // 未连接时隐藏名称和版本
+                    serverConnectedInfo.style.display = 'none';
+                }
                 
                 // 更新连接开关状态但不触发连接
                 const connectionToggle = document.getElementById('connection-toggle');
@@ -477,7 +904,7 @@
                     if (this.checked) {
                         connectServer(data.server.id);
                     } else {
-                        disconnectServer();
+                        disconnectServer(data.server.id);
                     }
                 };
                 
@@ -594,8 +1021,9 @@
             
             // 更新服务器选项卡
             function updateServerTabs(servers, currentServerId) {
-                // 保留标题，清空其余内容
+                // 保留标题和新增服务器按钮容器
                 const titleElement = serversSelector.querySelector('div');
+                const addServerContainer = document.getElementById('add-server-container');
                 serversSelector.innerHTML = '';
                 serversSelector.appendChild(titleElement);
                 
@@ -608,7 +1036,9 @@
                         tab.className += ' active';
                     }
                     
-                    tab.textContent = server.name;
+                    const serverName = document.createElement('span');
+                    serverName.textContent = server.name;
+                    tab.appendChild(serverName);
                     
                     // 添加状态指示器
                     const statusBadge = document.createElement('span');
@@ -619,12 +1049,43 @@
                         statusBadge.className += ' server-status-disconnected';
                     }
                     tab.appendChild(statusBadge);
+                    
+                    // 添加操作按钮
+                    const actionContainer = document.createElement('div');
+                    actionContainer.className = 'server-actions';
+                    
+                    // 编辑按钮
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'server-action-btn edit-btn';
+                    editBtn.innerHTML = '✎';
+                    editBtn.title = '编辑服务器';
+                    editBtn.addEventListener('click', (e) => {
+                        e.stopPropagation(); // 阻止点击事件冒泡
+                        showEditForm(server);
+                    });
+                    
+                    // 删除按钮
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'server-action-btn delete-btn';
+                    deleteBtn.innerHTML = '×';
+                    deleteBtn.title = '删除服务器';
+                    deleteBtn.addEventListener('click', (e) => {
+                        e.stopPropagation(); // 阻止点击事件冒泡
+                        deleteServer(server.id, server.name);
+                    });
+                    
+                    actionContainer.appendChild(editBtn);
+                    actionContainer.appendChild(deleteBtn);
+                    tab.appendChild(actionContainer);
 
                     // 添加点击事件
                     tab.addEventListener('click', () => switchServer(server.id));
                     
                     serversSelector.appendChild(tab);
                 });
+                
+                // 添加新增服务器按钮容器
+                serversSelector.appendChild(addServerContainer);
             }
             
             // 切换服务器
@@ -644,6 +1105,7 @@
                         throw new Error('切换服务器失败');
                     }
                     
+                    // 直接使用响应更新UI，而不是重新获取
                     const data = await response.json();
                     updatePageInfo(data);
                     
@@ -667,8 +1129,8 @@
                     // 显示连接状态
                     console.log('用户手动开启连接，尝试连接服务器:', serverId);
                     
-                    // 先切换到该服务器并请求连接
-                    const response = await fetch(`/api/server/switch/${serverId}?connect=true`, {
+                    // 使用正确的connect接口连接服务器
+                    const response = await fetch(`/api/server/connect/${serverId}`, {
                         method: 'POST'
                     });
                     
@@ -684,7 +1146,12 @@
                     }
                     
                     console.log('服务器连接成功');
-                    updatePageInfo(data);
+                    
+                    // 更新服务器的isActive字段为true
+                    await updateServerActiveStatus(serverId, true);
+                    
+                    // 连接成功后主动刷新服务器信息
+                    await fetchServerInfo();
                     
                 } catch (error) {
                     console.error('连接服务器失败:', error);
@@ -697,13 +1164,13 @@
             }
             
             // 断开服务器连接
-            async function disconnectServer() {
+            async function disconnectServer(serverId) {
                 try {
                     const toggle = document.getElementById('connection-toggle');
                     toggle.disabled = true;
                     
-                    console.log('用户手动关闭连接，发送断开连接请求');
-                    const response = await fetch('/api/server/disconnect', {
+                    console.log('用户手动关闭连接，发送断开连接请求，服务器ID:', serverId);
+                    const response = await fetch(`/api/server/disconnect/${serverId}`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -716,9 +1183,11 @@
                         throw new Error(`断开服务器连接失败: ${response.status}`);
                     }
                     
-                    const data = await response.json();
-                    console.log('断开连接响应数据:', data);
-                    updatePageInfo(data);
+                    // 更新服务器的isActive字段为false
+                    await updateServerActiveStatus(serverId, false);
+                    
+                    // 断开连接成功后主动刷新服务器信息
+                    await fetchServerInfo();
                     
                 } catch (error) {
                     console.error('断开服务器连接失败:', error);
@@ -730,22 +1199,108 @@
                 }
             }
             
+            // 更新服务器的激活状态
+            async function updateServerActiveStatus(serverId, isActive) {
+                try {
+                    console.log(`更新服务器 ${serverId} 的激活状态为: ${isActive}`);
+                    const response = await fetch(`/api/server/update/${serverId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ isActive: isActive })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('更新服务器激活状态失败');
+                    }
+                    
+                    console.log('服务器激活状态更新成功');
+                    return true;
+                } catch (error) {
+                    console.error('更新服务器激活状态失败:', error);
+                    // 不要阻断主流程，所以这里只记录错误
+                    return false;
+                }
+            }
+            
+            // 获取最新的服务器信息
+            async function fetchServerInfo() {
+                try {
+                    loadingDiv.style.display = 'block';
+                    serverInfoDiv.style.display = 'none';
+                    toolsInfoDiv.style.display = 'none';
+                    
+                    const response = await fetch('/api/info');
+                    
+                    if (!response.ok) {
+                        throw new Error('获取服务信息失败');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // 检查是否有可用的服务器
+                    if (data.availableServers && data.availableServers.length > 0) {
+                        // 有可用服务器时
+                        if (data.currentServerId) {
+                            // 已有当前选中的服务器，直接显示
+                            updatePageInfo(data);
+                        } else {
+                            // 没有当前选中的服务器，自动选择第一个
+                            const firstServer = data.availableServers[0];
+                            console.log('自动选择第一个服务器:', firstServer.id);
+                            await switchServer(firstServer.id);
+                        }
+                    } else {
+                        // 没有可用服务器时，只显示服务器列表
+                        updateServerTabs([], null);
+                        loadingDiv.style.display = 'none';
+                        serversSelector.style.display = 'flex';
+                    }
+                    
+                } catch (error) {
+                    console.error('获取服务信息失败:', error);
+                    loadingDiv.innerHTML = `
+                        <div class="error">
+                            <p>获取服务信息失败: ${error.message}</p>
+                        </div>
+                    `;
+                    loadingDiv.style.display = 'block';
+                }
+            }
+            
+            // 强制重新加载服务器配置
+            async function reloadServerConfig() {
+                try {
+                    loadingDiv.style.display = 'block';
+                    serverInfoDiv.style.display = 'none';
+                    toolsInfoDiv.style.display = 'none';
+                    
+                    console.log('强制重新加载MCP配置...');
+                    const response = await fetch('/api/server/reload-config', {
+                        method: 'POST'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('重新加载配置失败');
+                    }
+                    
+                    const data = await response.json();
+                    updatePageInfo(data);
+                    console.log('配置重新加载成功');
+                    
+                } catch (error) {
+                    console.error('重新加载配置失败:', error);
+                    alert(`重新加载配置失败: ${error.message}`);
+                    
+                    // 尝试再次获取服务器信息
+                    await fetchServerInfo();
+                }
+            }
+            
             try {
                 // 获取MCP服务信息
-                const response = await fetch('/api/info');
-                
-                if (!response.ok) {
-                    throw new Error('获取服务信息失败');
-                }
-                
-                const data = await response.json();
-                updatePageInfo(data);
-                
-                // 初始检查连接状态，设置工具区域的显示状态
-                const isConnected = data.server.status === '已连接';
-                if (!isConnected) {
-                    toolsInfoDiv.style.display = 'none';
-                }
+                await fetchServerInfo();
                 
             } catch (error) {
                 console.error('获取服务信息失败:', error);

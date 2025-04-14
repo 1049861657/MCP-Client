@@ -58,6 +58,7 @@ export type ConnectionType = 'stdio' | 'sse';
 export interface MCPServer {
   id: string;
   name: string;
+  isActive?: boolean;
   connectionType: ConnectionType;
   command?: string;
   args?: string[];
@@ -77,7 +78,5 @@ export interface MCPClient {
 export interface MCPConfigType {
   client: MCPClient;
   servers: MCPServer[];
-  defaultServerId: string;
-  autoConnect: boolean;
   toolPrompt: string;
 } 

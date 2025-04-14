@@ -3,13 +3,7 @@ import { AIProvidersConfig, QuickMessagesConfig, reloadConfigAndUpdate } from '.
 import { Logger } from '../utils/logger.js';
 import { FeatureConfig } from '../config/feature-config.js';
 import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-// 获取项目根目录路径
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const projectRoot = path.join(__dirname, '..', '..');
+import { getQuickMessagesConfigPath } from '../utils/path-util.js';
 
 /**
  * 配置控制器类
@@ -88,7 +82,7 @@ export class ConfigController {
       }
       
       // 配置文件路径
-      const configPath = path.join(projectRoot, 'config', 'quick-messages.json');
+      const configPath = getQuickMessagesConfigPath(import.meta.url);
       
       // 写入文件
       fs.writeFileSync(configPath, JSON.stringify(data, null, 2), 'utf8');

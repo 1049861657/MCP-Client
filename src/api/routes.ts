@@ -27,10 +27,17 @@ router.post('/settings/providers/reload', SettingsController.reloadProviders);
 
 // MCP信息路由
 router.get('/info', InfoController.getInfo);
-
+router.get('/client-info', InfoController.getClientInfo);
 // 服务器切换路由
-router.post('/server/switch/:serverId', InfoController.switchServer);
-router.post('/server/disconnect', InfoController.disconnectServer);
+router.post('/server/connect/:serverId', InfoController.connectServer);
+router.post('/server/switch/:serverId', InfoController.viewServer);
+router.post('/server/disconnect/:serverId', InfoController.disconnectServer);
+
+// 服务器管理路由
+router.post('/server/add', InfoController.addServer);
+router.put('/server/update/:serverId', InfoController.updateServer);
+router.delete('/server/delete/:serverId', InfoController.deleteServer);
+router.post('/server/reload-config', InfoController.reloadConfig);
 
 // 工具列表路由
 router.get('/tools/list', OpenAIController.getAvailableTools);

@@ -136,7 +136,7 @@ function loadNavbar() {
 async function fetchClientInfo() {
     try {
         // 发起API请求获取客户端信息
-        const response = await fetch('/api/info');
+        const response = await fetch('/api/client-info');
         
         // 如果请求失败，抛出错误
         if (!response.ok) {
@@ -147,10 +147,9 @@ async function fetchClientInfo() {
         const data = await response.json();
         
         // 更新导航栏中的客户端信息
-        updateNavbarClientInfo(data.client);
+        updateNavbarClientInfo(data);
     } catch (error) {
         console.error('获取客户端信息时发生错误:', error);
-        // 错误处理 - 可以选择不显示客户端信息或显示默认信息
     }
 }
 

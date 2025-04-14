@@ -1,124 +1,92 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { MCPConfig } from "../config/app.config.js";
+import { MCPConfig, reloadConfigAndUpdate } from "../config/app.config.js";
 import { Logger } from "../utils/logger.js";
-import { MCPServerInfo, ServerInfo } from "../interfaces/mcp.interfaces.js";
-import { ConnectionType } from "../types/config.types.js";
+import { ClientInfo, MCPServerInfo, ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
+import { ServerConnection } from "./server-connection.js";
 
 /**
- * MCP服务器连接管理
+ * MCP客户端管理器类
+ * 负责管理多个MCP服务器连接
  */
-interface ServerConnection {
-  id: string;
-  client: Client;
-  transport: StdioClientTransport | SSEClientTransport;
-  connected: boolean;
-  transportClosed: boolean;
-  name: string;
-  version: string;
-  connectionType: ConnectionType;
-  lastPingTime?: number;
-  lastPingResult?: boolean;
-}
-
-/**
- * MCP客户端类
- * 负责与MCP服务器的通信
- */
-export class MCPClient {
+export class MCPClientManager {
   private connections: Map<string, ServerConnection> = new Map();
-  private currentServerId: string = MCPConfig.defaultServerId;
-  
-  // Ping超时时间 (默认10秒)
-  private static readonly PING_TIMEOUT = 10000;
+  private toolServerMap: Map<string, string> = new Map(); // 工具名称到服务器ID的映射
+  private currentServerId?: string; // 当前选中的服务器ID
 
-  /**
-   * 构造函数
-   */
   constructor() {
-    // 初始化所有服务器连接
-    MCPConfig.servers.forEach(serverConfig => {
-      // 获取连接类型，默认为stdio
-      const connectionType = serverConfig.connectionType || 'stdio';
-      
-      // 创建传输层
-      let transport;
-      if (connectionType === 'stdio') {
-        if (serverConfig.command && serverConfig.args) {
-          transport = new StdioClientTransport({
-            command: serverConfig.command,
-            args: serverConfig.args
-          });
-        } else {
-          Logger.error('MCP CLIENT', `无法创建stdio连接: 缺少command或args配置`);
-          return; // 跳过这个服务器
-        }
-      } else if (connectionType === 'sse') {
-        if (!serverConfig.sseUrl) {
-          Logger.error('MCP CLIENT', `无法创建sse连接: 缺少sseUrl配置`);
-          return; // 跳过这个服务器
-        }
-        try {
-          // 使用SDK提供的SSEClientTransport
-          transport = new SSEClientTransport(new URL(serverConfig.sseUrl));
-        } catch (error) {
-          Logger.error('MCP CLIENT', `创建SSE连接失败: ${error instanceof Error ? error.message : String(error)}`);
-          return; // 跳过这个服务器
-        }
-      } else {
-        Logger.error('MCP CLIENT', `不支持的连接类型: ${connectionType}`);
-        return; // 跳过这个服务器
-      }
-
-      // 创建客户端实例
-      const client = new Client(
-        {
-          name: MCPConfig.client.name,
-          version: MCPConfig.client.version
-        },
-        {
-          capabilities: MCPConfig.client.capabilities
-        }
-      );
-
-      // 存储连接信息
-      this.connections.set(serverConfig.id, {
-        id: serverConfig.id,
-        client,
-        transport,
-        connected: false,
-        transportClosed: false,
-        name: serverConfig.name,
-        version: "未知",
-        connectionType: connectionType
-      });
+    // 在构造函数中调用异步方法，但不等待
+    this.initializeConnections().catch(error => {
+      Logger.error('MCP CLIENT', '初始化连接失败:', error);
     });
   }
 
   /**
-   * 获取当前连接
+   * 初始化所有服务器连接并自动连接激活的服务器
    */
-  private getCurrentConnection(): ServerConnection | undefined {
-    return this.connections.get(this.currentServerId);
+  private async initializeConnections(): Promise<void> {
+    // 清空工具服务器映射
+    this.toolServerMap.clear();
+    
+    // 首先初始化所有服务器的连接对象
+    MCPConfig.servers.forEach(serverConfig => {
+      try {
+        const connection = new ServerConnection(serverConfig);
+        this.connections.set(serverConfig.id, connection);
+      } catch (error) {
+        Logger.error('MCP CLIENT', `为服务器 ${serverConfig.name} (${serverConfig.id}) 创建连接对象失败:`, error);
+      }
+    });
+    
+    // 尝试连接所有激活的服务器
+    let isFirstConnected = true;
+    for (const serverConfig of MCPConfig.servers) {
+      if (serverConfig.isActive !== false) {
+        const connection = this.connections.get(serverConfig.id);
+        if (!connection) continue;
+        
+        try {
+          Logger.info('MCP CLIENT', `尝试连接激活的服务器: ${serverConfig.name} (${serverConfig.id})`);
+          const connected = await connection.connect();
+          
+          // 连接成功后获取工具列表并更新工具服务器映射
+          await this.updateToolServerMap(serverConfig.id);
+          
+          // 将首个成功连接的服务器设为当前服务器
+          if (connected && isFirstConnected && !this.currentServerId) {
+            this.currentServerId = serverConfig.id;
+            isFirstConnected = false;
+          }
+        } catch (error) {
+          Logger.error('MCP CLIENT', `连接服务器 ${serverConfig.name} (${serverConfig.id}) 失败:`, error);
+        }
+      } else {
+        Logger.info('MCP CLIENT', `服务器 ${serverConfig.name} (${serverConfig.id}) 未激活，跳过连接`);
+      }
+    }
+    
+    // 如果没有成功连接任何服务器但有可用服务器，设置第一个为当前服务器
+    if (this.connections.size > 0 && !this.currentServerId) {
+      const firstServerId = Array.from(this.connections.keys())[0];
+      this.currentServerId = firstServerId;
+    }
   }
 
   /**
-   * 切换服务器
+   * 更新工具服务器映射
    * @param serverId 服务器ID
    */
-  async switchServer(serverId: string): Promise<boolean> {
-    if (!this.connections.has(serverId)) {
-      Logger.error('MCP CLIENT', `切换服务器失败: 未知的服务器ID: ${serverId}`);
-      return false;
-    }
-
-    this.currentServerId = serverId;
-    Logger.info('MCP CLIENT', `已切换到服务器: ${serverId}`);
+  private async updateToolServerMap(serverId: string): Promise<void> {
+    const connection = this.connections.get(serverId);
+    if (!connection || !connection.isConnected()) return;
     
-    // 不自动连接，只返回成功状态
-    // 连接操作将由外部控制
-    return true;
+    try {
+      const tools = await connection.getTools();
+      for (const tool of tools) {
+        // 直接记录工具来源服务器，不检查重名
+        this.toolServerMap.set(tool.name, serverId);
+      }
+    } catch (error) {
+      Logger.error('MCP CLIENT', `更新工具服务器映射失败:`, error);
+    }
   }
 
   /**
@@ -126,32 +94,13 @@ export class MCPClient {
    * @param serverId 服务器ID
    * @returns 是否连接正常
    */
-  async pingServer(serverId?: string): Promise<boolean> {
-    const connection = serverId ? this.connections.get(serverId) : this.getCurrentConnection();
-    if (!connection || !connection.connected) {
+  async pingServer(serverId: string): Promise<boolean> {
+    const connection = this.connections.get(serverId);
+    if (!connection || !connection.isConnected()) {
       return false;
     }
     
-    try {
-      // 设置超时
-      const timeoutPromise = new Promise<boolean>((_, reject) => {
-        setTimeout(() => reject(new Error('Ping超时')), MCPClient.PING_TIMEOUT);
-      });
-      
-      // 执行ping
-      const pingPromise = connection.client.ping();
-      const result = await Promise.race([pingPromise, timeoutPromise]);
-      
-      // 更新最后ping时间和结果
-      connection.lastPingTime = Date.now();
-      connection.lastPingResult = !!result;
-      
-      return !!result;
-    } catch (error) {
-      connection.lastPingTime = Date.now();
-      connection.lastPingResult = false;
-      return false;
-    }
+    return await connection.ping();
   }
 
   /**
@@ -160,34 +109,23 @@ export class MCPClient {
   getAvailableServers(): ServerInfo[] {
     const servers: ServerInfo[] = [];
     
-    // 将connections转换为ServerInfo数组
-    this.connections.forEach((connection, id) => {
-      // 查找原始配置
-      const serverConfig = MCPConfig.servers.find(s => s.id === id);
-      
-      // 获取适合UI显示的连接命令文本
-      let displayCommand = '';
-      if (serverConfig) {
-        if (connection.connectionType === 'stdio' && serverConfig.command) {
-          displayCommand = `${serverConfig.command} ${serverConfig.args?.join(' ') || ''}`;
-        } else if (connection.connectionType === 'sse' && serverConfig.sseUrl) {
-          displayCommand = serverConfig.sseUrl;
-        }
+    this.connections.forEach(connection => {
+      servers.push(connection.getServerInfo());
+    });
+    
+    return servers;
+  }
+
+  /**
+   * 获取已连接的服务器列表
+   */
+  getConnectedServers(): ServerInfo[] {
+    const servers: ServerInfo[] = [];
+    
+    this.connections.forEach(connection => {
+      if (connection.isConnected()) {
+        servers.push(connection.getServerInfo());
       }
-      
-      servers.push({
-        id,
-        name: connection.name,
-        version: connection.version,
-        status: connection.connected ? '已连接' : '未连接',
-        connectionDetails: {
-          connectionType: connection.connectionType,
-          command: serverConfig?.command,
-          args: serverConfig?.args?.join(' '),
-          sseUrl: serverConfig?.sseUrl,
-          displayCommand
-        }
-      });
     });
     
     return servers;
@@ -198,98 +136,107 @@ export class MCPClient {
    * @returns MCP服务器信息
    */
   async getServerInfo(): Promise<MCPServerInfo> {
-    const connection = this.getCurrentConnection();
-    const serverConfig = MCPConfig.servers.find(s => s.id === this.currentServerId);
+    // 选择当前服务器
+    let currentServer: ServerInfo | null = null;
     
-    // 获取适合UI显示的连接命令文本
-    let connectionCommandText = '';
-    if (serverConfig) {
-      if (serverConfig.connectionType === 'stdio' && serverConfig.command) {
-        connectionCommandText = `${serverConfig.command} ${serverConfig.args?.join(' ') || ''}`;
-      } else if (serverConfig.connectionType === 'sse' && serverConfig.sseUrl) {
-        connectionCommandText = serverConfig.sseUrl;
+    // 如果有当前选中的服务器ID，优先使用它
+    if (this.currentServerId) {
+      const connection = this.connections.get(this.currentServerId);
+      if (connection) {
+        currentServer = connection.getServerInfo();
       }
     }
     
-    // 准备默认返回数据（确保数据结构完整）
-    const info: MCPServerInfo = {
-      server: {
-        id: connection?.id || this.currentServerId,
-        name: connection?.name || "未知服务器",
-        version: connection?.version || "未知",
-        status: connection?.connected ? "已连接" : "未连接",
-        connectionDetails: {
-          connectionType: (serverConfig?.connectionType || 'stdio') as 'stdio' | 'sse',
-          command: serverConfig?.command,
-          args: serverConfig?.args?.join(' '),
-          sseUrl: serverConfig?.sseUrl,
-          displayCommand: connectionCommandText // 添加用于显示的连接命令
+    // 如果没有当前服务器，获取第一个已连接的服务器
+    if (!currentServer) {
+      for (const connection of this.connections.values()) {
+        if (connection.isConnected()) {
+          currentServer = connection.getServerInfo();
+          this.currentServerId = connection.getId(); // 更新当前服务器ID
+          break;
         }
-      },
-      client: {
-        name: MCPConfig.client.name,
-        version: MCPConfig.client.version
-      },
-      tools: [],
+      }
+    }
+    
+    // 如果仍然没有，使用第一个可用服务器
+    if (!currentServer && this.connections.size > 0) {
+      const firstConnection = Array.from(this.connections.values())[0];
+      if (firstConnection) {
+        currentServer = firstConnection.getServerInfo();
+        this.currentServerId = firstConnection.getId(); // 更新当前服务器ID
+      }
+    }
+    
+    // 如果仍然没有，创建一个默认的服务器信息
+    if (!currentServer) {
+      currentServer = {
+        id: '',
+        name: "未知服务器",
+        version: "未知",
+        status: "未连接",
+        connectionDetails: {
+          connectionType: 'stdio',
+          displayCommand: ''
+        }
+      };
+    }
+    
+    const allTools: ToolInfo[] = [];
+    const serverTools: Record<string, ToolInfo[]> = {};
+    const connectedServers: ServerInfo[] = [];
+    
+    // 汇总所有已连接服务器的工具
+    for (const connection of this.connections.values()) {
+      if (connection.isConnected()) {
+        const serverInfo = connection.getServerInfo();
+        connectedServers.push(serverInfo);
+        
+        try {
+          const tools = await connection.getTools();
+          
+          // 直接使用工具原始名称，不进行重名处理
+          serverTools[connection.getId()] = tools;
+          allTools.push(...tools);
+        } catch (error) {
+          Logger.error('MCP CLIENT', `获取服务器 ${connection.getName()} 的工具列表失败:`, error);
+        }
+      }
+    }
+    
+    const info: MCPServerInfo = {
+      server: currentServer,
+      currentServerId: this.currentServerId,
+      tools: allTools,
       availableServers: this.getAvailableServers(),
-      currentServerId: this.currentServerId
+      connectedServers,
+      serverTools
     };
 
-    // 如果服务器未连接，直接返回信息
-    if (!connection || !connection.connected) {
-      return info;
-    }
-    
-    // 如果已连接，尝试从服务器获取工具信息
-    try {
-      // 使用SDK提供的listTools方法获取工具列表
-      const toolsResponse = await connection.client.listTools() as any;
-      
-      if (toolsResponse && toolsResponse.tools && Array.isArray(toolsResponse.tools)) {
-        // 将SDK返回的工具信息转换为我们的接口格式
-        info.tools = toolsResponse.tools
-          .filter((tool: any) => tool !== null && tool !== undefined)
-          .map((tool: any) => {
-            // 安全地从inputSchema的properties中提取参数信息
-            const parameters = [];
-            try {
-              if (tool.inputSchema && tool.inputSchema.properties) {
-                const props = tool.inputSchema.properties;
-                const required = Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required : [];
-                
-                for (const key in props) {
-                  if (Object.prototype.hasOwnProperty.call(props, key)) {
-                    const schema = props[key] || {};
-                    parameters.push({
-                      name: key,
-                      type: schema.type || 'unknown',
-                      description: schema.description || `${key}`,
-                      required: required.includes(key)
-                    });
-                  }
-                }
-              }
-            } catch (err) {
-              Logger.error('MCP CLIENT', `解析工具参数时出错:`, err);
-            }
-            
-            // 确保name和description有值
-            const toolName = tool && typeof tool.name === 'string' ? tool.name : "未命名工具";
-            const toolDesc = tool && typeof tool.description === 'string' ? 
-              tool.description : `${toolName}工具`;
-            
-            return {
-              name: toolName,
-              description: toolDesc,
-              parameters
-            };
-          });
-      }
-    } catch (error) {
-      Logger.error('MCP CLIENT', '获取工具列表失败:', error);
+    return info;
+  }
+
+    /**
+   * 获取客户端信息
+   * @returns MCP客户端信息
+   */
+    async getClientInfo(): Promise<ClientInfo> {
+      return {
+        name: MCPConfig.client.name,
+        version: MCPConfig.client.version
+      };
     }
 
-    return info;
+  /**
+   * 根据工具名称找到对应的服务器
+   * @param toolName 工具名称
+   * @returns 服务器连接对象
+   */
+  private findServerForTool(toolName: string): ServerConnection | undefined {
+    const serverId = this.toolServerMap.get(toolName);
+    if (!serverId) {
+      return undefined;
+    }
+    return this.connections.get(serverId);
   }
 
   /**
@@ -299,173 +246,186 @@ export class MCPClient {
    * @returns 工具调用结果
    */
   async callTool<T>(toolName: string, args: any): Promise<T> {
-    const connection = this.getCurrentConnection();
+    // 根据工具名称找到对应服务器
+    const connection = this.findServerForTool(toolName);
+    
     if (!connection) {
-      throw new Error(`未找到服务器配置: ${this.currentServerId}`);
+      throw new Error(`未找到可以处理工具 ${toolName} 的服务器，请确保先调用了该工具所在服务器的工具`);
     }
 
-    // 如果未连接，先尝试连接
-    if (!connection.connected) {
-      await this.connect();
+    if (!connection.isConnected()) {
+      await connection.connect();
     }
 
-    // 增强的参数验证逻辑
-    if (args === undefined || args === null) {
-      throw new Error(`调用工具 ${toolName} 失败: 参数不能为空`);
-    }
-    
-    // 如果参数是字符串，尝试解析为JSON对象
-    if (typeof args === 'string') {
-      try {
-        args = JSON.parse(args);
-      } catch (error) {
-        throw new Error(`调用工具 ${toolName} 失败: 无法解析参数字符串为JSON - ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-    
-    // 确保参数是对象类型
-    if (typeof args !== 'object') {
-      throw new Error(`调用工具 ${toolName} 失败: 参数必须是对象类型，当前类型: ${typeof args}`);
-    }
-
-    try {
-      // 调用工具
-      const result = await connection.client.callTool({
-        name: toolName,
-        arguments: args
-      });
-      
-      return result as T;
-    } catch (error) {
-      Logger.error('MCP CLIENT', `调用工具 ${toolName} 失败:`, error);
-      throw error;
-    }
+    return await connection.callTool<T>(toolName, args);
   }
   
   /**
-   * 断开当前连接
+   * 断开所有连接
    */
-  async disconnect(): Promise<void> {
-    const connection = this.getCurrentConnection();
-    if (!connection || !connection.connected) return;
+  async disconnectAll(): Promise<void> {
+    const disconnectPromises = Array.from(this.connections.values()).map(connection => {
+      return connection.disconnect().catch(error => {
+        Logger.error('MCP CLIENT', `断开服务器 ${connection.getName()} 连接失败:`, error);
+      });
+    });
+    
+    await Promise.all(disconnectPromises);
+  }
 
-    try {
-      // 调用SDK提供的close方法关闭transport
-      if (connection.transport && typeof connection.transport.close === 'function') {
-        await connection.transport.close();
-        // 标记传输层已关闭
-        connection.transportClosed = true;
+  /**
+   * 断开指定服务器的连接
+   * @param serverId 服务器ID
+   */
+  async disconnect(serverId: string): Promise<void> {
+    const connection = this.connections.get(serverId);
+    if (!connection) {
+      throw new Error(`未找到服务器: ${serverId}`);
+    }
+    
+    await connection.disconnect();
+  }
+
+  /**
+   * 重新连接所有激活的服务器
+   */
+  async restartAll(): Promise<void> {
+    // 先断开所有连接
+    await this.disconnectAll();
+    
+    // 重新连接激活的服务器
+    for (const serverConfig of MCPConfig.servers) {
+      if (serverConfig.isActive !== false) {
+        const connection = this.connections.get(serverConfig.id);
+        if (!connection) continue;
+        
+        try {
+          await connection.connect();
+          await this.updateToolServerMap(serverConfig.id);
+        } catch (error) {
+          Logger.error('MCP CLIENT', `重新连接服务器 ${serverConfig.name} (${serverConfig.id}) 失败:`, error);
+        }
       }
-      
-      connection.connected = false;
-    } catch (error) {
-      throw error;
     }
   }
 
   /**
-   * 断开并重新连接当前服务器
+   * 重启指定服务器
+   * @param serverId 服务器ID
    */
-  async restart(): Promise<boolean> {
-    const connection = this.getCurrentConnection();
+  async restart(serverId: string): Promise<boolean> {
+    const connection = this.connections.get(serverId);
     if (!connection) {
-      throw new Error(`未找到服务器配置: ${this.currentServerId}`);
+      throw new Error(`未找到服务器: ${serverId}`);
     }
 
-    try {
-      // 如果已连接，先断开
-      if (connection.connected) {
-        await this.disconnect();
-      }
-      
-      // 重新连接
-      return await this.connect();
-    } catch (error) {
-      throw error;
+    const result = await connection.restart();
+    if (result) {
+      await this.updateToolServerMap(serverId);
     }
+    
+    return result;
   }
 
   /**
-   * 连接到当前MCP服务器
+   * 连接到指定MCP服务器
+   * @param serverId 服务器ID
    */
-  async connect(): Promise<boolean> {
-    const connection = this.getCurrentConnection();
+  async connect(serverId: string): Promise<boolean> {
+    const connection = this.connections.get(serverId);
     if (!connection) {
-      throw new Error(`未找到服务器配置: ${this.currentServerId}`);
+      throw new Error(`未找到服务器: ${serverId}`);
     }
 
-    // 如果已经连接，直接返回成功
-    if (connection.connected && !connection.transportClosed) {
-      return true;
+    const result = await connection.connect();
+    if (result) {
+      await this.updateToolServerMap(serverId);
     }
+    
+    return result;
+  }
 
-    try {
-      // 如果传输层被关闭过或从未初始化，需要重新初始化
-      if (connection.transportClosed) {
-        // 获取服务器配置
-        const serverConfig = MCPConfig.servers.find(s => s.id === connection.id);
-        if (!serverConfig) {
-          throw new Error(`未找到服务器配置: ${connection.id}`);
-        }
+  /**
+   * 获取特定服务器连接
+   * @param serverId 服务器ID
+   */
+  getConnection(serverId: string): ServerConnection | undefined {
+    return this.connections.get(serverId);
+  }
 
-        // 重新创建传输层
-        if (connection.connectionType === 'stdio') {
-          if (serverConfig.command && serverConfig.args) {
-            connection.transport = new StdioClientTransport({
-              command: serverConfig.command,
-              args: serverConfig.args
-            });
-          } else {
-            throw new Error(`无法创建stdio连接: 缺少command或args配置`);
-          }
-        } else if (connection.connectionType === 'sse') {
-          if (serverConfig.sseUrl) {
-            connection.transport = new SSEClientTransport(new URL(serverConfig.sseUrl));
-          } else {
-            throw new Error(`无法创建sse连接: 缺少sseUrl配置`);
-          }
-        } else {
-          throw new Error(`不支持的连接类型: ${connection.connectionType}`);
-        }
-        
-        // 重新创建客户端实例
-        connection.client = new Client(
-          {
-            name: MCPConfig.client.name,
-            version: MCPConfig.client.version
-          },
-          {
-            capabilities: MCPConfig.client.capabilities
-          }
-        );
-        
-        // 重置传输层状态
-        connection.transportClosed = false;
-      }
-
-      Logger.info('MCP CLIENT', `正在连接到MCP服务器 ${connection.name}...`);
-      
-      // 建立连接
-      await connection.client.connect(connection.transport);
-      
-      // 在连接后尝试获取服务器版本信息
-      const serverVersion = connection.client.getServerVersion();
-      if (serverVersion) {
-        connection.name = serverVersion.name || connection.name;
-        connection.version = serverVersion.version || "未知";
-      }
-      
-      connection.connected = true;
-      Logger.info('MCP CLIENT', `MCP服务器 ${connection.name} 连接成功！`);
-      return true;
-    } catch (error) {
-      // 确保连接标记为断开状态
-      connection.connected = false;
-      Logger.error('MCP CLIENT', '连接失败:', error);
-      throw error;
+  /**
+   * 切换当前选中的服务器（不进行连接）
+   * @param serverId 服务器ID
+   * @returns 是否成功切换
+   */
+  switchCurrentServer(serverId: string): boolean {
+    const connection = this.connections.get(serverId);
+    if (!connection) {
+      return false;
     }
+    
+    // 仅切换选中的服务器ID，不进行连接
+    this.currentServerId = serverId;
+    return true;
   }
 }
 
+/**
+ * 完全重新加载配置
+ * 用于在配置变更后强制刷新
+ */
+export async function reloadMCPConfig(): Promise<boolean> {
+  try {
+    await mcpClient.disconnectAll();
+    
+    const configReloaded = reloadConfigAndUpdate('mcp-config.json', MCPConfig);
+    if (!configReloaded) {
+      throw new Error('重新加载配置文件失败');
+    }
+    
+    // 保存当前选中的服务器ID
+    const currentServerId = mcpClient["currentServerId"];
+    
+    mcpClient["connections"] = new Map();
+    mcpClient["toolServerMap"] = new Map();
+    
+    // 初始化所有服务器连接
+    MCPConfig.servers.forEach(serverConfig => {
+      try {
+        const connection = new ServerConnection(serverConfig);
+        mcpClient["connections"].set(serverConfig.id, connection);
+      } catch (error) {
+        Logger.error('MCP CLIENT', `重新加载配置后创建服务器连接失败:`, error);
+      }
+    });
+    
+    // 恢复之前选择的服务器ID（如果还存在的话）
+    if (currentServerId && mcpClient["connections"].has(currentServerId)) {
+      mcpClient["currentServerId"] = currentServerId;
+    } else if (mcpClient["connections"].size > 0) {
+      // 如果之前的服务器不存在了，选择第一个可用的
+      mcpClient["currentServerId"] = Array.from(mcpClient["connections"].keys())[0];
+    }
+    
+    // 尝试连接所有激活的服务器
+    for (const serverConfig of MCPConfig.servers) {
+      if (serverConfig.isActive !== false) {
+        try {
+          // 使用不会修改currentServerId的connect方法
+          await mcpClient.connect(serverConfig.id);
+        } catch (error) {
+          Logger.error('MCP CLIENT', `重新加载配置后连接服务器 ${serverConfig.name} (${serverConfig.id}) 失败:`, error);
+        }
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    Logger.error('MCP CLIENT', `重新加载MCP配置失败:`, error);
+    return false;
+  }
+} 
+
 // 导出单例实例
-export const mcpClient = new MCPClient(); 
+export const mcpClient = new MCPClientManager();
+

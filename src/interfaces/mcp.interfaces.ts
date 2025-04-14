@@ -48,6 +48,18 @@ export interface ToolInfo {
   name: string;
   description: string;
   parameters: ToolParameter[];
+  /**
+   * 工具来源的服务器ID
+   */
+  serverId: string;
+  /**
+   * 工具来源服务器名称
+   */
+  serverName: string;
+  /**
+   * 原始工具名称（处理重名工具时使用）
+   */
+  originalName?: string;
 }
 
 /**
@@ -68,6 +80,10 @@ export interface MCPServerConfig {
 export interface ServerInfo {
   id: string;
   name: string;
+  /**
+   * 服务器内部名称（服务器自己报告的名称）
+   */
+  internalName?: string;
   version: string;
   status: string;
   connectionDetails: {
@@ -91,9 +107,28 @@ export interface ClientInfo {
  * MCP服务器信息
  */
 export interface MCPServerInfo {
-  server: ServerInfo;
-  client: ClientInfo;
-  tools: ToolInfo[];
-  availableServers?: ServerInfo[];
+  /**
+   * 当前选中的服务器ID
+   */
   currentServerId?: string;
+  /**
+   * 当前连接的服务器信息（兼容旧版单服务器模式）
+   */
+  server: ServerInfo;
+  /**
+   * 所有已连接服务器的工具列表
+   */
+  tools: ToolInfo[];
+  /**
+   * 所有可用的服务器列表
+   */
+  availableServers?: ServerInfo[];
+  /**
+   * 已连接的服务器列表
+   */
+  connectedServers?: ServerInfo[];
+  /**
+   * 每个服务器的工具映射 {serverId: ToolInfo[]}
+   */
+  serverTools?: Record<string, ToolInfo[]>;
 } 

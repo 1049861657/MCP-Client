@@ -1,19 +1,11 @@
 import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { AIProvidersConfigType, ProviderTypeInfo, MCPConfigType } from '../types/config.types.js';
-
-// 获取当前目录路径
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// 计算项目根目录路径（从当前目录向上两级：/config -> /src -> 项目根目录）
-const projectRoot = join(__dirname, '..', '..');
+import { getProjectRoot, getConfigPath } from '../utils/path-util.js';
 
 // 读取JSON配置文件
 function loadJSONConfig<T>(filename: string): T {
   try {
-    const filePath = join(projectRoot, 'config', filename);
+    const filePath = getConfigPath(filename, import.meta.url);
     const fileContent = readFileSync(filePath, 'utf-8');
     console.log(`成功加载配置文件: ${filePath}`);
     return JSON.parse(fileContent) as T;

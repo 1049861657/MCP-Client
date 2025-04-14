@@ -30,14 +30,6 @@ async function startServer() {
     // 初始化MCP服务连接
     Logger.info('APP', '正在初始化MCP服务...');
     
-    // 根据配置决定是否自动连接服务器
-    if (MCPConfig.autoConnect) {
-      Logger.info('APP', '配置设置为自动连接服务器');
-      await mcpClient.connect();
-    } else {
-      Logger.info('APP', '配置设置为不自动连接服务器');
-    }
-
     // 启动服务器
     app.listen(ServerConfig.port, () => {
       Logger.info('APP', `${AppConfig.name} v${AppConfig.version} 已启动`);

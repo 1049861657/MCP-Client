@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
-import { mcpClient } from '../core/client.js';
+import { mcpClient, reloadMCPConfig } from '../core/client.js';
 import { ErrorResponse } from '../interfaces/mcp.interfaces.js';
+import fs from 'fs';
+import { getMCPConfigPath } from '../utils/path-util.js';
+import { MCPConfigType, MCPServer } from '../types/config.types.js';
+
+// MCP配置文件路径
+const MCP_CONFIG_PATH = getMCPConfigPath(import.meta.url);
 
 /**
  * MCP信息控制器类
@@ -8,111 +14,346 @@ import { ErrorResponse } from '../interfaces/mcp.interfaces.js';
  */
 export class InfoController {
   /**
+   * 获取错误消息
+   */
+  private static getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
+  
+  /**
+   * 发送错误响应
+   */
+  private static sendErrorResponse(res: Response, status: number, error: string, details: string): void {
+    const errorResponse: ErrorResponse = { error, details };
+    res.status(status).json(errorResponse);
+  }
+
+  /**
    * 获取MCP服务信息
    */
   static async getInfo(req: Request, res: Response): Promise<void> {
     try {
-      console.log(`[API] 收到获取MCP信息请求`);
-      
-      // 获取MCP服务器信息，因为是异步方法，需要await
       const info = await mcpClient.getServerInfo();
-      
-      console.log("[API] 返回MCP信息:", JSON.stringify(info));
       res.json(info);
     } catch (error) {
-      console.error("[API] 获取MCP信息出错:", error instanceof Error ? error.message : String(error));
-      
-      const errorResponse: ErrorResponse = { 
-        error: "获取MCP信息失败", 
-        details: error instanceof Error ? error.message : String(error) 
-      };
-      res.status(500).json(errorResponse);
+      InfoController.sendErrorResponse(
+        res, 500, "获取MCP信息失败", InfoController.getErrorMessage(error)
+      );
+    }
+  }
+
+   /**
+   * 获取MCP服务信息
+   */
+   static async getClientInfo(req: Request, res: Response): Promise<void> {
+    try {
+      const info = await mcpClient.getClientInfo();
+      res.json(info);
+    } catch (error) {
+      InfoController.sendErrorResponse(
+        res, 500, "获取MCP信息失败", InfoController.getErrorMessage(error)
+      );
     }
   }
 
   /**
-   * 切换MCP服务器
+   * 切换/连接MCP服务器
    */
-  static async switchServer(req: Request, res: Response): Promise<void> {
+  static async connectServer(req: Request, res: Response): Promise<void> {
     try {
-      const serverId = req.params.serverId;
-      const forceConnect = req.query.connect === 'true'; // 可选参数：是否强制连接
+      const { serverId } = req.params;
       
       if (!serverId) {
-        res.status(400).json({ error: '服务器ID不能为空' });
+        res.status(400).json({ error: '缺少服务器ID参数' });
         return;
       }
       
-      console.log(`[API] 收到切换MCP服务器请求，目标服务器ID: ${serverId}, 强制连接: ${forceConnect}`);
-      
-      // 调用客户端切换服务器
-      const success = await mcpClient.switchServer(serverId);
+      const success = await mcpClient.connect(serverId);
       
       if (success) {
-        // 如果请求中指定了要连接，则尝试连接
-        if (forceConnect) {
-          try {
-            console.log(`[API] 尝试连接服务器: ${serverId}`);
-            await mcpClient.connect();
-            console.log(`[API] 连接服务器成功`);
-          } catch (error) {
-            console.error("[API] 连接新选择的服务器失败:", error);
-            // 连接失败不影响切换操作
-          }
-        } else {
-          console.log(`[API] 仅切换服务器，不连接`);
-        }
-        
-        // 获取切换后的服务器信息
         const info = await mcpClient.getServerInfo();
-        console.log(`[API] 服务器切换成功，返回新服务器信息`);
         res.json(info);
       } else {
-        const errorResponse: ErrorResponse = { 
-          error: "切换服务器失败", 
-          details: `无法切换到服务器: ${serverId}` 
-        };
-        res.status(400).json(errorResponse);
+        InfoController.sendErrorResponse(
+          res, 400, "连接服务器失败", `无法连接到服务器: ${serverId}`
+        );
       }
     } catch (error) {
-      console.error("[API] 切换服务器出错:", error instanceof Error ? error.message : String(error));
-      
-      const errorResponse: ErrorResponse = { 
-        error: "切换服务器失败", 
-        details: error instanceof Error ? error.message : String(error) 
-      };
-      res.status(500).json(errorResponse);
+      InfoController.sendErrorResponse(
+        res, 500, "连接服务器失败", InfoController.getErrorMessage(error)
+      );
     }
   }
 
   /**
-   * 断开当前MCP服务器连接
+   * 断开指定MCP服务器连接
    */
   static async disconnectServer(req: Request, res: Response): Promise<void> {
     try {
-      console.log(`[API] 收到断开MCP服务器连接请求`);
+      const { serverId } = req.params;
       
-      // 调用客户端断开连接方法
-      await mcpClient.disconnect();
-      
-      // 获取服务器信息（这里会返回断开状态，无需尝试重连）
-      const info = await mcpClient.getServerInfo();
-      
-      // 确保信息中显示服务器已断开连接
-      if (info.server) {
-        info.server.status = '未连接';
+      if (!serverId) {
+        InfoController.sendErrorResponse(
+          res, 400, "断开服务器连接失败", "必须指定服务器ID"
+        );
+        return;
       }
       
-      console.log(`[API] 服务器断开连接成功，返回更新后的服务器信息:`, JSON.stringify(info.server));
+      await mcpClient.disconnect(serverId);
+      
+      const info = await mcpClient.getServerInfo();
       res.json(info);
     } catch (error) {
-      console.error("[API] 断开服务器连接出错:", error instanceof Error ? error.message : String(error));
+      InfoController.sendErrorResponse(
+        res, 500, "断开服务器连接失败", InfoController.getErrorMessage(error)
+      );
+    }
+  }
+
+  /**
+   * 强制重新加载MCP配置
+   */
+  static async reloadConfig(req: Request, res: Response): Promise<void> {
+    try {
+      const success = await reloadMCPConfig();
       
-      const errorResponse: ErrorResponse = { 
-        error: "断开服务器连接失败", 
-        details: error instanceof Error ? error.message : String(error) 
+      if (success) {
+        const info = await mcpClient.getServerInfo();
+        res.json(info);
+      } else {
+        InfoController.sendErrorResponse(
+          res, 500, "重新加载MCP配置失败", "无法完成配置重新加载"
+        );
+      }
+    } catch (error) {
+      InfoController.sendErrorResponse(
+        res, 500, "重新加载MCP配置失败", InfoController.getErrorMessage(error)
+      );
+    }
+  }
+
+  /**
+   * 读取MCP配置文件
+   * @returns MCP配置对象
+   */
+  private static async readMCPConfig(): Promise<MCPConfigType> {
+    const configContent = await fs.promises.readFile(MCP_CONFIG_PATH, 'utf-8');
+    return JSON.parse(configContent);
+  }
+
+  /**
+   * 保存MCP配置文件
+   * @param config MCP配置对象
+   */
+  private static async saveMCPConfig(config: MCPConfigType): Promise<void> {
+    await fs.promises.writeFile(MCP_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+  }
+
+  /**
+   * 添加新MCP服务器
+   */
+  static async addServer(req: Request, res: Response): Promise<void> {
+    try {
+      const serverData: MCPServer = req.body;
+      
+      // 验证必要字段
+      if (!serverData.id || !serverData.name || !serverData.connectionType) {
+        InfoController.sendErrorResponse(
+          res, 400, "服务器数据无效", "必须提供id、name和connectionType字段"
+        );
+        return;
+      }
+      
+      // 验证连接类型特定的字段
+      if (serverData.connectionType === 'stdio') {
+        if (!serverData.command || !serverData.args || !Array.isArray(serverData.args)) {
+          InfoController.sendErrorResponse(
+            res, 400, "服务器数据无效", "stdio连接类型必须提供command和args数组"
+          );
+          return;
+        }
+      } else if (serverData.connectionType === 'sse') {
+        if (!serverData.sseUrl) {
+          InfoController.sendErrorResponse(
+            res, 400, "服务器数据无效", "sse连接类型必须提供sseUrl"
+          );
+          return;
+        }
+      } else {
+        InfoController.sendErrorResponse(
+          res, 400, "服务器数据无效", "connectionType必须是stdio或sse"
+        );
+        return;
+      }
+      
+      // 读取配置文件
+      const config = await InfoController.readMCPConfig();
+      
+      // 检查是否已存在相同ID的服务器
+      if (config.servers.some(server => server.id === serverData.id)) {
+        InfoController.sendErrorResponse(
+          res, 400, "服务器ID已存在", `ID为${serverData.id}的服务器已存在`
+        );
+        return;
+      }
+      
+      // 添加新服务器
+      config.servers.push(serverData);
+      
+      // 保存配置文件
+      await InfoController.saveMCPConfig(config);
+      
+      // 强制重新加载配置
+      await reloadMCPConfig();
+      
+      // 获取更新后的服务器信息
+      const info = await mcpClient.getServerInfo();
+      res.json(info);
+    } catch (error) {
+      InfoController.sendErrorResponse(
+        res, 500, "添加服务器失败", InfoController.getErrorMessage(error)
+      );
+    }
+  }
+
+  /**
+   * 更新MCP服务器配置
+   */
+  static async updateServer(req: Request, res: Response): Promise<void> {
+    try {
+      const serverId = req.params.serverId;
+      const serverData: Partial<MCPServer> = req.body;
+      
+      if (!serverId) {
+        InfoController.sendErrorResponse(res, 400, "更新服务器失败", "服务器ID不能为空");
+        return;
+      }
+      
+      // 读取配置文件
+      const config = await InfoController.readMCPConfig();
+      
+      // 查找并更新服务器
+      const serverIndex = config.servers.findIndex(server => server.id === serverId);
+      if (serverIndex === -1) {
+        InfoController.sendErrorResponse(
+          res, 404, "服务器不存在", `ID为${serverId}的服务器不存在`
+        );
+        return;
+      }
+      
+      // 保留ID不变，更新其他字段
+      const updatedServer: MCPServer = {
+        ...config.servers[serverIndex],
+        ...serverData,
+        id: serverId 
       };
-      res.status(500).json(errorResponse);
+      
+      config.servers[serverIndex] = updatedServer;
+      
+      // 保存配置文件
+      await InfoController.saveMCPConfig(config);
+      
+      // 强制重新加载配置
+      await reloadMCPConfig();
+      
+      // 获取更新后的服务器信息
+      const info = await mcpClient.getServerInfo();
+      res.json(info);
+    } catch (error) {
+      InfoController.sendErrorResponse(
+        res, 500, "更新服务器失败", InfoController.getErrorMessage(error)
+      );
+    }
+  }
+
+  /**
+   * 删除MCP服务器配置
+   */
+  static async deleteServer(req: Request, res: Response): Promise<void> {
+    try {
+      const serverId = req.params.serverId;
+      
+      if (!serverId) {
+        InfoController.sendErrorResponse(res, 400, "删除服务器失败", "服务器ID不能为空");
+        return;
+      }
+      
+      // 读取配置文件
+      const config = await InfoController.readMCPConfig();
+      
+      // 查找服务器
+      const serverIndex = config.servers.findIndex(server => server.id === serverId);
+      if (serverIndex === -1) {
+        InfoController.sendErrorResponse(
+          res, 404, "服务器不存在", `ID为${serverId}的服务器不存在`
+        );
+        return;
+      }
+      
+      // 先尝试断开连接
+      try {
+        await mcpClient.disconnect(serverId);
+      } catch (error) {
+        // 忽略断开连接失败的错误
+        console.error('断开连接失败:', error);
+      }
+      
+      // 删除服务器
+      config.servers.splice(serverIndex, 1);
+      
+      // 保存配置文件
+      await InfoController.saveMCPConfig(config);
+      
+      // 强制重新加载配置
+      await reloadMCPConfig();
+      
+      // 获取更新后的服务器信息
+      const updatedInfo = await mcpClient.getServerInfo();
+      res.json(updatedInfo);
+    } catch (error) {
+      InfoController.sendErrorResponse(
+        res, 500, "删除服务器失败", InfoController.getErrorMessage(error)
+      );
+    }
+  }
+
+  /**
+   * 查看服务器信息（不连接）
+   */
+  static async viewServer(req: Request, res: Response): Promise<void> {
+    try {
+      const { serverId } = req.params;
+      
+      if (!serverId) {
+        res.status(400).json({ error: '缺少服务器ID参数' });
+        return;
+      }
+      
+      // 切换当前选中的服务器
+      const switched = mcpClient.switchCurrentServer(serverId);
+      if (!switched) {
+        InfoController.sendErrorResponse(
+          res, 404, "服务器不存在", `ID为${serverId}的服务器不存在`
+        );
+        return;
+      }
+      
+      // 获取更新后的服务器信息
+      const serverInfo = await mcpClient.getServerInfo();
+      
+      // 如果没有找到指定的服务器（虽然切换成功，但安全检查）
+      if (!serverInfo.availableServers?.find(s => s.id === serverId)) {
+        InfoController.sendErrorResponse(
+          res, 404, "服务器不存在", `ID为${serverId}的服务器不存在`
+        );
+        return;
+      }
+      
+      res.json(serverInfo);
+    } catch (error) {
+      InfoController.sendErrorResponse(
+        res, 500, "查看服务器信息失败", InfoController.getErrorMessage(error)
+      );
     }
   }
 } 
