@@ -151,6 +151,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 初始化应用
             window.AIChatApp.init();
             console.log('AI聊天应用初始化完成');
+            
+            // 分发应用初始化完成事件
+            const initEvent = new CustomEvent('AIChatAppInitialized');
+            document.dispatchEvent(initEvent);
         } else {
             console.error('初始化失败：缺少必要模块', { 
                 hasApp: !!window.AIChatApp,

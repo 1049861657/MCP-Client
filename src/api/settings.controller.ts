@@ -88,7 +88,6 @@ export class SettingsController {
       // 调用提供商服务的重载方法
       const result = await reloadProviders();
       
-      Logger.info('SETTINGS', '已重新加载AI提供商配置，无需重启服务器');
       res.json({ 
         success: true, 
         message: '提供商配置已重新加载并应用', 

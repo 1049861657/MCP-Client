@@ -1,6 +1,6 @@
 import { OpenAI as OpenAIClient } from 'openai';
 import { Logger } from '../utils/logger.js';
-import { AIProvidersConfig, MCPConfig } from '../config/app.config.js';
+import { AIProvidersConfig, MCPConfig, reloadConfigAndUpdate } from '../config/app.config.js';
 import { ChatConfig, ToolsConfig } from '../config/feature-config.js';
 import { mcpClient } from '../core/client.js';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
@@ -1480,18 +1480,16 @@ if (defaultProviderName && providerServices[defaultProviderName]) {
  */
 export async function reloadProviders(): Promise<{providers: string[], default: string}> {
   try {
-    // 重新读取配置文件
-    const configPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'config', 'ai-providers.json');
-    const configContent = readFileSync(configPath, 'utf-8');
-    const newConfig = JSON.parse(configContent);
-    
-    // 验证配置
-    if (!newConfig || !newConfig.providers || !Array.isArray(newConfig.providers)) {
+    // 使用配置系统中的重载函数更新全局配置对象
+    if (!reloadConfigAndUpdate('ai-providers.json', AIProvidersConfig)) {
       throw new Error('无效的提供商配置');
     }
     
-    // 更新全局配置对象，使其他控制器可以获取最新配置
-    Object.assign(AIProvidersConfig, newConfig);
+    // 验证配置
+    if (!AIProvidersConfig || !AIProvidersConfig.providers || !Array.isArray(AIProvidersConfig.providers)) {
+      throw new Error('无效的提供商配置');
+    }
+    
     Logger.info('OPENAI', '已更新全局配置对象AIProvidersConfig');
     
     // 清空当前提供商服务
@@ -1500,7 +1498,7 @@ export async function reloadProviders(): Promise<{providers: string[], default: 
     });
     
     // 重新创建提供商实例
-    for (const provider of newConfig.providers) {
+    for (const provider of AIProvidersConfig.providers) {
       if (provider && typeof provider === 'object' && provider.name) {
         providerServices[provider.name] = new OpenAI(provider.name);
         Logger.info('OPENAI', `已重新加载提供商实例: ${provider.name}`);
@@ -1508,15 +1506,15 @@ export async function reloadProviders(): Promise<{providers: string[], default: 
     }
     
     // 更新默认服务实例 (openaiService)
-    if (newConfig.defaultProvider && providerServices[newConfig.defaultProvider]) {
+    if (AIProvidersConfig.defaultProvider && providerServices[AIProvidersConfig.defaultProvider]) {
       // 直接使用已创建的默认提供商实例
-      openaiService = providerServices[newConfig.defaultProvider];
-      Logger.info('OPENAI', `已将默认提供商更新为: ${newConfig.defaultProvider}`);
+      openaiService = providerServices[AIProvidersConfig.defaultProvider];
+      Logger.info('OPENAI', `已将默认提供商更新为: ${AIProvidersConfig.defaultProvider}`);
     }
     
     return {
       providers: Object.keys(providerServices),
-      default: newConfig.defaultProvider || '默认'
+      default: AIProvidersConfig.defaultProvider || '默认'
     };
   } catch (error) {
     Logger.error('OPENAI', '重新加载提供商配置失败:', error);

@@ -1,0 +1,433 @@
+/* 聊天界面基础样式 - 从ai.html提取 */
+
+/* 修改页面容器宽度 - 扩大主容器 */
+.container {
+    max-width: 1600px; /* 增加容器最大宽度 */
+    margin: 0 auto;
+    padding: 0 20px; /* 减少水平内边距 */
+    width: 98%; /* 使容器宽度接近屏幕宽度 */
+    height: calc(100vh - 50px); /* 固定高度，减去导航栏高度 */
+    display: flex;
+    flex-direction: column;
+}
+
+/* 聊天容器样式优化 */
+.chat-container {
+    width: 100%; /* 使用全宽 */
+    margin: 0 auto;
+    padding: 10px; /* 减少内边距 */
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* 防止外部滚动 */
+}
+
+/* 聊天消息显示区域 */
+.chat-messages {
+    margin: 10px 0; /* 减小外边距 */
+    padding: 15px; /* 减小内边距 */
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: #f5f5f5;
+    height: 80vh; /* 使用视口高度的百分比 */
+    min-height: 450px; /* 保留最小高度 */
+    overflow-y: auto; /* 只允许垂直方向滚动 */
+    display: flex;
+    flex-direction: column;
+    flex: 1; /* 占用容器剩余空间 */
+}
+
+/* 输入区域整体容器 */
+.message-area {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* 会话信息样式 */
+.session-info {
+    background-color: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 6px 6px 0 0;
+    padding: 8px 12px;
+    margin-bottom: -2px; /* 与输入框无缝衔接 */
+    border-bottom: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.current-session-display {
+    font-size: 14px;
+    color: #495057;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+    flex: 1;
+}
+
+#session-name {
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+/* 会话按钮容器 */
+.session-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* 历史记录按钮样式 */
+.history-button {
+    background-color: #2196f3; /* 蓝色 */
+}
+
+.history-button:hover {
+    background-color: #1976d2;
+}
+
+/* 清除对话按钮样式 */
+.clear-button {
+    background-color: #f44336; /* 红色 */
+}
+
+.clear-button:hover {
+    background-color: #d32f2f;
+}
+
+/* 输入框容器样式 */
+.message-input-container {
+    position: relative;
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 0 0 6px 6px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 按钮容器样式 */
+.input-buttons {
+    position: absolute;
+    right: 10px;
+    bottom: 30px; /* 调整垂直位置，考虑到textarea的margin-bottom */
+    display: flex;
+    gap: 8px;
+}
+
+/* 控制按钮通用样式 */
+.control-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.2s;
+    padding: 0;
+}
+
+.control-button:hover {
+    background-color: var(--primary-dark);
+    transform: scale(1.05);
+}
+
+.control-button:disabled {
+    background-color: var(--border-color);
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* 按钮特殊样式 */
+.new-session-button {
+    background-color: #4caf50; /* 绿色 */
+}
+
+.new-session-button:hover {
+    background-color: #388e3c;
+}
+
+/* 快捷消息按钮样式 */
+.quick-messages-button {
+    background-color: #9c27b0; /* 紫色 */
+}
+
+.quick-messages-button:hover {
+    background-color: #7b1fa2;
+}
+
+.settings-button {
+    background-color: #ff9800; /* 橙色 */
+}
+
+.settings-button:hover {
+    background-color: #f57c00;
+}
+
+.control-button svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* 添加回label样式 */
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+/* 更新textarea样式 */
+textarea {
+    min-height: 120px;
+    margin-bottom: 20px;
+    resize: vertical;
+    width: 100%;
+    padding: 12px;
+    padding-right: 140px; /* 为多个按钮留出空间 */
+    border: none; /* 移除边框，因为容器已有边框 */
+    border-radius: 0 0 6px 6px;
+    font-size: 16px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+}
+
+/* 移除旧的按钮样式 */
+.send-button {
+    position: static; /* 移除绝对定位，现在由input-buttons管理位置 */
+}
+
+/* 结果区域样式 */
+.result {
+    margin-top: 24px;
+    padding: 16px;
+    border-radius: 8px;
+    background-color: rgba(25, 118, 210, 0.05);
+    border: 1px solid rgba(25, 118, 210, 0.1);
+}
+
+.result h3 {
+    color: var(--primary-dark);
+    margin: 0 0 12px 0;
+    font-weight: 500;
+}
+
+.response-content {
+    background-color: var(--card-background);
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    margin: 0;
+    font-size: 16px;
+    min-height: 60px;
+    overflow-x: auto;
+}
+
+.hidden {
+    display: none;
+}
+
+.response-time {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.response-time-value {
+    font-weight: 500;
+    color: var(--primary-color);
+    margin-left: 4px;
+}
+
+.token-usage {
+    margin-top: 12px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.token-usage span {
+    margin-right: 16px;
+}
+
+.token-label {
+    font-weight: 500;
+    color: var(--primary-color);
+}
+
+/* 模式切换选项卡 */
+.mode-tabs {
+    display: flex;
+    gap: 1px;
+    margin-bottom: 15px; /* 减小下方间距 */
+    background-color: var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+    width: fit-content;
+}
+
+.mode-tabs button {
+    background-color: var(--card-background);
+    border: none;
+    padding: 8px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.mode-tabs button.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* 工具提示 */
+.tooltip-container {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+}
+
+.tooltip {
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 14px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.3s, transform 0.3s;
+    pointer-events: none;
+}
+
+.tooltip.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* AI思考中状态样式 */
+.ai-thinking {
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: 15px;
+    gap: 10px;
+    padding: 5px 0;
+}
+
+.thinking-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(25, 118, 210, 0.2);
+    border-top: 2px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+    .input-buttons {
+        gap: 5px;
+    }
+    
+    .control-button {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .session-info .settings-button {
+        width: 28px;
+        height: 28px;
+    }
+    
+    .session-info .settings-button svg {
+        width: 14px;
+        height: 14px;
+    }
+    
+    textarea {
+        padding-right: 120px;
+    }
+    
+    .chat-messages {
+        padding: 10px;
+        height: 70vh; /* 较小屏幕上使用较小的高度 */
+    }
+    
+    .chat-bubble {
+        max-width: 90%;
+    }
+    
+    .container {
+        padding: 10px;
+        width: 100%;
+    }
+    
+    .chat-container {
+        padding: 5px;
+    }
+    
+    .session-buttons {
+        gap: 4px;
+    }
+    
+    .session-info .control-button {
+        width: 28px;
+        height: 28px;
+    }
+    
+    .session-info .control-button svg {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+/* 会话信息样式中设置按钮的特殊样式 */
+.session-info .settings-button {
+    width: 32px;
+    height: 32px;
+    background-color: #ff9800;
+    flex-shrink: 0;
+}
+
+.session-info .settings-button:hover {
+    background-color: #f57c00;
+    transform: scale(1.1);
+}
+
+.session-info .settings-button svg {
+    width: 16px;
+    height: 16px;
+}
+
+.session-info .control-button {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
+
+.session-info .control-button svg {
+    width: 16px;
+    height: 16px;
+} 

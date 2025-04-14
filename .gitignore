@@ -24,3 +24,6 @@ yarn-error.log*
 .vscode/
 *.swp
 *.swo 
+
+# 配置文件
+config/

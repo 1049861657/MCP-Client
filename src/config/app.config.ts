@@ -34,6 +34,27 @@ const aiProvidersConfig = loadJSONConfig<AIProvidersConfigType>('ai-providers.js
 // 加载MCP配置
 const mcpConfig = loadJSONConfig<MCPConfigType>('mcp-config.json');
 
+// 加载快捷消息配置
+const quickMessagesConfig = loadJSONConfig<any>('quick-messages.json');
+
+/**
+ * 重新加载配置并更新指定的配置对象
+ * @param configName 配置文件名
+ * @param targetConfig 需要更新的目标配置对象
+ * @returns 成功返回true，失败返回false
+ */
+export function reloadConfigAndUpdate(configName: string, targetConfig: any): boolean {
+  try {
+    const newConfig = loadJSONConfig<any>(configName);
+    Object.assign(targetConfig, newConfig);
+    console.log(`${configName}配置已重新加载`);
+    return true;
+  } catch (error) {
+    console.error(`重新加载配置失败: ${configName}`, error);
+    return false;
+  }
+}
+
 /**
  * 应用程序配置
  */
@@ -59,4 +80,9 @@ export const AIProvidersConfig = aiProvidersConfig;
 /**
  * MCP配置
  */
-export const MCPConfig = mcpConfig; 
+export const MCPConfig = mcpConfig;
+
+/**
+ * 快捷消息配置
+ */
+export const QuickMessagesConfig = quickMessagesConfig; 

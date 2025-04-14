@@ -465,50 +465,52 @@ document.addEventListener('DOMContentLoaded', () => {
      * @returns {Promise<void>}
      */
     async function saveAndReloadProviders(data) {
-        // 发送到服务器
-        const response = await fetch('/api/settings/providers', {
+        // 发送到服务器并处理重载
+        return fetch('/api/settings/providers', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(data)
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || '保存失败');
-        }
-        
-        // 更新本地数据
-        providersData = data;
-        
-        // 调用重载API，实现不需要重启服务器就能应用配置更改
-        try {
-            const reloadResponse = await fetch('/api/settings/providers/reload', {
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(error => {
+                    throw new Error(error.error || '保存失败');
+                });
+            }
+            
+            // 更新本地数据
+            providersData = data;
+            
+            // 保存成功后调用重载API
+            return fetch('/api/settings/providers/reload', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
-            
+        })
+        .then(reloadResponse => {
             if (reloadResponse.ok) {
-                const reloadResult = await reloadResponse.json();
-                console.log('提供商配置已重载:', reloadResult);
-                // 显示成功通知
-                showNotification('配置已保存并应用，无需重启服务器');
+                return reloadResponse.json().then(result => {
+                    console.log('提供商配置已重载:', result);
+                    showNotification('配置已保存并应用，无需重启服务器');
+                });
             } else {
-                // 如果重载失败，显示警告但不阻止保存流程
-                console.warn('配置已保存，但无法自动应用:', await reloadResponse.json());
+                console.warn('配置已保存，但无法自动应用');
                 showNotification('配置已保存，但需要重启服务器才能应用更改', true);
             }
-        } catch (reloadError) {
-            // 如果重载API调用失败，显示警告但不阻止保存流程
-            console.error('配置重载失败:', reloadError);
-            showNotification('配置已保存，但需要重启服务器才能应用更改', true);
-        }
-        
-        // 重新渲染UI
-        renderProvidersUI();
+        })
+        .catch(error => {
+            console.error('配置操作失败:', error);
+            showNotification(error.message || '操作失败', true);
+            throw error; // 重新抛出错误，让调用者知道出错了
+        })
+        .finally(() => {
+            // 无论成功失败都重新渲染UI
+            renderProvidersUI();
+        });
     }
     
     /**

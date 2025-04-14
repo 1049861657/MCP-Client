@@ -1300,25 +1300,23 @@ window.AIChatUI = {
     showSettingsModal() {
         const modal = document.getElementById('settings-modal');
         if (!modal) {
-            console.error('未找到设置模态窗口');
+            console.error('设置模态窗口未找到');
             return;
         }
         
-        // 显示模态窗口
         modal.style.display = 'block';
         
-        // 设置关闭按钮事件
-        const closeBtn = modal.querySelector('.close');
-        if (closeBtn) {
-            closeBtn.onclick = () => {
-                modal.style.display = 'none';
-            };
-        }
+        // 为关闭按钮设置事件
+        document.querySelector('#settings-modal .close').onclick = () => {
+            modal.style.display = 'none';
+            this.saveSettings();
+        };
         
-        // 点击模态窗口外部关闭
+        // 点击模态窗口外部时关闭
         window.onclick = (event) => {
             if (event.target === modal) {
                 modal.style.display = 'none';
+                this.saveSettings();
             }
         };
         
@@ -1330,6 +1328,251 @@ window.AIChatUI = {
                 this.showTooltip('设置已重置为默认值');
             };
         }
+    },
+    
+    // 显示快捷消息模态窗口
+    showQuickMessagesModal() {
+        const modal = document.getElementById('quick-messages-modal');
+        if (!modal) return;
+        
+        const container = modal.querySelector('.quick-messages-container');
+        if (!container) return;
+        
+        // 显示模态窗口
+        modal.style.display = 'block';
+        
+        // 显示加载状态
+        container.innerHTML = '<div class="loading-messages">正在加载快捷消息...</div>';
+        
+        // 加载数据
+        fetch('/api/config/quick-messages')
+            .then(response => {
+                if (!response.ok) throw new Error(`请求失败: ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                if (!data) throw new Error('数据为空');
+                this.renderQuickMessages(container, data);
+            })
+            .catch(error => {
+                console.error('加载快捷消息失败:', error);
+                container.innerHTML = `<div class="error-message">加载失败: ${error.message}</div>`;
+            });
+        
+        // 为关闭按钮设置事件
+        const closeButton = document.querySelector('#quick-messages-modal .close');
+        if (closeButton) {
+            closeButton.onclick = () => {
+                modal.style.display = 'none';
+            };
+        }
+        
+        // 点击模态窗口外部时关闭
+        window.onclick = (event) => {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+    },
+    
+    // 渲染快捷消息
+    renderQuickMessages(container, data) {
+        // 清空容器
+        container.innerHTML = '';
+        
+        if (!data || !Array.isArray(data)) {
+            container.innerHTML = '<div class="error-message">快捷消息配置格式错误</div>';
+            return;
+        }
+        
+        // 保存当前数据的引用，用于后续保存
+        this.quickMessagesData = JSON.parse(JSON.stringify(data));
+        
+        // 创建表格容器
+        const tableDiv = document.createElement('div');
+        tableDiv.className = 'quick-messages-table';
+        
+        // 创建表头
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'quick-messages-header';
+        headerDiv.innerHTML = `
+            <div class="message-test-id">ID</div>
+            <div class="message-test-item">测试项目</div>
+            <div class="message-test-result">测试结果</div>
+        `;
+        tableDiv.appendChild(headerDiv);
+        
+        // 添加消息项
+        data.forEach((message, index) => {
+            if (!message.content) return;
+            
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'quick-messages-row';
+            // 添加交替背景色
+            if (index % 2 === 0) {
+                itemDiv.classList.add('even-row');
+            }
+            
+            // 标记可以点击并存储消息索引
+            itemDiv.setAttribute('data-message', message.content);
+            itemDiv.setAttribute('data-index', index);
+            
+            // 设置结果图标，默认为成功（√）
+            const resultIcon = message.result === '×' ? 
+                '<span class="result-icon failure">×</span>' : 
+                '<span class="result-icon success">√</span>';
+            
+            // ID单元格
+            const idCell = document.createElement('div');
+            idCell.className = 'message-test-id';
+            idCell.textContent = message.id
+            
+            // HTML安全编码全文内容
+            const contentCell = document.createElement('div');
+            contentCell.className = 'message-test-item';
+            contentCell.setAttribute('title', message.content);
+            contentCell.textContent = message.content; // 使用textContent自动转义HTML
+            
+            const resultCell = document.createElement('div');
+            resultCell.className = 'message-test-result';
+            resultCell.innerHTML = resultIcon;
+            
+            // 清空并添加安全的内容
+            itemDiv.innerHTML = '';
+            itemDiv.appendChild(idCell);
+            itemDiv.appendChild(contentCell);
+            itemDiv.appendChild(resultCell);
+            
+            tableDiv.appendChild(itemDiv);
+        });
+        
+        // 添加表格到容器
+        container.appendChild(tableDiv);
+        
+        // 创建操作区域和保存按钮
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'quick-messages-actions';
+        
+        const saveButton = document.createElement('button');
+        saveButton.className = 'save-quick-messages';
+        saveButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            保存更改
+        `;
+        
+        // 添加保存按钮点击事件
+        saveButton.addEventListener('click', () => this.saveQuickMessages());
+        
+        actionsDiv.appendChild(saveButton);
+        container.appendChild(actionsDiv);
+        
+        // 设置消息项的点击事件
+        this.setupQuickMessageItems();
+        
+        // 设置结果图标的点击事件
+        this.setupResultIconToggle();
+    },
+    
+    // 设置结果图标切换事件
+    setupResultIconToggle() {
+        const resultIcons = document.querySelectorAll('.result-icon');
+        
+        resultIcons.forEach(icon => {
+            // 移除可能已存在的事件监听器
+            const newIcon = icon.cloneNode(true);
+            icon.parentNode.replaceChild(newIcon, icon);
+            
+            // 添加新的事件监听器
+            newIcon.addEventListener('click', (e) => {
+                // 阻止事件冒泡，防止触发父元素的点击事件
+                e.stopPropagation();
+                
+                // 获取当前行索引
+                const row = newIcon.closest('.quick-messages-row');
+                const index = parseInt(row.getAttribute('data-index'));
+                
+                // 切换结果状态
+                if (newIcon.classList.contains('success')) {
+                    // 成功 → 失败
+                    newIcon.classList.remove('success');
+                    newIcon.classList.add('failure');
+                    newIcon.textContent = '×';
+                    this.quickMessagesData[index].result = '×';
+                } else {
+                    // 失败 → 成功
+                    newIcon.classList.remove('failure');
+                    newIcon.classList.add('success');
+                    newIcon.textContent = '√';
+                    this.quickMessagesData[index].result = '√';
+                }
+            });
+        });
+    },
+    
+    // 保存快捷消息配置
+    saveQuickMessages() {
+        if (!this.quickMessagesData) {
+            this.showTooltip('没有可保存的数据');
+            return;
+        }
+        
+        // 调用API保存数据
+        fetch('/api/config/quick-messages/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(this.quickMessagesData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('保存失败: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                this.showTooltip('保存成功');
+            } else {
+                this.showTooltip('保存失败: ' + (data.message || '未知错误'));
+            }
+        })
+        .catch(error => {
+            console.error('保存快捷消息失败:', error);
+            this.showTooltip('保存失败: ' + error.message);
+        });
+    },
+    
+    // 设置快捷消息项的点击事件
+    setupQuickMessageItems() {
+        const messageItems = document.querySelectorAll('.quick-messages-row');
+        const messageInput = window.AIChatApp.elements.message;
+        
+        messageItems.forEach(item => {
+            // 移除可能已存在的事件监听器
+            const newItem = item.cloneNode(true);
+            item.parentNode.replaceChild(newItem, item);
+            
+            // 添加新的事件监听器
+            newItem.addEventListener('click', () => {
+                const message = newItem.getAttribute('data-message');
+                if (message && messageInput) {
+                    // 将消息内容填入输入框
+                    messageInput.value = message;
+                    messageInput.focus();
+                    
+                    // 关闭模态窗口
+                    document.getElementById('quick-messages-modal').style.display = 'none';
+                    
+                    // 显示提示
+                    this.showTooltip('已添加到输入框');
+                }
+            });
+        });
     },
     
     // 保存设置

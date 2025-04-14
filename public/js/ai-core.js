@@ -71,7 +71,6 @@ window.AIChatApp = {
             modeStream: document.getElementById('mode-stream'),
             modeRegular: document.getElementById('mode-regular'),
             clearChat: document.getElementById('clear-chat'),
-            copyChat: document.getElementById('copy-chat'),
             tooltip: document.getElementById('tooltip'),
             result: document.getElementById('result'),
             responseContent: document.getElementById('response-content'),
@@ -83,7 +82,8 @@ window.AIChatApp = {
             messageHistoryCount: document.getElementById('message-history-count'),
             openSettings: document.getElementById('open-settings'),
             viewHistory: document.getElementById('view-history'),
-            newSession: document.getElementById('new-session')
+            newSession: document.getElementById('new-session'),
+            quickMessages: document.getElementById('quick-messages')
         };
         
         // 检查关键元素是否存在
@@ -179,12 +179,9 @@ window.AIChatApp = {
         }
         
         // 清除和复制按钮
-        const { clearChat, copyChat } = this.elements;
+        const { clearChat } = this.elements;
         if (clearChat) {
             clearChat.addEventListener('click', () => this.clearChat());
-        }
-        if (copyChat) {
-            copyChat.addEventListener('click', () => this.copyChat());
         }
         
         // 发送按钮和回车发送
@@ -223,6 +220,25 @@ window.AIChatApp = {
         const { openSettings } = this.elements;
         if (openSettings) {
             openSettings.addEventListener('click', () => this.UI.showSettingsModal());
+        }
+        
+        // 打开快捷消息面板
+        const { quickMessages } = this.elements;
+        if (quickMessages) {
+            quickMessages.addEventListener('click', () => {
+                try {
+                    this.UI.showQuickMessagesModal();
+                } catch (error) {
+                    console.error('显示快捷消息失败:', error);
+                }
+            });
+            
+            // 添加视觉反馈
+            quickMessages.style.cursor = 'pointer';
+            quickMessages.addEventListener('mouseover', () => quickMessages.style.opacity = '0.8');
+            quickMessages.addEventListener('mouseout', () => quickMessages.style.opacity = '1');
+        } else {
+            console.error('快捷消息按钮元素不存在');
         }
         
         // 切换工具开关的事件
@@ -518,67 +534,6 @@ window.AIChatApp = {
         // 移除确认对话框，直接执行清除操作
         this.elements.chatMessages.innerHTML = '';
         this.UI.showTooltip('对话已清除');
-    },
-    
-    // 复制对话
-    copyChat() {
-        if (!this.elements.chatMessages) {
-            throw new Error('聊天消息容器未找到');
-        }
-        
-        if (this.elements.chatMessages.childElementCount === 0) {
-            this.UI.showTooltip('没有对话可复制');
-            return;
-        }
-        
-        let conversationText = '';
-        const messages = this.elements.chatMessages.querySelectorAll('.chat-message');
-        const provider = this.state.providers[this.elements.provider.value]?.name || 'AI';
-        const includeReasoning = confirm('是否包含AI的思考过程？');
-        
-        messages.forEach(msg => {
-            const isUser = msg.classList.contains('user');
-            const bubble = msg.querySelector('.chat-bubble');
-            
-            // 获取消息内容
-            let text;
-            if (isUser) {
-                text = bubble.childNodes[0].textContent.trim();
-            } else {
-                // 获取主要回复内容
-                const markdownDiv = bubble.querySelector('.markdown-content');
-                if (markdownDiv) {
-                    text = markdownDiv.textContent.trim();
-                } else {
-                    text = bubble.textContent.trim().replace(/AI正在思考中.../, '');
-                }
-                
-                // 如果需要，添加思考内容
-                if (includeReasoning) {
-                    const reasoningDiv = bubble.querySelector('.reasoning-content');
-                    if (reasoningDiv) {
-                        const reasoningText = reasoningDiv.textContent.trim();
-                        if (reasoningText) {
-                            text = `【思考过程】\n${reasoningText}\n\n【最终回复】\n${text}`;
-                        }
-                    }
-                }
-            }
-            
-            if (text) {
-                conversationText += `${isUser ? '用户' : provider}: ${text}\n\n`;
-            }
-        });
-        
-        // 复制到剪贴板
-        navigator.clipboard.writeText(conversationText)
-            .then(() => {
-                this.UI.showTooltip('对话已复制到剪贴板');
-            })
-            .catch(err => {
-                console.error('复制失败:', err);
-                this.UI.showTooltip('复制失败，请手动选择并复制');
-            });
     },
     
     // 处理发送消息
