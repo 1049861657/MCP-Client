@@ -1791,5 +1791,85 @@ window.AIChatUI = {
         } catch (error) {
             console.error('加载设置失败:', error);
         }
+    },
+    
+    // 显示随机快捷消息气泡
+    showRandomQuickMessages() {
+        const chatMessages = window.AIChatApp.elements.chatMessages;
+        
+        // 检查聊天界面是否为空
+        if (chatMessages.childElementCount > 0) {
+            return; // 如果不为空，不显示气泡
+        }
+        
+        // 检查是否正在加载会话（防止初始加载时显示后又立即被覆盖）
+        if (window.AIChatApp.state.isLoading) {
+            console.log('正在加载会话，跳过显示快捷消息气泡');
+            return;
+        }
+        
+        // 加载快捷消息数据
+        fetch('/api/config/quick-messages')
+            .then(response => {
+                if (!response.ok) throw new Error(`请求失败: ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                if (!Array.isArray(data) || data.length === 0) {
+                    return; // 没有数据或格式错误
+                }
+                
+                // 检查是否仍然需要显示气泡（可能此时已经加载了会话）
+                if (chatMessages.childElementCount > 0) {
+                    return; // 不再需要显示气泡
+                }
+                
+                // 随机选择3个问题
+                const randomMessages = this.getRandomElements(data, 3);
+                
+                // 创建气泡容器
+                const bubblesContainer = document.createElement('div');
+                bubblesContainer.className = 'quick-message-bubbles';
+                
+                // 为每个随机消息创建气泡
+                randomMessages.forEach(message => {
+                    const bubble = document.createElement('div');
+                    bubble.className = 'quick-message-bubble';
+                    bubble.textContent = message.content;
+                    
+                    // 点击事件：将消息填入输入框并发送
+                    bubble.addEventListener('click', () => {
+                        const messageInput = window.AIChatApp.elements.message;
+                        if (messageInput) {
+                            messageInput.value = message.content;
+                            
+                            // 移除所有气泡
+                            if (bubblesContainer.parentNode) {
+                                bubblesContainer.parentNode.removeChild(bubblesContainer);
+                            }
+                            
+                            // 触发发送按钮点击
+                            const sendButton = window.AIChatApp.elements.sendButton;
+                            if (sendButton) {
+                                sendButton.click();
+                            }
+                        }
+                    });
+                    
+                    bubblesContainer.appendChild(bubble);
+                });
+                
+                // 添加到聊天界面
+                chatMessages.appendChild(bubblesContainer);
+            })
+            .catch(error => {
+                console.error('加载随机快捷消息失败:', error);
+            });
+    },
+    
+    // 获取数组中的随机元素
+    getRandomElements(array, count) {
+        const shuffled = [...array].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, Math.min(count, array.length));
     }
 }; 

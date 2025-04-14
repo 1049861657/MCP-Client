@@ -553,4 +553,52 @@ pre {
 .response-content .markdown-content pre {
     position: relative;
     padding-top: 25px !important;
+}
+
+/* 随机快捷消息气泡样式 */
+.quick-message-bubbles {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    margin: 20px auto;
+    width: 90%;
+    max-width: 600px;
+}
+
+.quick-message-bubble {
+    background-color: #f0f4f8;
+    color: #2c3e50;
+    padding: 12px 20px;
+    border-radius: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    max-width: 100%;
+    text-align: center;
+    font-size: 14px;
+    border: 1px solid #e0e6ed;
+    animation: bubble-appear 0.5s ease-out;
+}
+
+.quick-message-bubble:hover {
+    background-color: #e6eef5;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.quick-message-bubble:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+}
+
+@keyframes bubble-appear {
+    from { 
+        opacity: 0;
+        transform: translateY(20px) scale(0.9);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 } 

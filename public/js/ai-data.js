@@ -526,13 +526,24 @@ window.AIChatData = {
         // 在控制台显示新会话信息
         console.log(`已创建新会话 ${sessionId} (供应商: ${currentProvider})`);
         
+        // 显示随机快捷消息气泡
+        if (this.app.UI) {
+            setTimeout(() => {
+                this.app.UI.showRandomQuickMessages();
+            }, 100);
+        }
+        
         return sessionId;
     },
     
     // 加载指定会话
     loadSession(sessionId) {
+        // 设置加载状态
+        this.app.state.isLoading = true;
+        
         return new Promise((resolve, reject) => {
             if (!sessionId) {
+                this.app.state.isLoading = false; // 重置加载状态
                 reject(new Error('无效的会话ID'));
                 return;
             }
@@ -556,6 +567,16 @@ window.AIChatData = {
                         
                         // 清空消息历史
                         this.app.state.messageHistory = [];
+                        
+                        // 重置加载状态
+                        this.app.state.isLoading = false;
+                        
+                        // 显示随机快捷消息气泡
+                        if (this.app.UI) {
+                            setTimeout(() => {
+                                this.app.UI.showRandomQuickMessages();
+                            }, 100);
+                        }
                         
                         resolve(sessionId);
                         return;
@@ -615,10 +636,14 @@ window.AIChatData = {
                         }
                     }
                     
+                    // 重置加载状态
+                    this.app.state.isLoading = false;
+                    
                     resolve(sessionId);
                 })
                 .catch(error => {
                     console.error(`加载会话 ${sessionId} 失败:`, error);
+                    this.app.state.isLoading = false; // 重置加载状态
                     reject(error);
                 });
         });
@@ -626,6 +651,9 @@ window.AIChatData = {
     
     // 加载当前供应商的最新会话
     loadLatestProviderSession() {
+        // 设置加载状态
+        this.app.state.isLoading = true;
+        
         return this.getLatestProviderSession()
             .then(sessionId => {
                 if (sessionId) {
@@ -642,6 +670,10 @@ window.AIChatData = {
                 // 出错时创建新会话，而不是返回null
                 console.log('加载最新会话失败，创建新会话');
                 return this.createNewSession();
+            })
+            .finally(() => {
+                // 重置加载状态
+                this.app.state.isLoading = false;
             });
     },
     

@@ -23,7 +23,8 @@ window.AIChatApp = {
         enableMessageHistory: false, // 是否启用历史消息
         messageHistoryCount: 3, // 历史消息数量，默认为3
         sessionId: '', // 当前会话的唯一标识符，每个供应商有自己的会话列表
-        isEventsInitialized: false
+        isEventsInitialized: false,
+        isLoading: false // 是否正在加载会话，防止快捷消息气泡冲突
     },
     
     // 数据库引用
@@ -534,6 +535,11 @@ window.AIChatApp = {
         // 移除确认对话框，直接执行清除操作
         this.elements.chatMessages.innerHTML = '';
         this.UI.showTooltip('对话已清除');
+        
+        // 使用setTimeout确保DOM更新完成后再显示气泡
+        setTimeout(() => {
+            this.UI.showRandomQuickMessages();
+        }, 100);
     },
     
     // 处理发送消息
