@@ -284,6 +284,11 @@ window.AIChatAPI = {
                         
                         // 重新保存历史
                         window.AIChatData.saveMessageHistory();
+                        
+                        // 在聊天完成后显示追加的快捷消息气泡
+                        setTimeout(() => {
+                            window.AIChatUI.showAppendedQuickMessages();
+                        }, 300); // 使用延迟确保DOM更新完成
                     }
                     
                     break;

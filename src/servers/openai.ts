@@ -5,9 +5,6 @@ import { ChatConfig, ToolsConfig } from '../config/feature-config.js';
 import { mcpClient } from '../core/client.js';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
 import { AIProvider } from '../types/config.types.js';
-import { join, dirname } from 'path';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
 import { OpenAINameCodec } from '../utils/openai-util.js';
 
 // 扩展Delta接口以支持reasoning_content属性

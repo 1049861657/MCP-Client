@@ -634,6 +634,11 @@ window.AIChatData = {
                                 this.app.UI.finalizeAIMessage(aiMessageDiv);
                             }
                         }
+                        
+                        // 在加载有内容的历史会话后，添加快捷消息气泡
+                        setTimeout(() => {
+                            this.app.UI.showAppendedQuickMessages();
+                        }, 300);
                     }
                     
                     // 重置加载状态
