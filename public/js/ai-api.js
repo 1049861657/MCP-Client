@@ -262,6 +262,21 @@ window.AIChatAPI = {
         const app = window.AIChatApp;
         
         try {
+            // 用户发送消息后，移除所有类型的快捷气泡
+            const chatMessages = app.elements.chatMessages;
+            if (chatMessages) {
+                // 移除标准气泡
+                const standardBubbles = chatMessages.querySelector('.quick-message-bubbles');
+                if (standardBubbles) {
+                    standardBubbles.remove();
+                }
+                // 移除追加气泡
+                const appendedBubbles = chatMessages.querySelector('.appended-quick-bubbles');
+                if (appendedBubbles) {
+                    appendedBubbles.remove();
+                }
+            }
+            
             while (true) {
                 const { done, value } = await reader.read();
                 
