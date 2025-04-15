@@ -16,6 +16,114 @@ window.AIChatUI = {
         }, duration);
     },
     
+    // 显示自定义确认对话框
+    showConfirm(options = {}) {
+        const {
+            title = '确认操作',
+            message = '确定要执行此操作吗？',
+            okText = '确定',
+            cancelText = '取消',
+            okClass = 'confirm-ok',
+            cancelClass = 'confirm-cancel',
+            onConfirm = () => {},
+            onCancel = () => {}
+        } = options;
+        
+        // 移除已有的确认框
+        const existingConfirm = document.querySelector('.confirm-overlay');
+        if (existingConfirm) {
+            document.body.removeChild(existingConfirm);
+        }
+        
+        // 创建确认对话框元素
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        
+        const dialog = document.createElement('div');
+        dialog.className = 'confirm-dialog';
+        
+        const header = document.createElement('div');
+        header.className = 'confirm-header';
+        header.textContent = title;
+        
+        const content = document.createElement('div');
+        content.className = 'confirm-content';
+        content.textContent = message;
+        
+        const actions = document.createElement('div');
+        actions.className = 'confirm-actions';
+        
+        const cancelButton = document.createElement('button');
+        cancelButton.className = `confirm-button ${cancelClass}`;
+        cancelButton.textContent = cancelText;
+        cancelButton.addEventListener('click', () => {
+            this.closeConfirm(overlay);
+            onCancel();
+        });
+        
+        const okButton = document.createElement('button');
+        okButton.className = `confirm-button ${okClass}`;
+        okButton.textContent = okText;
+        okButton.addEventListener('click', () => {
+            this.closeConfirm(overlay);
+            onConfirm();
+        });
+        
+        // 组装对话框
+        actions.appendChild(cancelButton);
+        actions.appendChild(okButton);
+        
+        dialog.appendChild(header);
+        dialog.appendChild(content);
+        dialog.appendChild(actions);
+        
+        overlay.appendChild(dialog);
+        
+        // 添加到页面
+        document.body.appendChild(overlay);
+        
+        // 点击遮罩层关闭对话框（视为取消）
+        overlay.addEventListener('click', (e) => {
+            // 确保点击的是遮罩层而不是对话框内部元素
+            if (e.target === overlay) {
+                this.closeConfirm(overlay);
+                onCancel();
+            }
+        });
+        // 显示对话框（使用requestAnimationFrame确保过渡效果）
+        requestAnimationFrame(() => {
+            overlay.classList.add('show');
+        });
+        
+        // 绑定ESC键关闭
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                this.closeConfirm(overlay);
+                onCancel();
+                document.removeEventListener('keydown', handleKeyDown);
+            }
+        };
+        
+        document.addEventListener('keydown', handleKeyDown);
+        
+        // 返回对话框元素，允许外部控制
+        return overlay;
+    },
+    
+    // 关闭确认对话框
+    closeConfirm(overlay) {
+        if (!overlay) return;
+        
+        overlay.classList.remove('show');
+        
+        // 添加动画结束后移除元素
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 300); // 与CSS中的过渡时间相匹配
+    },
+    
     // 根据当前模式更新UI
     updateUIForMode() {
         const { modeStream, modeRegular, chatMessages, result } = window.AIChatApp.elements;
@@ -1345,52 +1453,57 @@ window.AIChatUI = {
         
         // 删除会话
         deleteButton.onclick = async () => {
-            // 确认删除
-            const confirmed = confirm('确定要删除此会话吗？此操作无法撤销！');
-            if (!confirmed) return;
-            
-            try {
-                // 从数据库中删除会话
-                await window.AIChatData.deleteSessionMessages(sessionId);
-                
-                // 刷新会话列表
-                this.loadSessionList();
-                
-                // 清空详情区域
-                const sessionMessages = document.getElementById('session-messages');
-                sessionMessages.innerHTML = `<div class="no-session-selected">请从左侧选择一个会话</div>`;
-                
-                // 禁用按钮
-                loadButton.disabled = true;
-                deleteButton.disabled = true;
-                
-                // 更新标题
-                document.getElementById('session-detail-title').textContent = '会话详情';
-                
-                this.showTooltip('已删除会话');
-                
-                // 自动加载当前供应商的最新会话
-                window.AIChatData.loadLatestProviderSession()
-                    .then(() => {
-                        // 更新会话显示
-                        window.AIChatApp.updateSessionDisplay();
+            // 使用自定义确认对话框替代系统confirm
+            this.showConfirm({
+                title: '删除确认',
+                message: '确定要删除此会话吗？此操作无法撤销！',
+                okText: '删除',
+                cancelText: '取消',
+                onConfirm: async () => {
+                    try {
+                        // 从数据库中删除会话
+                        await window.AIChatData.deleteSessionMessages(sessionId);
                         
-                        // 关闭历史记录模态窗口
-                        const modal = document.getElementById('history-modal');
-                        if (modal) {
-                            modal.style.display = 'none';
-                        }
+                        // 刷新会话列表
+                        this.loadSessionList();
                         
-                        this.showTooltip('已加载最新会话');
-                    })
-                    .catch(error => {
-                        console.error('自动加载最新会话失败:', error);
-                        this.showTooltip('加载最新会话失败，请手动选择会话');
-                    });
-            } catch (error) {
-                console.error('删除会话失败:', error);
-                this.showTooltip('删除会话失败: ' + error.message);
-            }
+                        // 清空详情区域
+                        const sessionMessages = document.getElementById('session-messages');
+                        sessionMessages.innerHTML = `<div class="no-session-selected">请从左侧选择一个会话</div>`;
+                        
+                        // 禁用按钮
+                        loadButton.disabled = true;
+                        deleteButton.disabled = true;
+                        
+                        // 更新标题
+                        document.getElementById('session-detail-title').textContent = '会话详情';
+                        
+                        this.showTooltip('已删除会话');
+                        
+                        // 自动加载当前供应商的最新会话
+                        window.AIChatData.loadLatestProviderSession()
+                            .then(() => {
+                                // 更新会话显示
+                                window.AIChatApp.updateSessionDisplay();
+                                
+                                // 关闭历史记录模态窗口
+                                const modal = document.getElementById('history-modal');
+                                if (modal) {
+                                    modal.style.display = 'none';
+                                }
+                                
+                                this.showTooltip('已加载最新会话');
+                            })
+                            .catch(error => {
+                                console.error('自动加载最新会话失败:', error);
+                                this.showTooltip('加载最新会话失败，请手动选择会话');
+                            });
+                    } catch (error) {
+                        console.error('删除会话失败:', error);
+                        this.showTooltip('删除会话失败: ' + error.message);
+                    }
+                }
+            });
         };
     },
     
@@ -1430,249 +1543,19 @@ window.AIChatUI = {
     
     // 显示快捷消息模态窗口
     showQuickMessagesModal() {
-        const modal = document.getElementById('quick-messages-modal');
-        if (!modal) return;
-        
-        const container = modal.querySelector('.quick-messages-container');
-        if (!container) return;
-        
-        // 显示模态窗口
-        modal.style.display = 'block';
-        
-        // 显示加载状态
-        container.innerHTML = '<div class="loading-messages">正在加载快捷消息...</div>';
-        
-        // 加载数据
-        fetch('/api/config/quick-messages')
-            .then(response => {
-                if (!response.ok) throw new Error(`请求失败: ${response.status}`);
-                return response.json();
-            })
-            .then(data => {
-                if (!data) throw new Error('数据为空');
-                this.renderQuickMessages(container, data);
-            })
-            .catch(error => {
-                console.error('加载快捷消息失败:', error);
-                container.innerHTML = `<div class="error-message">加载失败: ${error.message}</div>`;
-            });
-        
-        // 为关闭按钮设置事件
-        const closeButton = document.querySelector('#quick-messages-modal .close');
-        if (closeButton) {
-            closeButton.onclick = () => {
-                modal.style.display = 'none';
-            };
-        }
-        
-        // 点击模态窗口外部时关闭
-        window.onclick = (event) => {
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        };
+        window.AIChatQuickMessage.showQuickMessagesModal();
+    },
+
+    // 在已有聊天内容后追加显示快捷消息气泡
+    showAppendedQuickMessages() {
+        window.AIChatQuickMessage.showAppendedQuickMessages();
     },
     
-    // 渲染快捷消息
-    renderQuickMessages(container, data) {
-        // 清空容器
-        container.innerHTML = '';
-        
-        if (!data || !Array.isArray(data)) {
-            container.innerHTML = '<div class="error-message">快捷消息配置格式错误</div>';
-            return;
-        }
-        
-        // 保存当前数据的引用，用于后续保存
-        this.quickMessagesData = JSON.parse(JSON.stringify(data));
-        
-        // 创建表格容器
-        const tableDiv = document.createElement('div');
-        tableDiv.className = 'quick-messages-table';
-        
-        // 创建表头
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'quick-messages-header';
-        headerDiv.innerHTML = `
-            <div class="message-test-id">ID</div>
-            <div class="message-test-item">测试项目</div>
-            <div class="message-test-result">测试结果</div>
-        `;
-        tableDiv.appendChild(headerDiv);
-        
-        // 添加消息项
-        data.forEach((message, index) => {
-            if (!message.content) return;
-            
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'quick-messages-row';
-            // 添加交替背景色
-            if (index % 2 === 0) {
-                itemDiv.classList.add('even-row');
-            }
-            
-            // 标记可以点击并存储消息索引
-            itemDiv.setAttribute('data-message', message.content);
-            itemDiv.setAttribute('data-index', index);
-            
-            // 设置结果图标，默认为成功（√）
-            const resultIcon = message.result === '×' ? 
-                '<span class="result-icon failure">×</span>' : 
-                '<span class="result-icon success">√</span>';
-            
-            // ID单元格
-            const idCell = document.createElement('div');
-            idCell.className = 'message-test-id';
-            idCell.textContent = message.id
-            
-            // HTML安全编码全文内容
-            const contentCell = document.createElement('div');
-            contentCell.className = 'message-test-item';
-            contentCell.setAttribute('title', message.content);
-            contentCell.textContent = message.content; // 使用textContent自动转义HTML
-            
-            const resultCell = document.createElement('div');
-            resultCell.className = 'message-test-result';
-            resultCell.innerHTML = resultIcon;
-            
-            // 清空并添加安全的内容
-            itemDiv.innerHTML = '';
-            itemDiv.appendChild(idCell);
-            itemDiv.appendChild(contentCell);
-            itemDiv.appendChild(resultCell);
-            
-            tableDiv.appendChild(itemDiv);
-        });
-        
-        // 添加表格到容器
-        container.appendChild(tableDiv);
-        
-        // 创建操作区域和保存按钮
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'quick-messages-actions';
-        
-        const saveButton = document.createElement('button');
-        saveButton.className = 'save-quick-messages';
-        saveButton.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                <polyline points="7 3 7 8 15 8"></polyline>
-            </svg>
-            保存更改
-        `;
-        
-        // 添加保存按钮点击事件
-        saveButton.addEventListener('click', () => this.saveQuickMessages());
-        
-        actionsDiv.appendChild(saveButton);
-        container.appendChild(actionsDiv);
-        
-        // 设置消息项的点击事件
-        this.setupQuickMessageItems();
-        
-        // 设置结果图标的点击事件
-        this.setupResultIconToggle();
+    // 显示随机快捷消息气泡
+    showRandomQuickMessages() {
+        window.AIChatQuickMessage.showRandomQuickMessages();
     },
-    
-    // 设置结果图标切换事件
-    setupResultIconToggle() {
-        const resultIcons = document.querySelectorAll('.result-icon');
-        
-        resultIcons.forEach(icon => {
-            // 移除可能已存在的事件监听器
-            const newIcon = icon.cloneNode(true);
-            icon.parentNode.replaceChild(newIcon, icon);
-            
-            // 添加新的事件监听器
-            newIcon.addEventListener('click', (e) => {
-                // 阻止事件冒泡，防止触发父元素的点击事件
-                e.stopPropagation();
-                
-                // 获取当前行索引
-                const row = newIcon.closest('.quick-messages-row');
-                const index = parseInt(row.getAttribute('data-index'));
-                
-                // 切换结果状态
-                if (newIcon.classList.contains('success')) {
-                    // 成功 → 失败
-                    newIcon.classList.remove('success');
-                    newIcon.classList.add('failure');
-                    newIcon.textContent = '×';
-                    this.quickMessagesData[index].result = '×';
-                } else {
-                    // 失败 → 成功
-                    newIcon.classList.remove('failure');
-                    newIcon.classList.add('success');
-                    newIcon.textContent = '√';
-                    this.quickMessagesData[index].result = '√';
-                }
-            });
-        });
-    },
-    
-    // 保存快捷消息配置
-    saveQuickMessages() {
-        if (!this.quickMessagesData) {
-            this.showTooltip('没有可保存的数据');
-            return;
-        }
-        
-        // 调用API保存数据
-        fetch('/api/config/quick-messages/save', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(this.quickMessagesData)
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('保存失败: ' + response.status);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                this.showTooltip('保存成功');
-            } else {
-                this.showTooltip('保存失败: ' + (data.message || '未知错误'));
-            }
-        })
-        .catch(error => {
-            console.error('保存快捷消息失败:', error);
-            this.showTooltip('保存失败: ' + error.message);
-        });
-    },
-    
-    // 设置快捷消息项的点击事件
-    setupQuickMessageItems() {
-        const messageItems = document.querySelectorAll('.quick-messages-row');
-        const messageInput = window.AIChatApp.elements.message;
-        
-        messageItems.forEach(item => {
-            // 移除可能已存在的事件监听器
-            const newItem = item.cloneNode(true);
-            item.parentNode.replaceChild(newItem, item);
-            
-            // 添加新的事件监听器
-            newItem.addEventListener('click', () => {
-                const message = newItem.getAttribute('data-message');
-                if (message && messageInput) {
-                    // 将消息内容填入输入框
-                    messageInput.value = message;
-                    messageInput.focus();
-                    
-                    // 关闭模态窗口
-                    document.getElementById('quick-messages-modal').style.display = 'none';
-                    
-                    // 显示提示
-                    this.showTooltip('已添加到输入框');
-                }
-            });
-        });
-    },
-    
+
     // 保存设置
     saveSettings() {
         // 获取设置值
@@ -1792,157 +1675,4 @@ window.AIChatUI = {
             console.error('加载设置失败:', error);
         }
     },
-    
-    // 在已有聊天内容后追加显示快捷消息气泡
-    showAppendedQuickMessages() {
-        const chatMessages = window.AIChatApp.elements.chatMessages;
-        
-        // 检查是否正在加载会话
-        if (window.AIChatApp.state.isLoading) {
-            console.log('正在加载会话，跳过显示快捷消息气泡');
-            return;
-        }
-        
-        // 移除已有的追加气泡(如果有)
-        const existingBubbles = chatMessages.querySelector('.appended-quick-bubbles');
-        if (existingBubbles) {
-            existingBubbles.remove();
-        }
-        
-        // 加载快捷消息数据
-        fetch('/api/config/quick-messages')
-            .then(response => {
-                if (!response.ok) throw new Error(`请求失败: ${response.status}`);
-                return response.json();
-            })
-            .then(data => {
-                if (!Array.isArray(data) || data.length === 0) {
-                    return; // 没有数据或格式错误
-                }
-                
-                // 随机选择3个问题
-                const randomMessages = this.getRandomElements(data, 3);
-                
-                // 创建气泡容器，使用不同的类名以区分样式
-                const bubblesContainer = document.createElement('div');
-                bubblesContainer.className = 'appended-quick-bubbles';
-                
-                // 为每个随机消息创建气泡
-                randomMessages.forEach(message => {
-                    const bubble = document.createElement('div');
-                    bubble.className = 'appended-quick-bubble';
-                    bubble.textContent = message.content;
-                    
-                    // 点击事件：将消息填入输入框并发送
-                    bubble.addEventListener('click', () => {
-                        const messageInput = window.AIChatApp.elements.message;
-                        if (messageInput) {
-                            messageInput.value = message.content;
-                            
-                            // 移除所有气泡
-                            if (bubblesContainer.parentNode) {
-                                bubblesContainer.parentNode.removeChild(bubblesContainer);
-                            }
-                            
-                            // 触发发送按钮点击
-                            const sendButton = window.AIChatApp.elements.sendButton;
-                            if (sendButton) {
-                                sendButton.click();
-                            }
-                        }
-                    });
-                    
-                    bubblesContainer.appendChild(bubble);
-                });
-                
-                // 添加到聊天界面末尾
-                chatMessages.appendChild(bubblesContainer);
-                
-                // 滚动到底部以确保气泡可见
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            })
-            .catch(error => {
-                console.error('加载随机快捷消息失败:', error);
-            });
-    },
-    
-    // 显示随机快捷消息气泡
-    showRandomQuickMessages() {
-        const chatMessages = window.AIChatApp.elements.chatMessages;
-        
-        // 检查聊天界面是否为空
-        if (chatMessages.childElementCount > 0) {
-            return; // 如果不为空，不显示气泡
-        }
-        
-        // 检查是否正在加载会话（防止初始加载时显示后又立即被覆盖）
-        if (window.AIChatApp.state.isLoading) {
-            console.log('正在加载会话，跳过显示快捷消息气泡');
-            return;
-        }
-        
-        // 加载快捷消息数据
-        fetch('/api/config/quick-messages')
-            .then(response => {
-                if (!response.ok) throw new Error(`请求失败: ${response.status}`);
-                return response.json();
-            })
-            .then(data => {
-                if (!Array.isArray(data) || data.length === 0) {
-                    return; // 没有数据或格式错误
-                }
-                
-                // 检查是否仍然需要显示气泡（可能此时已经加载了会话）
-                if (chatMessages.childElementCount > 0) {
-                    return; // 不再需要显示气泡
-                }
-                
-                // 随机选择3个问题
-                const randomMessages = this.getRandomElements(data, 3);
-                
-                // 创建气泡容器
-                const bubblesContainer = document.createElement('div');
-                bubblesContainer.className = 'quick-message-bubbles';
-                
-                // 为每个随机消息创建气泡
-                randomMessages.forEach(message => {
-                    const bubble = document.createElement('div');
-                    bubble.className = 'quick-message-bubble';
-                    bubble.textContent = message.content;
-                    
-                    // 点击事件：将消息填入输入框并发送
-                    bubble.addEventListener('click', () => {
-                        const messageInput = window.AIChatApp.elements.message;
-                        if (messageInput) {
-                            messageInput.value = message.content;
-                            
-                            // 移除所有气泡
-                            if (bubblesContainer.parentNode) {
-                                bubblesContainer.parentNode.removeChild(bubblesContainer);
-                            }
-                            
-                            // 触发发送按钮点击
-                            const sendButton = window.AIChatApp.elements.sendButton;
-                            if (sendButton) {
-                                sendButton.click();
-                            }
-                        }
-                    });
-                    
-                    bubblesContainer.appendChild(bubble);
-                });
-                
-                // 添加到聊天界面
-                chatMessages.appendChild(bubblesContainer);
-            })
-            .catch(error => {
-                console.error('加载随机快捷消息失败:', error);
-            });
-    },
-    
-    // 获取数组中的随机元素
-    getRandomElements(array, count) {
-        const shuffled = [...array].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, Math.min(count, array.length));
-    }
 }; 

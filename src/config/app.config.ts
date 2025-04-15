@@ -38,7 +38,15 @@ const quickMessagesConfig = loadJSONConfig<any>('quick-messages.json');
 export function reloadConfigAndUpdate(configName: string, targetConfig: any): boolean {
   try {
     const newConfig = loadJSONConfig<any>(configName);
-    Object.assign(targetConfig, newConfig);
+    
+    if (Array.isArray(targetConfig)) {
+      targetConfig.length = 0;
+      if (Array.isArray(newConfig)) targetConfig.push(...newConfig);
+    } else {
+      for (const key in targetConfig) delete targetConfig[key];
+      Object.assign(targetConfig, newConfig);
+    }
+    
     console.log(`${configName}配置已重新加载`);
     return true;
   } catch (error) {

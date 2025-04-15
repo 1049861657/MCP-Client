@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MCP服务信息 - MCP客户端</title>
     <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/ai-chat.css">
+    <script src="/js/ai-ui.js"></script>
     <style>
         :root {
             --primary-color: #1976d2;
@@ -830,39 +832,43 @@
             
             // 删除服务器
             async function deleteServer(serverId, serverName) {
-                if (!confirm(`确定要删除服务器 "${serverName}" 吗？`)) {
-                    return;
-                }
-                
-                try {
-                    loadingDiv.style.display = 'block';
-                    serverInfoDiv.style.display = 'none';
-                    toolsInfoDiv.style.display = 'none';
-                    
-                    const response = await fetch(`/api/server/delete/${serverId}`, {
-                        method: 'DELETE'
-                    });
-                    
-                    if (!response.ok) {
-                        const error = await response.json();
-                        throw new Error(error.details || error.error || '删除失败');
-                    }
-                    
-                    // 删除成功后主动重新加载配置
-                    await reloadServerConfig();
-                    
-                } catch (error) {
-                    console.error('删除服务器失败:', error);
-                    alert(`删除失败: ${error.message}`);
-                    loadingDiv.style.display = 'none';
-                    
-                    if (currentData) {
-                        serverInfoDiv.style.display = 'block';
-                        if (currentData.server.status === '已连接') {
-                            toolsInfoDiv.style.display = 'block';
+                window.AIChatUI.showConfirm({
+                    title: '删除确认',
+                    message: `确定要删除服务器 "${serverName}" 吗？`,
+                    okText: '删除',
+                    cancelText: '取消',
+                    onConfirm: async () => {
+                        try {
+                            loadingDiv.style.display = 'block';
+                            serverInfoDiv.style.display = 'none';
+                            toolsInfoDiv.style.display = 'none';
+                            
+                            const response = await fetch(`/api/server/delete/${serverId}`, {
+                                method: 'DELETE'
+                            });
+                            
+                            if (!response.ok) {
+                                const error = await response.json();
+                                throw new Error(error.details || error.error || '删除失败');
+                            }
+                            
+                            // 删除成功后主动重新加载配置
+                            await reloadServerConfig();
+                            
+                        } catch (error) {
+                            console.error('删除服务器失败:', error);
+                            alert(`删除失败: ${error.message}`);
+                            loadingDiv.style.display = 'none';
+                            
+                            if (currentData) {
+                                serverInfoDiv.style.display = 'block';
+                                if (currentData.server.status === '已连接') {
+                                    toolsInfoDiv.style.display = 'block';
+                                }
+                            }
                         }
                     }
-                }
+                });
             }
             
             // 更新页面信息

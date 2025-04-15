@@ -302,19 +302,28 @@ textarea:focus {
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 1000;
+    z-index: 9999; /* 提高z-index值，确保显示在模态框之上 */
+    pointer-events: none; /* 确保不会阻挡点击事件 */
 }
 
 .tooltip {
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(0, 0, 0, 0.85);
     color: white;
-    padding: 8px 16px;
-    border-radius: 4px;
+    padding: 10px 20px;
+    border-radius: 8px;
     font-size: 14px;
+    font-weight: 500;
     opacity: 0;
     transform: translateY(10px);
     transition: opacity 0.3s, transform 0.3s;
     pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+    max-width: 90vw;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .tooltip.show {
@@ -430,4 +439,105 @@ textarea:focus {
 .session-info .control-button svg {
     width: 16px;
     height: 16px;
+}
+
+/* 自定义确认对话框 */
+.confirm-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s;
+    backdrop-filter: blur(2px);
+    pointer-events: none;
+}
+
+.confirm-overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.confirm-dialog {
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 400px;
+    padding: 0;
+    transform: translateY(-20px);
+    transition: transform 0.3s;
+    overflow: hidden;
+    animation: confirm-appear 0.3s forwards;
+}
+
+@keyframes confirm-appear {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.confirm-header {
+    background: linear-gradient(135deg, #4a5daa, #5b78e5);
+    color: white;
+    padding: 15px 20px;
+    font-weight: 600;
+    border-bottom: 1px solid #eaeaea;
+    font-size: 18px;
+}
+
+.confirm-content {
+    padding: 20px;
+    font-size: 16px;
+    color: #333;
+    line-height: 1.5;
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding: 15px 20px;
+    gap: 12px;
+    border-top: 1px solid #eaeaea;
+    background-color: #f8f9fa;
+}
+
+.confirm-button {
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.confirm-cancel {
+    background-color: #e9ecef;
+    color: #495057;
+}
+
+.confirm-cancel:hover {
+    background-color: #dee2e6;
+}
+
+.confirm-ok {
+    background-color: #ef4444;
+    color: white;
+}
+
+.confirm-ok:hover {
+    background-color: #dc2626;
+    box-shadow: 0 2px 5px rgba(239, 68, 68, 0.3);
 } 

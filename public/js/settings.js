@@ -666,37 +666,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = event.target.closest('.provider-card');
         const index = parseInt(card.dataset.index);
         
-        // 确认删除
-        if (!confirm('确定要删除这个提供商吗？')) {
-            return;
-        }
-        
-        try {
-            // 删除提供商
-            providersData.providers.splice(index, 1);
-            
-            // 如果删除的是默认提供商，重置默认提供商
-            if (providersData.providers.length > 0 && providersData.defaultProvider === card.querySelector('#provider-name-' + index).value) {
-                providersData.defaultProvider = providersData.providers[0].name;
+        window.AIChatUI.showConfirm({
+            title: '删除确认',
+            message: '确定要删除这个提供商吗？',
+            okText: '删除',
+            cancelText: '取消',
+            onConfirm: async () => {
+                try {
+                    // 删除提供商
+                    providersData.providers.splice(index, 1);
+                    
+                    // 如果删除的是默认提供商，重置默认提供商
+                    if (providersData.providers.length > 0 && providersData.defaultProvider === card.querySelector('#provider-name-' + index).value) {
+                        providersData.defaultProvider = providersData.providers[0].name;
+                    }
+                    
+                    // 更新激活的提供商索引
+                    if (activeProviderIndex >= providersData.providers.length) {
+                        activeProviderIndex = providersData.providers.length - 1;
+                    }
+                    if (activeProviderIndex < 0) {
+                        activeProviderIndex = 0;
+                    }
+                    
+                    // 保存更改并重载配置 - 这是关键变更
+                    await saveAndReloadProviders(providersData);
+                } catch (error) {
+                    console.error('删除提供商失败:', error);
+                    showNotification(error.message || '删除失败', true);
+                    
+                    // 更新UI，确保失败时UI仍然一致
+                    updateProviderFunctionality();
+                }
             }
-            
-            // 更新激活的提供商索引
-            if (activeProviderIndex >= providersData.providers.length) {
-                activeProviderIndex = providersData.providers.length - 1;
-            }
-            if (activeProviderIndex < 0) {
-                activeProviderIndex = 0;
-            }
-            
-            // 保存更改并重载配置 - 这是关键变更
-            await saveAndReloadProviders(providersData);
-        } catch (error) {
-            console.error('删除提供商失败:', error);
-            showNotification(error.message || '删除失败', true);
-            
-            // 更新UI，确保失败时UI仍然一致
-            updateProviderFunctionality();
-        }
+        });
     }
     
     /**

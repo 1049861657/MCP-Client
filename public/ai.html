@@ -257,6 +257,40 @@
         </div>
     </div>
     
+    <!-- 编辑快捷消息模态窗口 -->
+    <div id="edit-message-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 id="edit-message-title">编辑快捷消息</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="edit-message-form" class="edit-message-form">
+                    <input type="hidden" id="edit-message-index">
+                    <div class="form-group">
+                        <label for="edit-message-id">ID</label>
+                        <input type="number" id="edit-message-id" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-message-content">消息内容</label>
+                        <textarea id="edit-message-content" class="form-control" rows="4" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-message-result">测试结果</label>
+                        <select id="edit-message-result" class="form-control">
+                            <option value="√">通过 (√)</option>
+                            <option value="×">失败 (×)</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancel-edit" class="action-button">取消</button>
+                        <button type="submit" id="save-edit" class="action-button primary">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
     <script src="/js/ai.js"></script>
 </body>
 </html> 

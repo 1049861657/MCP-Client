@@ -11,6 +11,7 @@ const modules = [
     'ai-data.js',   // 再加载数据模块，提供数据库和会话管理功能
     'ai-core.js',   // 然后加载核心模块，依赖工具和数据模块
     'ai-ui.js',     // 再加载UI模块，它依赖核心模块
+    'ai-quickmessage.js', // 加载快捷消息模块，依赖UI模块
     'ai-api.js'     // 最后加载API模块，它依赖UI和核心模块
 ];
 
