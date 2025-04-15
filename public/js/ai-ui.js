@@ -995,17 +995,12 @@ window.AIChatUI = {
             resultDiv.className = 'tool-call-result';
             targetToolCall.appendChild(resultDiv);
         }
-        
         // 转换结果为字符串
         let resultStr = '';
         if (result === null || result === undefined) {
             resultStr = '';
         } else if (typeof result === 'object') {
-            try {
-                resultStr = JSON.stringify(result, null, 2);
-            } catch (error) {
-                resultStr = String(result);
-            }
+            resultStr = JSON.stringify(result, null, 2);
         } else {
             resultStr = String(result);
         }
@@ -1021,9 +1016,7 @@ window.AIChatUI = {
             resultHtml = `<strong>结果:</strong><pre>${resultStr}</pre>`;
             resultDiv.classList.remove('error');
         }
-        
-        // 注意：详细的Token使用信息在结果区域已被移除
-        
+
         // 更新HTML内容
         resultDiv.innerHTML = resultHtml;
         

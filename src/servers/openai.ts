@@ -29,6 +29,7 @@ interface ChunkResponse {
   tool_call?: {
     index: number;
     id: string;
+    name?: string;
   };
   tool_call_update?: {
     index: number;
@@ -162,19 +163,23 @@ class ToolCallManager {
    * 创建新的工具调用
    * @param index 本地索引（当前回合内的索引）
    * @param id 工具调用ID
-   * @param round 回合数
+   * @param name 工具名称
    * @returns 全局索引
    */
-  createToolCall(index: number, id?: string): number {
+  createToolCall(index: number, id?: string, name: string = ''): number {
     // 生成工具调用ID（如果未提供）
     const toolCallId = id || `tool-call-round-${this.currentRound}-${Date.now()}-${index}`;
     // 计算全局索引
     const globalIndex = this.toolCalls.length;
     
+    // 定义元工具列表
+    const metaTools = ['listAllApis', 'getApiDetails', 'executeApi'];
+    
     // 创建工具调用对象
     const toolCall: ToolCallInfo = {
       id: toolCallId,
-      name: '',
+      // 如果是元工具则不进行解码
+      name: metaTools.includes(name) ? name : OpenAINameCodec.decode(name),
       arguments: {},
       meta: {
         round: this.currentRound,
@@ -193,39 +198,14 @@ class ToolCallManager {
     this.onChunk({
       tool_call: {
         index: globalIndex,
-        id: toolCallId
+        id: toolCallId,
+        name: toolCall.name
       }
     }, false);
     
     Logger.info('OPENAI', `[${this.providerName}] 创建工具调用 [索引${globalIndex}], 回合${this.currentRound}, ID: ${toolCallId}`);
     
     return globalIndex;
-  }
-  
-  /**
-   * 更新工具调用名称
-   * @param globalIndex 全局索引
-   * @param name 工具名称
-   */
-  updateToolName(globalIndex: number, name: string): void {
-    const toolCall = this.indexMap.get(globalIndex);
-    if (!toolCall) {
-      Logger.error('OPENAI', `[${this.providerName}] 尝试更新不存在的工具调用 [索引${globalIndex}]`);
-      return;
-    }
-    
-    toolCall.name = name;
-    
-    // 通知前端工具名称更新
-    this.onChunk({
-      tool_call_update: {
-        index: globalIndex,
-        name: OpenAINameCodec.decode(name),
-        tool_call_id: toolCall.id
-      }
-    }, false);
-    
-    Logger.info('OPENAI', `[${this.providerName}] 更新工具名称 [索引${globalIndex}]: ${name}`);
   }
   
   /**
@@ -293,10 +273,9 @@ class ToolCallManager {
    * @param result 结果对象
    * @param error 是否发生错误
    * @param errorMessage 错误消息
-   * @param executionTime 工具执行时间(毫秒)
    * @param tokenUsage Token使用情况
    */
-  setToolResult(globalIndex: number, result: any, error: boolean = false, errorMessage?: string, executionTime?: number, tokenUsage?: any): void {
+  setToolResult(globalIndex: number, result: any, error: boolean = false, errorMessage?: string, tokenUsage?: any): void {
     const toolCall = this.indexMap.get(globalIndex);
     if (!toolCall) {
       Logger.error('OPENAI', `[${this.providerName}] 尝试设置不存在的工具调用结果 [索引${globalIndex}]`);
@@ -314,11 +293,8 @@ class ToolCallManager {
         toolCall.meta.errorMessage = errorMessage;
       }
       
-      // 记录执行时间
-      if (executionTime !== undefined) {
-        toolCall.meta.executionTime = executionTime;
-      } else if (toolCall.meta.createdAt) {
-        // 如果没有提供执行时间，尝试根据创建时间和完成时间计算
+      // 计算执行时间
+      if (toolCall.meta.createdAt) {
         try {
           const startTime = new Date(toolCall.meta.createdAt).getTime();
           const endTime = new Date(toolCall.meta.completedAt || new Date().toISOString()).getTime();
@@ -334,12 +310,6 @@ class ToolCallManager {
       }
     }
     
-    // 计算执行时间
-    let execution_time = executionTime;
-    if (execution_time === undefined && toolCall.meta?.executionTime !== undefined) {
-      execution_time = toolCall.meta.executionTime;
-    }
-    
     // 通知前端工具调用结果
     this.onChunk({
       tool_call_result: {
@@ -348,13 +318,13 @@ class ToolCallManager {
         error: error,
         index: globalIndex,
         tool_call_id: toolCall.id,
-        execution_time: execution_time,
+        execution_time: toolCall.meta?.executionTime,
         token_usage: tokenUsage || toolCall.meta?.tokenUsage
       }
     }, false);
     
     const statusText = error ? '失败' : '成功';
-    const timeInfo = execution_time !== undefined ? `, 耗时: ${execution_time}ms` : '';
+    const timeInfo = `, 耗时: ${toolCall.meta?.executionTime}ms`;
     Logger.info('OPENAI', `[${this.providerName}] 工具调用 [索引${globalIndex}] ${toolCall.name} 执行${statusText}${timeInfo}`);
   }
   
@@ -731,12 +701,12 @@ export class OpenAI {
    * @returns 格式化后的字符串结果
    */
   private formatToolResult(toolResult: any): string {
-    // if (toolResult && toolResult.content && Array.isArray(toolResult.content)) {
-    //   return toolResult.content
-    //     .filter((item: any) => item.type === 'text' && typeof item.text === 'string')
-    //     .map((item: any) => item.text)
-    //     .join('\n');
-    // }
+    if (toolResult && toolResult.content && Array.isArray(toolResult.content)) {
+      return toolResult.content
+        .filter((item: any) => item.type === 'text' && typeof item.text === 'string')
+        .map((item: any) => item.text)
+        .join('\n');
+    }
     return JSON.stringify(toolResult.content);
   }
   
@@ -1046,7 +1016,7 @@ export class OpenAI {
             id: toolCall.id,
             name: toolName,
             arguments: toolArgs,
-            result: toolResult || resultText,
+            result: resultText,
           });
         }
         
@@ -1164,12 +1134,9 @@ export class OpenAI {
         for (const toolCall of toolCalls) {
           const globalIndex = toolCall.meta?.globalIndex as number;
           
-          // 确保使用解码后的工具名
-          const toolName = OpenAINameCodec.decode(toolCall.name);
-          
           try {
             // 验证参数是否满足要求
-            const validation = await this.verifyToolArguments(toolName, toolCall.arguments);
+            const validation = await this.verifyToolArguments(toolCall.name, toolCall.arguments);
             
             if (!validation.isValid) {
               // 参数不满足要求，构造错误消息
@@ -1190,11 +1157,9 @@ export class OpenAI {
             }
             
             // 参数验证通过，执行工具调用
-            const toolResult = await mcpClient.callTool<any>(toolName, toolCall.arguments);
-            
+            const toolResult = await mcpClient.callTool<any>(toolCall.name, toolCall.arguments);
             // 使用辅助函数格式化工具结果
             const resultText = this.formatToolResult(toolResult);
-            
             // 将工具执行结果添加到消息历史
             messages.push({
               role: "tool",
@@ -1202,10 +1167,10 @@ export class OpenAI {
               tool_call_id: toolCall.id
             });
             
-            toolManager.setToolResult(globalIndex, toolResult || resultText, false, undefined, undefined, usage);
+            toolManager.setToolResult(globalIndex, resultText, false, undefined, usage);
             
           } catch (error) {
-            const errorMessage = `工具${toolName}执行失败: ${error instanceof Error ? error.message : String(error)}`;
+            const errorMessage = `工具${toolCall.name}执行失败: ${error instanceof Error ? error.message : String(error)}`;
             
             // 将错误消息添加到消息历史
             messages.push({
@@ -1272,7 +1237,7 @@ export class OpenAI {
                   
                   if (!newToolCalls[localIndex]) {
                     // 创建新工具调用
-                    globalIndex = toolManager.createToolCall(localIndex, deltaToolCall.id);
+                    globalIndex = toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name || '');
                     
                     // 将新工具调用添加到集合
                     newToolCalls[localIndex] = toolManager.getAllToolCalls()[globalIndex];
@@ -1280,15 +1245,9 @@ export class OpenAI {
                     globalIndex = newToolCalls[localIndex].meta?.globalIndex as number;
                   }
                   
-                  // 更新工具调用信息
-                  if (deltaToolCall.function) {
-                    if (deltaToolCall.function.name) {
-                      toolManager.updateToolName(globalIndex, deltaToolCall.function.name);
-                    }
-                    
-                    if (deltaToolCall.function.arguments) {
-                      toolManager.updateToolArguments(globalIndex, deltaToolCall.function.arguments);
-                    }
+                  // 更新工具参数流式信息
+                  if (deltaToolCall.function?.arguments) {
+                    toolManager.updateToolArguments(globalIndex, deltaToolCall.function.arguments);
                   }
                 }
               }
@@ -1347,20 +1306,14 @@ export class OpenAI {
               
               if (!existingCall) {
                 // 创建新工具调用
-                globalIndex = toolManager.createToolCall(localIndex, deltaToolCall.id);
+                globalIndex = toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name);
               } else {
                 globalIndex = existingCall.meta?.globalIndex as number;
               }
               
-              // 更新工具调用信息
-              if (deltaToolCall.function) {
-                if (deltaToolCall.function.name) {
-                  toolManager.updateToolName(globalIndex, deltaToolCall.function.name);
-                }
-                
-                if (deltaToolCall.function.arguments) {
-                  toolManager.updateToolArguments(globalIndex, deltaToolCall.function.arguments);
-                }
+              // 更新工具参数流式信息
+              if (deltaToolCall.function?.arguments) {
+                toolManager.updateToolArguments(globalIndex, deltaToolCall.function.arguments);
               }
             }
           }
