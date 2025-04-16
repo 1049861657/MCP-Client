@@ -190,52 +190,5 @@ window.AIChatTimeManager = {
             const seconds = (milliseconds / 1000).toFixed(2);
             return `${seconds}秒`;
         }
-    },
-    
-    // 更新全局时间显示
-    updateGlobalTime(messageDiv, startTime, serverElapsedTime = null) {
-        if (!messageDiv) {
-            throw new Error('消息DIV不存在');
-        }
-        
-        // 如果时间已锁定，跳过更新
-        if (messageDiv.dataset.timeLocked === "true") {
-            console.log('🔒 全局时间已锁定，跳过更新，使用已保存的值');
-            return;
-        }
-        
-        const messageInfo = messageDiv.querySelector('.message-info');
-        if (!messageInfo) {
-            throw new Error('消息信息容器不存在');
-        }
-        
-        let formattedTime;
-        
-        // 优先使用服务器返回的时间（单位秒）
-        if (serverElapsedTime !== null) {
-            console.log('更新全局时间 - 使用服务器时间:', serverElapsedTime, '秒');
-            // 确保serverElapsedTime是数值
-            const elapsedSec = parseFloat(serverElapsedTime);
-            formattedTime = isNaN(elapsedSec) ? '未知' : `${elapsedSec}秒`;
-        } else {
-            // 否则使用客户端计算的时间
-            const elapsedTime = this.calculateElapsedTime(startTime);
-            formattedTime = this.formatElapsedTime(elapsedTime);
-            console.log('更新全局时间 - 使用客户端时间:', formattedTime);
-        }
-        
-        // 更新或创建时间元素
-        let timeInfo = messageInfo.querySelector('.message-time');
-        if (!timeInfo) {
-            timeInfo = document.createElement('div');
-            timeInfo.className = 'message-time';
-            messageInfo.appendChild(timeInfo);
-        }
-        
-        // 设置完整格式时间和耗时
-        timeInfo.textContent = `${this.getFullTimeString()} · ${formattedTime}`;
-        
-        // 确保信息区可见
-        messageInfo.classList.remove('hidden');
     }
 };

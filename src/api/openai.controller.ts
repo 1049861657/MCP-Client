@@ -57,16 +57,6 @@ export class OpenAIController {
         });
         return;
       }
-
-      // // 如果启用了工具调用，确保MCP服务器已连接
-      // if (enableTools) {
-      //   if (!(await mcpClient.connect())) {
-      //     res.status(500).json({ 
-      //       error: '无法连接到MCP服务器' 
-      //     });
-      //     return;
-      //   }
-      // }
       
       // 获取对应供应商的服务
       const service = OpenAIController.getServiceForVendor(vendor);
@@ -140,16 +130,6 @@ export class OpenAIController {
         res.end();
         return;
       }
-      
-      // // 如果启用了工具调用，确保MCP服务器已连接
-      // if (enableTools) {
-      //   if (!(await mcpClient.connect())) {
-      //     res.write(`event: error\n`);
-      //     res.write(`data: ${JSON.stringify({ error: '无法连接到MCP服务器' })}\n\n`);
-      //     res.end();
-      //     return;
-      //   }
-      // }
       
       // 获取对应供应商的服务
       const service = OpenAIController.getServiceForVendor(vendor);
@@ -230,14 +210,6 @@ export class OpenAIController {
    */
   static async getAvailableTools(req: Request, res: Response): Promise<void> {
     try {
-      // // 确保MCP服务器已连接
-      // if (!(await mcpClient.connect())) {
-      //   res.status(500).json({ 
-      //     error: '无法连接到MCP服务器' 
-      //   });
-      //   return;
-      // }
-      
       // 获取服务器信息，包含工具列表
       const serverInfo = await mcpClient.getServerInfo();
       

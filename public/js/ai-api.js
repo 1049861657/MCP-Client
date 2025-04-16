@@ -88,7 +88,6 @@ window.AIChatAPI = {
             
             // 更新消息为错误信息
             UI.updateAIMessage(aiMessageDiv, `错误: ${error.message || '与服务器通信失败'}`);
-            window.AIChatApp.timeManager.updateGlobalTime(aiMessageDiv, startTime, null);
             UI.finalizeAIMessage(aiMessageDiv);
         }
     },
@@ -261,6 +260,9 @@ window.AIChatAPI = {
         let tokenInfoUpdated = false;
         const app = window.AIChatApp;
         
+        // 用于处理跨chunks的数据
+        let buffer = '';
+        
         try {
             // 用户发送消息后，移除所有类型的快捷气泡
             const chatMessages = app.elements.chatMessages;
@@ -281,10 +283,6 @@ window.AIChatAPI = {
                 const { done, value } = await reader.read();
                 
                 if (done) {
-                    if (!tokenInfoUpdated) {
-                        window.AIChatApp.timeManager.updateGlobalTime(aiMessageDiv, startTime, null);
-                    }
-                    
                     // 确保思考状态被移除
                     window.AIChatUI.hideThinking(aiMessageDiv);
                     window.AIChatUI.finalizeAIMessage(aiMessageDiv);
@@ -311,32 +309,39 @@ window.AIChatAPI = {
                 
                 // 解码二进制数据
                 const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n');
                 
-                for (const line of lines) {
-                    if (line.startsWith('event:')) {
-                        eventName = line.substring(6).trim();
-                    } else if (line.startsWith('data:')) {
-                        eventData = line.substring(5).trim();
-                        
-                        // 处理不同类型的事件,并通过引用传递fullText
-                        fullText = await this.handleEventData(eventName, eventData, aiMessageDiv, fullText, startTime, tokenInfoUpdated);
-                        
-                        // 更新tokenInfoUpdated状态
-                        if (eventName === 'usage') {
-                            tokenInfoUpdated = true;
-                        }
-                    } else if (line.trim() === '' && eventName && eventData) {
-                        // 事件结束
-                        eventName = '';
-                        eventData = '';
+                // 添加到缓冲区并处理完整行
+                buffer += chunk;
+                const lines = buffer.split('\n');
+                
+                // 处理所有完整行，保留最后一行（可能不完整）
+                if (lines.length > 1) {
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('event:')) {
+                            eventName = line.substring(6).trim();
+                        } else if (line.startsWith('data:')) {
+                            eventData = line.substring(5).trim();
+                            
+                            // 在这里处理事件数据
+                            fullText = await this.handleEventData(eventName, eventData, aiMessageDiv, fullText, startTime);
+                            
+                            // 更新token信息状态
+                            if (eventName === 'usage') {
+                                tokenInfoUpdated = true;
+                            }
+                        } else if (line.trim() === '') {
+                            // 空行，重置事件数据
+                            eventName = '';
+                            eventData = '';
+                        } 
                     }
                 }
             }
         } catch (error) {
             console.error('读取流出错:', error);
             window.AIChatUI.updateAIMessage(aiMessageDiv, `错误: ${error.message || '读取响应流失败'}`);
-            window.AIChatApp.timeManager.updateGlobalTime(aiMessageDiv, startTime, null);
             window.AIChatUI.finalizeAIMessage(aiMessageDiv);
         }
     },
@@ -345,7 +350,7 @@ window.AIChatAPI = {
     async handleEventData(eventName, eventData, aiMessageDiv, fullText, startTime) {
         const UI = window.AIChatUI;
         const timeManager = window.AIChatApp.timeManager;
-        
+
         // 处理使用情况数据
         if (eventName === 'usage' && eventData) {
             try {
@@ -375,7 +380,7 @@ window.AIChatAPI = {
                 
                 return fullText;
             } catch (e) {
-                console.error('解析usage数据出错:', e);
+                console.error('解析usage数据出错:', e, '原始数据:', eventData);
             }
         } 
         // 处理完成事件
@@ -510,7 +515,6 @@ window.AIChatAPI = {
                     UI.hideThinking(aiMessageDiv);
                     
                     UI.updateAIMessage(aiMessageDiv, `错误: ${jsonData.error}`);
-                    timeManager.updateGlobalTime(aiMessageDiv, startTime, null);
                     UI.finalizeAIMessageWithoutTimeUpdate(aiMessageDiv);
                 }
             } catch (e) {
@@ -519,7 +523,6 @@ window.AIChatAPI = {
                 if (aiMessageDiv.querySelector('.ai-thinking')) {
                     UI.hideThinking(aiMessageDiv);
                 }
-                
                 const newFullText = fullText + eventData;
                 UI.updateAIMessage(aiMessageDiv, newFullText);
                 return newFullText;
