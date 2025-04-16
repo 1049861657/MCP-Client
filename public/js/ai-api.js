@@ -392,11 +392,12 @@ window.AIChatAPI = {
                 
                 // 处理思考内容
                 if (jsonData.reasoning_content) {
+                    console.log('jsonData(思考):', jsonData);
                     UI.updateReasoningContent(aiMessageDiv, jsonData.reasoning_content);
                 }
-                console.log('jsonData:', jsonData);
                 // 处理工具调用事件
                 if (jsonData.tool_call) {
+                    console.log('jsonData(工具调用):', jsonData);
                     // 创建工具调用框，但暂时没有完整参数
                     const toolInfo = {
                         name: jsonData.tool_call.name || '未命名工具',
@@ -408,6 +409,7 @@ window.AIChatAPI = {
                 
                 // 处理工具调用更新事件
                 if (jsonData.tool_call_update) {
+                    console.log('jsonData(工具调用更新):', jsonData);
                     // 工具调用已存在，需要更新名称或参数
                     const toolCallElements = aiMessageDiv.querySelectorAll('.tool-call');
                     const index = jsonData.tool_call_update.index || 0;
@@ -477,6 +479,7 @@ window.AIChatAPI = {
                 
                 // 处理工具调用结果
                 if (jsonData.tool_call_result) {
+                    console.log('jsonData(工具调用结果):', jsonData);
                     UI.updateToolCallResult(
                         aiMessageDiv, 
                         jsonData.tool_call_result.name, 

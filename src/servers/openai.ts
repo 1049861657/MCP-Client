@@ -1057,6 +1057,146 @@ export class OpenAI {
     }
   }
 
+/**
+   * 处理模型的流式响应
+   * @param stream 模型流式响应
+   * @param round 当前回合数
+   * @param toolManager 工具调用管理器
+   * @param fullContent 累积的完整内容
+   * @param fullReasoningContent 累积的推理内容
+   * @param usage 使用量统计
+   * @param finishReasonResult 完成原因
+   * @param model 模型名称
+   * @param onChunk 数据块回调函数
+   * @returns 包含处理结果的对象
+   * @private
+   */
+private async processModelResponse(
+  stream: any,
+  round: number,
+  toolManager: ToolCallManager,
+  fullContent: string,
+  fullReasoningContent: string,
+  usage: UsageInfo | null,
+  finishReasonResult: string | undefined | null,
+  onChunk: (chunk: ChunkResponse, done: boolean) => void
+): Promise<{
+  fullContent: string,
+  fullReasoningContent: string,
+  usage: UsageInfo | null,
+  finishReasonResult: string | undefined | null,
+  hasNewToolCalls: boolean,
+  newToolCalls: ToolCallInfo[]
+}> {
+  let hasNewToolCalls = false;
+  let newToolCalls: ToolCallInfo[] = [];
+  let updatedContent = fullContent;
+  let updatedReasoningContent = fullReasoningContent;
+  let updatedUsage = usage;
+  let updatedFinishReason = finishReasonResult;
+  
+  const roundDescription = round === 0 ? "初始" : `回合${round}`;
+  
+  try {
+// 处理流式响应
+for await (const chunk of stream) {
+  // 提取delta信息
+  const delta = chunk.choices?.[0]?.delta as ExtendedDelta || {};
+  const content = delta.content || '';
+  const reasoningContent = delta.reasoning_content || '';
+  const deltaToolCalls = delta.tool_calls || [];
+  const finishReason = chunk.choices?.[0]?.finish_reason;
+  
+  // 处理内容
+  if (content) {
+    updatedContent += content;
+    onChunk({ content }, false);
+  }
+  
+  if (reasoningContent) {
+    updatedReasoningContent += reasoningContent;
+    onChunk({ reasoning_content: reasoningContent }, false);
+  }
+  
+  // 处理工具调用
+  if (deltaToolCalls.length > 0) {
+    hasNewToolCalls = true;
+    
+    for (const deltaToolCall of deltaToolCalls) {
+      if (deltaToolCall.index !== undefined) {
+        const localIndex = deltaToolCall.index;
+        let globalIndex: number;
+        
+        // 处理现有或新工具调用
+        if (round === 0) {
+          // 初始回合 - 检查工具调用是否已创建
+          const existingToolCalls = toolManager.getAllToolCalls();
+          const existingCall = existingToolCalls.find(tc => 
+            tc.meta?.round === 0 && tc.meta?.localIndex === localIndex);
+          
+            if (!existingCall) {
+              // 创建新工具调用
+              globalIndex = toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name);
+            } else {
+              globalIndex = existingCall.meta?.globalIndex as number;
+            }
+          } else {
+            // 后续回合 - 检查是否已存在此索引的工具调用
+            if (!newToolCalls[localIndex]) {
+              // 创建新工具调用
+              globalIndex = toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name || '');
+              
+              // 将新工具调用添加到集合
+              newToolCalls[localIndex] = toolManager.getAllToolCalls()[globalIndex];
+            } else {
+              globalIndex = newToolCalls[localIndex].meta?.globalIndex as number;
+            }
+          }
+          
+          // 更新工具参数流式信息
+          if (deltaToolCall.function?.arguments) {
+            toolManager.updateToolArguments(globalIndex, deltaToolCall.function.arguments);
+          }
+        }
+      }
+    }
+
+       // 检查是否完成
+       if (chunk.usage || finishReason === 'stop') {
+        if (chunk.usage) {
+          updatedUsage = this.formatUsage(chunk.usage);
+          Logger.info('OPENAI', `[${this.providerName}] ${roundDescription}: 模型回复完成,token使用信息: ${JSON.stringify(updatedUsage)}`);
+        }
+        
+        if (finishReason === 'stop') {
+          updatedFinishReason = finishReason;
+          Logger.info('OPENAI', `[${this.providerName}] ${roundDescription}: 模型回复完成,完成原因: ${finishReason}`);
+        }
+      }
+    }
+    
+    return {
+      fullContent: updatedContent,
+      fullReasoningContent: updatedReasoningContent,
+      usage: updatedUsage,
+      finishReasonResult: updatedFinishReason,
+      hasNewToolCalls,
+      newToolCalls: newToolCalls.filter(tc => tc && tc.name)
+    };
+  } catch (error) {
+    Logger.error('OPENAI', `[${this.providerName}] ${roundDescription}: 处理模型响应失败: ${error instanceof Error ? error.message : String(error)}`);
+    onChunk({ error: `处理模型响应失败: ${error instanceof Error ? error.message : String(error)}` }, false);
+    
+    return {
+      fullContent: updatedContent,
+      fullReasoningContent: updatedReasoningContent,
+      usage: updatedUsage,
+      finishReasonResult: updatedFinishReason,
+      hasNewToolCalls: false,
+      newToolCalls: []
+    };
+  }
+}
   /**
    * 发送流式聊天请求并获取响应
    * @param message 用户消息或消息历史
@@ -1107,8 +1247,7 @@ export class OpenAI {
       let fullContent = '';
       let fullReasoningContent = '';
       let usage: UsageInfo | null = null;
-      let isComplete = false;
-      let finishReasonResult = null;
+      let finishReasonResult: string | undefined | null = null;
       
       // 创建处理工具调用的函数
       const processToolCalls = async (toolCalls: ToolCallInfo[]): Promise<boolean> => {
@@ -1166,7 +1305,7 @@ export class OpenAI {
               content: resultText,
               tool_call_id: toolCall.id
             });
-            
+
             toolManager.setToolResult(globalIndex, resultText, false, undefined, usage);
             
           } catch (error) {
@@ -1201,80 +1340,29 @@ export class OpenAI {
           // 发送请求
           const nextStream = await this.client.chat.completions.create(nextRequestParams);
           
-          // 处理变量
-          let hasNewToolCalls = false;
-          let newToolCalls: ToolCallInfo[] = [];
+          // 使用通用函数处理流式响应
+          const result = await this.processModelResponse(
+            nextStream,
+            round,
+            toolManager,
+            fullContent,
+            fullReasoningContent,
+            usage,
+            finishReasonResult,
+            onChunk
+          );
           
-          // 处理流式响应
-          for await (const chunk of nextStream as any) {
-            // 提取delta信息
-            const delta = chunk.choices[0]?.delta as ExtendedDelta || {};
-            const content = delta.content || '';
-            const reasoningContent = delta.reasoning_content || '';
-            const deltaToolCalls = delta.tool_calls || [];
-            const finishReason = chunk.choices[0]?.finish_reason;
-            
-            // 处理内容
-            if (content) {
-              fullContent += content;
-              onChunk({ content }, false);
-            }
-            
-            if (reasoningContent) {
-              fullReasoningContent += reasoningContent;
-              onChunk({ reasoning_content: reasoningContent }, false);
-            }
-            
-            // 处理工具调用
-            if (deltaToolCalls.length > 0) {
-              hasNewToolCalls = true;
-              
-              for (const deltaToolCall of deltaToolCalls) {
-                if (deltaToolCall.index !== undefined) {
-                  // 检查是否已存在此索引的工具调用
-                  const localIndex = deltaToolCall.index;
-                  let globalIndex: number;
-                  
-                  if (!newToolCalls[localIndex]) {
-                    // 创建新工具调用
-                    globalIndex = toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name || '');
-                    
-                    // 将新工具调用添加到集合
-                    newToolCalls[localIndex] = toolManager.getAllToolCalls()[globalIndex];
-                  } else {
-                    globalIndex = newToolCalls[localIndex].meta?.globalIndex as number;
-                  }
-                  
-                  // 更新工具参数流式信息
-                  if (deltaToolCall.function?.arguments) {
-                    toolManager.updateToolArguments(globalIndex, deltaToolCall.function.arguments);
-                  }
-                }
-              }
-            }
-            
-            // 检查是否完成
-            if (chunk.usage || finishReason === 'stop') {
-              if (chunk.usage) {
-                usage = this.formatUsage(chunk.usage);
-                Logger.info('OPENAI', `[${this.providerName}] 回合${round}: 模型回复完成,token使用信息: ${JSON.stringify(usage)}`);
-              }
-              
-              if (finishReason === 'stop') {
-                finishReasonResult = finishReason;
-                Logger.info('OPENAI', `[${this.providerName}] 回合${round}: 模型回复完成,完成原因: ${finishReason}`);
-              }
-            }
-          }
+          // 更新全局状态
+          fullContent = result.fullContent;
+          fullReasoningContent = result.fullReasoningContent;
+          usage = result.usage;
+          finishReasonResult = result.finishReasonResult;
           
           // 返回是否有新工具调用
-          if (hasNewToolCalls && newToolCalls.filter(tc => tc && tc.name).length > 0) {
-            return true;
-          }
+          return result.hasNewToolCalls && result.newToolCalls.length > 0;
           
         } catch (error) {
           Logger.error('OPENAI', `[${this.providerName}] 回合${round}: 获取模型回复失败: ${error instanceof Error ? error.message : String(error)}`);
-          // 通知前端出错
           onChunk({ error: `获取模型回复失败: ${error instanceof Error ? error.message : String(error)}` }, false);
         }
         
@@ -1284,66 +1372,23 @@ export class OpenAI {
       // 开始流式请求
       const stream = await this.client.chat.completions.create(requestParams);
       
-      // 处理初始流式响应
-      for await (const chunk of stream as any) {
-        const delta = chunk.choices?.[0]?.delta as ExtendedDelta || {};
-        const content = delta.content || '';
-        const reasoningContent = delta.reasoning_content || '';
-        const deltaToolCalls = delta.tool_calls || [];
-        const finishReason = chunk.choices?.[0]?.finish_reason;
-        
-        // 处理工具调用
-        if (deltaToolCalls.length > 0) {
-          for (const deltaToolCall of deltaToolCalls) {
-            if (deltaToolCall.index !== undefined) {
-              const localIndex = deltaToolCall.index;
-              let globalIndex: number;
-              
-              // 检查工具调用是否已创建
-              const existingToolCalls = toolManager.getAllToolCalls();
-              const existingCall = existingToolCalls.find(tc => 
-                tc.meta?.round === 0 && tc.meta?.localIndex === localIndex);
-              
-              if (!existingCall) {
-                // 创建新工具调用
-                globalIndex = toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name);
-              } else {
-                globalIndex = existingCall.meta?.globalIndex as number;
-              }
-              
-              // 更新工具参数流式信息
-              if (deltaToolCall.function?.arguments) {
-                toolManager.updateToolArguments(globalIndex, deltaToolCall.function.arguments);
-              }
-            }
-          }
-        }
-        
-        // 处理文本内容
-        if (content) {
-          fullContent += content;
-          onChunk({ content }, false);
-        }
-        
-        if (reasoningContent) {
-          fullReasoningContent += reasoningContent;
-          onChunk({ reasoning_content: reasoningContent }, false);
-        }
-        
-        // 检查是否完成
-        if (chunk.usage || finishReason === 'stop') {
-          isComplete = true;
-          if (chunk.usage) {
-            usage = this.formatUsage(chunk.usage);
-            Logger.info('OPENAI', `[${this.providerName}] 初始流式回复完成,token使用信息: ${JSON.stringify(usage)}`);
-          }
-          
-          if (finishReason === 'stop') {
-            finishReasonResult = finishReason;
-            Logger.info('OPENAI', `[${this.providerName}] 初始流式回复完成,完成原因: ${finishReason}`);
-          }
-        }
-      }
+      // 使用通用函数处理初始流式响应
+      const initialResult = await this.processModelResponse(
+        stream,
+        0,
+        toolManager,
+        fullContent,
+        fullReasoningContent,
+        usage,
+        finishReasonResult,
+        onChunk
+      );
+      
+      // 更新状态
+      fullContent = initialResult.fullContent;
+      fullReasoningContent = initialResult.fullReasoningContent;
+      usage = initialResult.usage;
+      finishReasonResult = initialResult.finishReasonResult;
       
       // 处理工具调用循环
       if (toolManager.hasValidToolCalls()) {
@@ -1373,15 +1418,12 @@ export class OpenAI {
           hasMore = await processToolCalls(roundToolCalls);
         }
         
-        // 确保所有工具调用都标记为已处理（中断或完成）
+        // 确保工具全部结束
         toolManager.finalizeAllToolCalls();
       }
       
-      // 通知前端完成
-      if (!isComplete) {
-        Logger.info('OPENAI', `[${this.providerName}] 发送流式完成标志`);
-        onChunk({}, true);
-      }
+      Logger.info('OPENAI', `[${this.providerName}] 发送流式完成标志`);
+      onChunk({}, true);
       
       // 返回最终结果
       return {
@@ -1389,7 +1431,7 @@ export class OpenAI {
         reasoning_content: fullReasoningContent,
         tool_calls: toolManager.getAllToolCalls(),
         model: model,
-        finish_reason: finishReasonResult,
+        finish_reason: finishReasonResult || undefined,
         usage: usage || {
           promptTokens: 0,
           completionTokens: 0,
