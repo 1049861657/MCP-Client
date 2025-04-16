@@ -11,6 +11,19 @@
     <link rel="stylesheet" href="/css/ai-modals.css">
     <!-- 添加Markdown解析库 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- 确保marked.js支持表格 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            marked.use({
+                gfm: true, // 启用GitHub风格Markdown
+                tables: true, // 明确启用表格支持
+                breaks: true,
+                pedantic: false,
+                smartLists: true,
+                smartypants: true
+            });
+        });
+    </script>
     <!-- 添加代码高亮库 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>

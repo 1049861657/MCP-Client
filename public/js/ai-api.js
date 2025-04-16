@@ -5,6 +5,9 @@
 
 // API客户端模块
 window.AIChatAPI = {
+    // 用于累计工具调用的token消耗
+    accumulatedToolTokens: 0,
+    
     // 发送流式请求
     async sendStreamRequest(message, model, temperature, maxTokens, enableTools = false) {
         const app = window.AIChatApp;
@@ -23,6 +26,9 @@ window.AIChatAPI = {
             UI.showTooltip('无效的供应商配置');
             return;
         }
+        
+        // 重置工具token累计
+        this.accumulatedToolTokens = 0;
         
         const startTime = Date.now();
         
@@ -110,6 +116,9 @@ window.AIChatAPI = {
             UI.showTooltip('无效的供应商配置');
             return;
         }
+        
+        // 重置工具token累计
+        this.accumulatedToolTokens = 0;
         
         const apiPath = app.state.providers[provider].apiPath;
         const startTime = Date.now();
@@ -360,9 +369,11 @@ window.AIChatAPI = {
                 // 更新Token信息
                 const tokenInfo = aiMessageDiv.querySelector('.token-info');
                 if (tokenInfo) {
-                    // 显示简洁的token信息，但在title属性中添加详细信息，用于hover显示
-                    tokenInfo.textContent = `Tokens: ${usageData.totalTokens || 0}`;
-                    tokenInfo.title = `总Token消耗: ${usageData.totalTokens || 0} (提示词: ${usageData.promptTokens || 0}, 回复: ${usageData.completionTokens || 0})`;
+                    // 创建token信息HTML，包含单次消耗和总消耗
+                    tokenInfo.innerHTML = `
+                        <span class="total-token-usage" title="累计消耗: ${this.accumulatedToolTokens+usageData.totalTokens}">总计Tokens: ${this.accumulatedToolTokens+usageData.totalTokens}</span>
+                        <span class="tool-token-usage" title="本次消耗: ${usageData.totalTokens}">tokens:${usageData.totalTokens}</span>
+                    `;
                 }
                 
                 // 更新全局时间信息 - 直接使用服务器返回的elapsedTime
@@ -485,6 +496,12 @@ window.AIChatAPI = {
                 // 处理工具调用结果
                 if (jsonData.tool_call_result) {
                     console.log('jsonData(工具调用结果):', jsonData);
+                    
+                    // 如果有token使用情况，累加到全局总消耗token变量中
+                    if (jsonData.tool_call_result.token_usage && jsonData.tool_call_result.token_usage.totalTokens) {
+                        this.accumulatedToolTokens += jsonData.tool_call_result.token_usage.totalTokens;
+                    }
+                    
                     UI.updateToolCallResult(
                         aiMessageDiv, 
                         jsonData.tool_call_result.name, 

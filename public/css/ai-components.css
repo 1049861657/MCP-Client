@@ -184,6 +184,48 @@
 .token-info {
     color: var(--primary-color);
     font-weight: 500;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.total-token-usage {
+    background: linear-gradient(135deg, #0062cc, #1e88e5);
+    border: 1px solid #0d47a1;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 12px;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(24, 96, 197, 0.2);
+    display: flex;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.total-token-usage::before {
+    content: "💎";
+    margin-right: 5px;
+    font-size: 12px;
+}
+
+.total-token-usage::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0) 100%);
+    animation: token-shine 2s infinite;
+    pointer-events: none;
+}
+
+@keyframes token-shine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
 }
 
 .message-time {
@@ -504,6 +546,138 @@
     padding-left: 2em;
 }
 
+/* Markdown表格样式 */
+.markdown-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+    overflow-x: auto;
+    display: block;
+    font-size: 0.9em;
+    max-width: 100%; /* 确保不超出容器 */
+    white-space: nowrap; /* 防止内容换行 */
+}
+
+/* 表格容器 - 添加外层div使表格可滚动 */
+.markdown-content .table-container {
+    overflow-x: auto;
+    max-width: 100%;
+    margin: 1em 0;
+    border: 1px solid #dfe2e5;
+    border-radius: 6px;
+    position: relative;
+    /* 添加滚动阴影提示 */
+    background:
+        linear-gradient(to right, white 30%, rgba(255, 255, 255, 0)),
+        linear-gradient(to right, rgba(255, 255, 255, 0), white 70%) 100% 0,
+        radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0)),
+        radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0)) 100% 0;
+    background-repeat: no-repeat;
+    background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+    background-attachment: local, local, scroll, scroll;
+    /* 使鼠标指针变为手型，提示用户可水平滚动 */
+    cursor: grab;
+}
+
+/* 当表格被放入容器时恢复表格本身的样式 */
+.markdown-content .table-container table {
+    display: table;
+    margin: 0;
+    border: none;
+    width: auto;
+    min-width: 100%; /* 确保表格至少与容器一样宽 */
+    table-layout: fixed; /* 使用固定表格布局，更好地控制列宽 */
+}
+
+.markdown-content table th,
+.markdown-content table td {
+    border: 1px solid #dfe2e5;
+    padding: 8px 12px;
+    text-align: left;
+    position: relative; /* 为悬停提示定位 */
+    vertical-align: middle; /* 垂直居中对齐 */
+}
+
+/* 对长文本内容的单元格应用特殊样式 */
+.markdown-content table td.long-text {
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 对数字类内容应用特殊样式 */
+.markdown-content table td.number-cell {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    white-space: nowrap;
+}
+
+/* 对日期时间类内容应用特殊样式 */
+.markdown-content table td.datetime-cell {
+    white-space: nowrap;
+    text-align: center;
+}
+
+/* 统一单元格内容样式 */
+.markdown-content table td {
+    white-space: nowrap; /* 默认不换行 */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px; /* 默认最大宽度 */
+}
+
+/* 悬停提示框样式 */
+.markdown-content table td:hover::after {
+    content: attr(data-full-text);
+    position: absolute;
+    left: 0;
+    top: 100%;
+    background-color: #fff;
+    border: 1px solid #dfe2e5;
+    border-radius: 4px;
+    padding: 8px;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    white-space: normal;
+    word-break: break-word;
+    max-width: 300px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 14px;
+    display: block;
+}
+
+/* 仅当内容被截断时才显示提示框 */
+.markdown-content table td:not([data-truncated="true"]):hover::after {
+    display: none;
+}
+
+/* 设置列宽策略 */
+.markdown-content table th {
+    background-color: #f6f8fa;
+    font-weight: 600;
+    color: #24292e;
+    position: sticky; /* 使表头固定 */
+    top: 0; /* 固定在顶部 */
+    z-index: 2; /* 确保表头显示在数据上方 */
+    white-space: nowrap; /* 表头不换行 */
+}
+
+.markdown-content table tr {
+    background-color: #fff;
+    border-top: 1px solid #dfe2e5;
+}
+
+.markdown-content table tr:nth-child(2n) {
+    background-color: #f8f8f8;
+}
+
+.markdown-content table tr:hover {
+    background-color: #f1f8ff;
+}
+
 /* 自动检测图片样式 */
 .auto-detected-image {
     margin: 1em 0;
@@ -606,12 +780,13 @@ pre {
 /* 追加式气泡容器样式 */
 .appended-quick-bubbles {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: row; /* 改为水平排列 */
+    flex-wrap: nowrap; /* 不换行 */
     justify-content: center;
-    gap: 10px;
+    gap: 15px; /* 增加间距 */
     margin: 15px auto;
     width: 90%;
-    max-width: 800px;
+    max-width: 900px; /* 增加容器最大宽度 */
     animation: fade-in 0.3s ease-out;
 }
 
@@ -628,8 +803,9 @@ pre {
     font-size: 13px;
     border: 1px solid #d0e3ff;
     animation: bubble-slide-in 0.4s ease-out;
-    margin-bottom: 5px;
-    flex: 0 1 auto;
+    margin-bottom: 0; /* 移除底部间距 */
+    flex: 0 1 auto; /* 保持弹性尺寸 */
+    white-space: nowrap; /* 防止内容换行 */
 }
 
 .appended-quick-bubble:hover {

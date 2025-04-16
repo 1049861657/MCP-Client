@@ -156,109 +156,240 @@ window.AIChatUI = {
     // 解析Markdown文本为HTML
     parseMarkdown(text) {
         try {
-            //1.不解析图片
-            // return marked.parse(text);
-
-            //2.解析图片
-            // 先使用marked解析Markdown
+            // 使用marked解析Markdown
             let htmlContent = marked.parse(text);
             
-            // 创建临时DOM元素用于处理HTML
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = htmlContent;
+            // 处理表格
+            htmlContent = this.processTablesInHtml(htmlContent);
             
-            // 查找所有文本节点
-            const textNodes = [];
-            const findTextNodes = function(node) {
-                if (node.nodeType === 3) { // 文本节点
-                    textNodes.push(node);
-                } else if (node.nodeType === 1) { // 元素节点
-                    // 跳过已经是图片标签的节点
-                    if (node.tagName === 'IMG' || node.classList.contains('auto-detected-image')) {
-                        return;
-                    }
-                    
-                    // 递归查找子节点
-                    for (let i = 0; i < node.childNodes.length; i++) {
-                        findTextNodes(node.childNodes[i]);
-                    }
-                }
-            };
+            // 检测并转换图片URL
+            htmlContent = this.detectAndReplaceImageUrls(htmlContent);
             
-            // 查找所有文本节点
-            findTextNodes(tempDiv);
+            // 在下一个事件循环中绑定表格滚轮事件
+            setTimeout(() => this.bindTableWheelEvents(), 0);
             
-            // 定义图片URL的正则表达式
-            const imgUrlRegex = /(https?:\/\/[^\s"'<>]+?\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?[^\s"'<>]*)?)/gi;
-            
-            // 处理文本节点中的图片URL
-            textNodes.forEach(textNode => {
-                const content = textNode.nodeValue;
-                if (!content || !imgUrlRegex.test(content)) return;
-                
-                // 重置正则表达式的lastIndex
-                imgUrlRegex.lastIndex = 0;
-                
-                // 收集所有匹配
-                const matches = [];
-                let match;
-                while ((match = imgUrlRegex.exec(content)) !== null) {
-                    matches.push({
-                        url: match[0],
-                        index: match.index,
-                        endIndex: match.index + match[0].length
-                    });
-                }
-                
-                // 如果没有匹配，直接返回
-                if (matches.length === 0) return;
-                
-                // 创建文档片段用于替换
-                const fragment = document.createDocumentFragment();
-                let lastIndex = 0;
-                
-                // 处理每个匹配
-                matches.forEach(match => {
-                    // 添加匹配前的文本
-                    if (match.index > lastIndex) {
-                        fragment.appendChild(document.createTextNode(content.substring(lastIndex, match.index)));
-                    }
-                    
-                    // 创建图片容器和图片元素
-                    const imgContainer = document.createElement('div');
-                    imgContainer.className = 'auto-detected-image';
-                    
-                    const img = document.createElement('img');
-                    img.src = match.url;
-                    img.alt = '图片';
-                    img.loading = 'lazy';
-                    img.onerror = function() {
-                        this.onerror = null;
-                        this.classList.add('image-load-error');
-                    };
-                    
-                    imgContainer.appendChild(img);
-                    fragment.appendChild(imgContainer);
-                    
-                    // 更新lastIndex
-                    lastIndex = match.endIndex;
-                });
-                
-                // 添加匹配后的文本
-                if (lastIndex < content.length) {
-                    fragment.appendChild(document.createTextNode(content.substring(lastIndex)));
-                }
-                
-                // 替换原文本节点
-                textNode.parentNode.replaceChild(fragment, textNode);
-            });
-            
-            // 返回处理后的HTML
-            return tempDiv.innerHTML;
+            return htmlContent;
         } catch (e) {
             console.error('Markdown解析错误:', e);
             return text;
         }
+    },
+    
+    // 处理HTML中的表格，添加滚动容器和智能单元格处理
+    processTablesInHtml(html) {
+        // 创建临时DOM元素来处理HTML内容
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        
+        // 处理表格 - 将所有表格包装到容器中以支持滚动
+        tempDiv.querySelectorAll('table').forEach(table => {
+            // 避免重复包装 - 检查父元素是否已经是表格容器
+            if (table.parentElement && table.parentElement.classList.contains('table-container')) {
+                return;
+            }
+            
+            // 创建表格容器
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+            
+            // 将表格包装在容器中
+            table.parentNode.insertBefore(tableContainer, table);
+            tableContainer.appendChild(table);
+            
+            // 智能处理表格单元格
+            this.processTableCells(table);
+            
+            // 给表格容器添加一个唯一ID，用于后续添加事件监听
+            const containerId = 'table-container-' + Math.random().toString(36).substring(2, 15);
+            tableContainer.id = containerId;
+            
+            // 添加自定义属性，用于在后续渲染后添加事件监听
+            tableContainer.setAttribute('data-needs-wheel-handler', 'true');
+        });
+        
+        // 返回处理后的HTML内容
+        return tempDiv.innerHTML;
+    },
+    
+    // 处理表格单元格，添加智能分类和悬停提示
+    processTableCells(table) {
+        // 处理所有数据单元格（非表头）
+        table.querySelectorAll('td').forEach(cell => {
+            const text = cell.textContent.trim();
+            
+            // 如果单元格内容为空，不做处理
+            if (!text) return;
+            
+            // 保存完整文本用于悬停提示
+            if (text.length > 20) {
+                // 使用title属性作为快速解决方案
+                cell.setAttribute('title', text);
+                
+                // 创建一个更好的悬停提示
+                cell.addEventListener('mouseenter', function(e) {
+                    // 移除可能已存在的提示
+                    if (document.getElementById('cell-tooltip')) {
+                        document.body.removeChild(document.getElementById('cell-tooltip'));
+                    }
+                    
+                    // 创建工具提示元素
+                    const tooltip = document.createElement('div');
+                    tooltip.id = 'cell-tooltip';
+                    tooltip.textContent = text;
+                    tooltip.style.position = 'absolute';
+                    tooltip.style.backgroundColor = '#ffffff';
+                    tooltip.style.border = '1px solid #dfe2e5';
+                    tooltip.style.borderRadius = '4px';
+                    tooltip.style.padding = '8px 12px';
+                    tooltip.style.maxWidth = '300px';
+                    tooltip.style.maxHeight = '200px';
+                    tooltip.style.overflowY = 'auto';
+                    tooltip.style.zIndex = '1000';
+                    tooltip.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
+                    tooltip.style.whiteSpace = 'normal';
+                    tooltip.style.wordBreak = 'break-word';
+                    tooltip.style.fontSize = '14px';
+                    tooltip.style.lineHeight = '1.5';
+                    
+                    // 计算位置，保持在视口内
+                    const rect = cell.getBoundingClientRect();
+                    const left = Math.min(rect.left, window.innerWidth - 310);
+                    const top = rect.bottom + window.scrollY;
+                    
+                    tooltip.style.left = left + 'px';
+                    tooltip.style.top = top + 'px';
+                    
+                    document.body.appendChild(tooltip);
+                    
+                    // 存储提示框引用到单元格属性，以便移除
+                    cell._tooltip = tooltip;
+                });
+                
+                cell.addEventListener('mouseleave', function() {
+                    if (cell._tooltip && document.body.contains(cell._tooltip)) {
+                        document.body.removeChild(cell._tooltip);
+                        cell._tooltip = null;
+                    }
+                });
+                
+                // 设置CSS属性
+                cell.classList.add('long-text');
+                cell.setAttribute('data-truncated', 'true');
+                cell.setAttribute('data-full-text', text);
+            }
+            
+            // 判断内容类型并应用相应的样式类
+            if (this.isNumeric(text)) {
+                // 数字类内容
+                cell.classList.add('number-cell');
+            } else if (this.isDateTime(text)) {
+                // 日期时间类内容
+                cell.classList.add('datetime-cell');
+            }
+        });
+        
+        // 优化表头
+        table.querySelectorAll('th').forEach(header => {
+            // 为表头添加title属性，方便查看完整的列名
+            if (header.textContent.trim()) {
+                header.setAttribute('title', header.textContent.trim());
+            }
+        });
+    },
+    
+    // 判断是否为数字类内容
+    isNumeric(text) {
+        // 去除常见的数字格式字符
+        const cleanText = text.replace(/[,%\s]/g, '');
+        return !isNaN(parseFloat(cleanText)) && isFinite(cleanText);
+    },
+    
+    // 判断是否为日期时间类内容
+    isDateTime(text) {
+        // 检查常见的日期时间格式
+        return /^\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}/.test(text) || // 年-月-日
+               /^\d{1,2}[-/\.]\d{1,2}[-/\.]\d{4}/.test(text) || // 日-月-年/月-日-年
+               /^\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}\s\d{1,2}:\d{1,2}/.test(text); // 年-月-日 时:分
+    },
+    
+    // 检测并替换HTML中的图片URL
+    detectAndReplaceImageUrls(html) {
+        // 创建临时DOM元素
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        
+        // 图片URL正则表达式
+        const imgUrlRegex = /(https?:\/\/[^\s"'<>]+?\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?[^\s"'<>]*)?)/gi;
+        
+        // 递归处理所有文本节点
+        function processNode(node) {
+            // 遍历所有子节点
+            for (let i = 0; i < node.childNodes.length; i++) {
+                const child = node.childNodes[i];
+                
+                // 如果是文本节点，检查并替换图片URL
+                if (child.nodeType === 3) { // 文本节点
+                    const content = child.nodeValue;
+                    if (!content || !imgUrlRegex.test(content)) continue;
+                    
+                    // 重置正则表达式
+                    imgUrlRegex.lastIndex = 0;
+                    
+                    // 创建文档片段
+                    const fragment = document.createDocumentFragment();
+                    let lastIndex = 0;
+                    let match;
+                    
+                    // 查找所有匹配
+                    while ((match = imgUrlRegex.exec(content)) !== null) {
+                        // 添加匹配前的文本
+                        if (match.index > lastIndex) {
+                            fragment.appendChild(document.createTextNode(
+                                content.substring(lastIndex, match.index)));
+                        }
+                        
+                        // 创建图片元素
+                        const imgContainer = document.createElement('div');
+                        imgContainer.className = 'auto-detected-image';
+                        
+                        const img = document.createElement('img');
+                        img.src = match[0];
+                        img.alt = '图片';
+                        img.loading = 'lazy';
+                        img.onerror = function() {
+                            this.onerror = null;
+                            this.classList.add('image-load-error');
+                        };
+                        
+                        imgContainer.appendChild(img);
+                        fragment.appendChild(imgContainer);
+                        
+                        lastIndex = match.index + match[0].length;
+                    }
+                    
+                    // 添加剩余文本
+                    if (lastIndex < content.length) {
+                        fragment.appendChild(document.createTextNode(
+                            content.substring(lastIndex)));
+                    }
+                    
+                    // 替换原文本节点
+                    if (lastIndex > 0) {
+                        node.replaceChild(fragment, child);
+                        i--; // 调整索引，因为我们替换了一个节点
+                    }
+                } 
+                // 如果是元素节点且不是图片，递归处理
+                else if (child.nodeType === 1 && 
+                         child.tagName !== 'IMG' && 
+                         !child.classList.contains('auto-detected-image')) {
+                    processNode(child);
+                }
+            }
+        }
+        
+        processNode(tempDiv);
+        return tempDiv.innerHTML;
     },
     
     // 显示响应耗时
@@ -1667,5 +1798,29 @@ window.AIChatUI = {
         } catch (error) {
             console.error('加载设置失败:', error);
         }
+    },
+
+    // 在DOM更新后添加鼠标滚轮事件处理
+    bindTableWheelEvents() {
+        // 查找所有需要添加滚轮事件的表格容器
+        document.querySelectorAll('.table-container[data-needs-wheel-handler="true"]').forEach(container => {
+            // 移除标记，防止重复绑定
+            container.removeAttribute('data-needs-wheel-handler');
+            
+            // 添加鼠标滚轮事件监听
+            container.addEventListener('wheel', (event) => {
+                // 始终阻止默认滚动行为
+                event.preventDefault();
+                
+                // 使用deltaY进行水平滚动
+                container.scrollLeft += event.deltaY;
+                
+                // 调试信息
+                console.log('滚轮事件触发', event.deltaY, container.scrollLeft);
+            }, { passive: false }); // passive: false 允许我们阻止默认行为
+        });
+        
+        // 在DOM更新完成后立即确认滚轮事件处理器是否已添加
+        console.log('已添加水平滚动事件处理器到', document.querySelectorAll('.table-container').length, '个表格');
     },
 }; 
