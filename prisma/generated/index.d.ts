@@ -2247,22 +2247,12 @@ export namespace Prisma {
 
   export type AggregateAIProvider = {
     _count: AIProviderCountAggregateOutputType | null
-    _avg: AIProviderAvgAggregateOutputType | null
-    _sum: AIProviderSumAggregateOutputType | null
     _min: AIProviderMinAggregateOutputType | null
     _max: AIProviderMaxAggregateOutputType | null
   }
 
-  export type AIProviderAvgAggregateOutputType = {
-    id: number | null
-  }
-
-  export type AIProviderSumAggregateOutputType = {
-    id: number | null
-  }
-
   export type AIProviderMinAggregateOutputType = {
-    id: number | null
+    id: string | null
     name: string | null
     type: $Enums.ProviderType | null
     apiUrl: string | null
@@ -2271,7 +2261,7 @@ export namespace Prisma {
   }
 
   export type AIProviderMaxAggregateOutputType = {
-    id: number | null
+    id: string | null
     name: string | null
     type: $Enums.ProviderType | null
     apiUrl: string | null
@@ -2289,14 +2279,6 @@ export namespace Prisma {
     _all: number
   }
 
-
-  export type AIProviderAvgAggregateInputType = {
-    id?: true
-  }
-
-  export type AIProviderSumAggregateInputType = {
-    id?: true
-  }
 
   export type AIProviderMinAggregateInputType = {
     id?: true
@@ -2364,18 +2346,6 @@ export namespace Prisma {
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
      * 
-     * Select which fields to average
-    **/
-    _avg?: AIProviderAvgAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
-     * Select which fields to sum
-    **/
-    _sum?: AIProviderSumAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
      * Select which fields to find the minimum value
     **/
     _min?: AIProviderMinAggregateInputType
@@ -2406,22 +2376,18 @@ export namespace Prisma {
     take?: number
     skip?: number
     _count?: AIProviderCountAggregateInputType | true
-    _avg?: AIProviderAvgAggregateInputType
-    _sum?: AIProviderSumAggregateInputType
     _min?: AIProviderMinAggregateInputType
     _max?: AIProviderMaxAggregateInputType
   }
 
   export type AIProviderGroupByOutputType = {
-    id: number
+    id: string
     name: string
     type: $Enums.ProviderType
     apiUrl: string
     apiKey: string
     defaultModelValue: string
     _count: AIProviderCountAggregateOutputType | null
-    _avg: AIProviderAvgAggregateOutputType | null
-    _sum: AIProviderSumAggregateOutputType | null
     _min: AIProviderMinAggregateOutputType | null
     _max: AIProviderMaxAggregateOutputType | null
   }
@@ -2492,7 +2458,7 @@ export namespace Prisma {
       models: Prisma.$AIModelPayload<ExtArgs>[]
     }
     scalars: $Extensions.GetPayloadResult<{
-      id: number
+      id: string
       name: string
       type: $Enums.ProviderType
       apiUrl: string
@@ -2922,7 +2888,7 @@ export namespace Prisma {
    * Fields of the AIProvider model
    */
   interface AIProviderFieldRefs {
-    readonly id: FieldRef<"AIProvider", 'Int'>
+    readonly id: FieldRef<"AIProvider", 'String'>
     readonly name: FieldRef<"AIProvider", 'String'>
     readonly type: FieldRef<"AIProvider", 'ProviderType'>
     readonly apiUrl: FieldRef<"AIProvider", 'String'>
@@ -3362,34 +3328,22 @@ export namespace Prisma {
 
   export type AggregateAIModel = {
     _count: AIModelCountAggregateOutputType | null
-    _avg: AIModelAvgAggregateOutputType | null
-    _sum: AIModelSumAggregateOutputType | null
     _min: AIModelMinAggregateOutputType | null
     _max: AIModelMaxAggregateOutputType | null
   }
 
-  export type AIModelAvgAggregateOutputType = {
-    id: number | null
-    providerId: number | null
-  }
-
-  export type AIModelSumAggregateOutputType = {
-    id: number | null
-    providerId: number | null
-  }
-
   export type AIModelMinAggregateOutputType = {
-    id: number | null
+    id: string | null
     value: string | null
     label: string | null
-    providerId: number | null
+    providerId: string | null
   }
 
   export type AIModelMaxAggregateOutputType = {
-    id: number | null
+    id: string | null
     value: string | null
     label: string | null
-    providerId: number | null
+    providerId: string | null
   }
 
   export type AIModelCountAggregateOutputType = {
@@ -3400,16 +3354,6 @@ export namespace Prisma {
     _all: number
   }
 
-
-  export type AIModelAvgAggregateInputType = {
-    id?: true
-    providerId?: true
-  }
-
-  export type AIModelSumAggregateInputType = {
-    id?: true
-    providerId?: true
-  }
 
   export type AIModelMinAggregateInputType = {
     id?: true
@@ -3471,18 +3415,6 @@ export namespace Prisma {
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
      * 
-     * Select which fields to average
-    **/
-    _avg?: AIModelAvgAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
-     * Select which fields to sum
-    **/
-    _sum?: AIModelSumAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
      * Select which fields to find the minimum value
     **/
     _min?: AIModelMinAggregateInputType
@@ -3513,20 +3445,16 @@ export namespace Prisma {
     take?: number
     skip?: number
     _count?: AIModelCountAggregateInputType | true
-    _avg?: AIModelAvgAggregateInputType
-    _sum?: AIModelSumAggregateInputType
     _min?: AIModelMinAggregateInputType
     _max?: AIModelMaxAggregateInputType
   }
 
   export type AIModelGroupByOutputType = {
-    id: number
+    id: string
     value: string
     label: string
-    providerId: number
+    providerId: string
     _count: AIModelCountAggregateOutputType | null
-    _avg: AIModelAvgAggregateOutputType | null
-    _sum: AIModelSumAggregateOutputType | null
     _min: AIModelMinAggregateOutputType | null
     _max: AIModelMaxAggregateOutputType | null
   }
@@ -3593,10 +3521,10 @@ export namespace Prisma {
       provider: Prisma.$AIProviderPayload<ExtArgs>
     }
     scalars: $Extensions.GetPayloadResult<{
-      id: number
+      id: string
       value: string
       label: string
-      providerId: number
+      providerId: string
     }, ExtArgs["result"]["aIModel"]>
     composites: {}
   }
@@ -4021,10 +3949,10 @@ export namespace Prisma {
    * Fields of the AIModel model
    */
   interface AIModelFieldRefs {
-    readonly id: FieldRef<"AIModel", 'Int'>
+    readonly id: FieldRef<"AIModel", 'String'>
     readonly value: FieldRef<"AIModel", 'String'>
     readonly label: FieldRef<"AIModel", 'String'>
-    readonly providerId: FieldRef<"AIModel", 'Int'>
+    readonly providerId: FieldRef<"AIModel", 'String'>
   }
     
 
@@ -4443,22 +4371,12 @@ export namespace Prisma {
 
   export type AggregateMCPServer = {
     _count: MCPServerCountAggregateOutputType | null
-    _avg: MCPServerAvgAggregateOutputType | null
-    _sum: MCPServerSumAggregateOutputType | null
     _min: MCPServerMinAggregateOutputType | null
     _max: MCPServerMaxAggregateOutputType | null
   }
 
-  export type MCPServerAvgAggregateOutputType = {
-    id: number | null
-  }
-
-  export type MCPServerSumAggregateOutputType = {
-    id: number | null
-  }
-
   export type MCPServerMinAggregateOutputType = {
-    id: number | null
+    id: string | null
     serverId: string | null
     name: string | null
     isActive: boolean | null
@@ -4468,7 +4386,7 @@ export namespace Prisma {
   }
 
   export type MCPServerMaxAggregateOutputType = {
-    id: number | null
+    id: string | null
     serverId: string | null
     name: string | null
     isActive: boolean | null
@@ -4489,14 +4407,6 @@ export namespace Prisma {
     _all: number
   }
 
-
-  export type MCPServerAvgAggregateInputType = {
-    id?: true
-  }
-
-  export type MCPServerSumAggregateInputType = {
-    id?: true
-  }
 
   export type MCPServerMinAggregateInputType = {
     id?: true
@@ -4568,18 +4478,6 @@ export namespace Prisma {
     /**
      * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
      * 
-     * Select which fields to average
-    **/
-    _avg?: MCPServerAvgAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
-     * Select which fields to sum
-    **/
-    _sum?: MCPServerSumAggregateInputType
-    /**
-     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
-     * 
      * Select which fields to find the minimum value
     **/
     _min?: MCPServerMinAggregateInputType
@@ -4610,14 +4508,12 @@ export namespace Prisma {
     take?: number
     skip?: number
     _count?: MCPServerCountAggregateInputType | true
-    _avg?: MCPServerAvgAggregateInputType
-    _sum?: MCPServerSumAggregateInputType
     _min?: MCPServerMinAggregateInputType
     _max?: MCPServerMaxAggregateInputType
   }
 
   export type MCPServerGroupByOutputType = {
-    id: number
+    id: string
     serverId: string
     name: string
     isActive: boolean
@@ -4626,8 +4522,6 @@ export namespace Prisma {
     args: JsonValue | null
     sseUrl: string | null
     _count: MCPServerCountAggregateOutputType | null
-    _avg: MCPServerAvgAggregateOutputType | null
-    _sum: MCPServerSumAggregateOutputType | null
     _min: MCPServerMinAggregateOutputType | null
     _max: MCPServerMaxAggregateOutputType | null
   }
@@ -4696,7 +4590,7 @@ export namespace Prisma {
     name: "MCPServer"
     objects: {}
     scalars: $Extensions.GetPayloadResult<{
-      id: number
+      id: string
       serverId: string
       name: string
       isActive: boolean
@@ -5127,7 +5021,7 @@ export namespace Prisma {
    * Fields of the MCPServer model
    */
   interface MCPServerFieldRefs {
-    readonly id: FieldRef<"MCPServer", 'Int'>
+    readonly id: FieldRef<"MCPServer", 'String'>
     readonly serverId: FieldRef<"MCPServer", 'String'>
     readonly name: FieldRef<"MCPServer", 'String'>
     readonly isActive: FieldRef<"MCPServer", 'Boolean'>
@@ -5512,67 +5406,69 @@ export namespace Prisma {
   }
 
   export type QuickMessageAvgAggregateOutputType = {
-    id: number | null
-    originalId: number | null
+    sortId: number | null
   }
 
   export type QuickMessageSumAggregateOutputType = {
-    id: number | null
-    originalId: number | null
+    sortId: number | null
   }
 
   export type QuickMessageMinAggregateOutputType = {
-    id: number | null
-    originalId: number | null
+    id: string | null
+    sortId: number | null
     content: string | null
     result: string | null
+    category: string | null
   }
 
   export type QuickMessageMaxAggregateOutputType = {
-    id: number | null
-    originalId: number | null
+    id: string | null
+    sortId: number | null
     content: string | null
     result: string | null
+    category: string | null
   }
 
   export type QuickMessageCountAggregateOutputType = {
     id: number
-    originalId: number
+    sortId: number
     content: number
     result: number
+    category: number
     _all: number
   }
 
 
   export type QuickMessageAvgAggregateInputType = {
-    id?: true
-    originalId?: true
+    sortId?: true
   }
 
   export type QuickMessageSumAggregateInputType = {
-    id?: true
-    originalId?: true
+    sortId?: true
   }
 
   export type QuickMessageMinAggregateInputType = {
     id?: true
-    originalId?: true
+    sortId?: true
     content?: true
     result?: true
+    category?: true
   }
 
   export type QuickMessageMaxAggregateInputType = {
     id?: true
-    originalId?: true
+    sortId?: true
     content?: true
     result?: true
+    category?: true
   }
 
   export type QuickMessageCountAggregateInputType = {
     id?: true
-    originalId?: true
+    sortId?: true
     content?: true
     result?: true
+    category?: true
     _all?: true
   }
 
@@ -5663,10 +5559,11 @@ export namespace Prisma {
   }
 
   export type QuickMessageGroupByOutputType = {
-    id: number
-    originalId: number
+    id: string
+    sortId: number
     content: string
     result: string
+    category: string
     _count: QuickMessageCountAggregateOutputType | null
     _avg: QuickMessageAvgAggregateOutputType | null
     _sum: QuickMessageSumAggregateOutputType | null
@@ -5690,42 +5587,47 @@ export namespace Prisma {
 
   export type QuickMessageSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
-    originalId?: boolean
+    sortId?: boolean
     content?: boolean
     result?: boolean
+    category?: boolean
   }, ExtArgs["result"]["quickMessage"]>
 
   export type QuickMessageSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
-    originalId?: boolean
+    sortId?: boolean
     content?: boolean
     result?: boolean
+    category?: boolean
   }, ExtArgs["result"]["quickMessage"]>
 
   export type QuickMessageSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
     id?: boolean
-    originalId?: boolean
+    sortId?: boolean
     content?: boolean
     result?: boolean
+    category?: boolean
   }, ExtArgs["result"]["quickMessage"]>
 
   export type QuickMessageSelectScalar = {
     id?: boolean
-    originalId?: boolean
+    sortId?: boolean
     content?: boolean
     result?: boolean
+    category?: boolean
   }
 
-  export type QuickMessageOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "originalId" | "content" | "result", ExtArgs["result"]["quickMessage"]>
+  export type QuickMessageOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "sortId" | "content" | "result" | "category", ExtArgs["result"]["quickMessage"]>
 
   export type $QuickMessagePayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     name: "QuickMessage"
     objects: {}
     scalars: $Extensions.GetPayloadResult<{
-      id: number
-      originalId: number
+      id: string
+      sortId: number
       content: string
       result: string
+      category: string
     }, ExtArgs["result"]["quickMessage"]>
     composites: {}
   }
@@ -6149,10 +6051,11 @@ export namespace Prisma {
    * Fields of the QuickMessage model
    */
   interface QuickMessageFieldRefs {
-    readonly id: FieldRef<"QuickMessage", 'Int'>
-    readonly originalId: FieldRef<"QuickMessage", 'Int'>
+    readonly id: FieldRef<"QuickMessage", 'String'>
+    readonly sortId: FieldRef<"QuickMessage", 'Int'>
     readonly content: FieldRef<"QuickMessage", 'String'>
     readonly result: FieldRef<"QuickMessage", 'String'>
+    readonly category: FieldRef<"QuickMessage", 'String'>
   }
     
 
@@ -6574,9 +6477,10 @@ export namespace Prisma {
 
   export const QuickMessageScalarFieldEnum: {
     id: 'id',
-    originalId: 'originalId',
+    sortId: 'sortId',
     content: 'content',
-    result: 'result'
+    result: 'result',
+    category: 'category'
   };
 
   export type QuickMessageScalarFieldEnum = (typeof QuickMessageScalarFieldEnum)[keyof typeof QuickMessageScalarFieldEnum]
@@ -6657,13 +6561,6 @@ export namespace Prisma {
 
 
   /**
-   * Reference to a field of type 'Int'
-   */
-  export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int'>
-    
-
-
-  /**
    * Reference to a field of type 'ProviderType'
    */
   export type EnumProviderTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ProviderType'>
@@ -6681,6 +6578,13 @@ export namespace Prisma {
    * Reference to a field of type 'ConnectionType'
    */
   export type EnumConnectionTypeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ConnectionType'>
+    
+
+
+  /**
+   * Reference to a field of type 'Int'
+   */
+  export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int'>
     
 
 
@@ -6735,7 +6639,7 @@ export namespace Prisma {
     AND?: AIProviderWhereInput | AIProviderWhereInput[]
     OR?: AIProviderWhereInput[]
     NOT?: AIProviderWhereInput | AIProviderWhereInput[]
-    id?: IntFilter<"AIProvider"> | number
+    id?: StringFilter<"AIProvider"> | string
     name?: StringFilter<"AIProvider"> | string
     type?: EnumProviderTypeFilter<"AIProvider"> | $Enums.ProviderType
     apiUrl?: StringFilter<"AIProvider"> | string
@@ -6755,7 +6659,7 @@ export namespace Prisma {
   }
 
   export type AIProviderWhereUniqueInput = Prisma.AtLeast<{
-    id?: number
+    id?: string
     name?: string
     AND?: AIProviderWhereInput | AIProviderWhereInput[]
     OR?: AIProviderWhereInput[]
@@ -6775,17 +6679,15 @@ export namespace Prisma {
     apiKey?: SortOrder
     defaultModelValue?: SortOrder
     _count?: AIProviderCountOrderByAggregateInput
-    _avg?: AIProviderAvgOrderByAggregateInput
     _max?: AIProviderMaxOrderByAggregateInput
     _min?: AIProviderMinOrderByAggregateInput
-    _sum?: AIProviderSumOrderByAggregateInput
   }
 
   export type AIProviderScalarWhereWithAggregatesInput = {
     AND?: AIProviderScalarWhereWithAggregatesInput | AIProviderScalarWhereWithAggregatesInput[]
     OR?: AIProviderScalarWhereWithAggregatesInput[]
     NOT?: AIProviderScalarWhereWithAggregatesInput | AIProviderScalarWhereWithAggregatesInput[]
-    id?: IntWithAggregatesFilter<"AIProvider"> | number
+    id?: StringWithAggregatesFilter<"AIProvider"> | string
     name?: StringWithAggregatesFilter<"AIProvider"> | string
     type?: EnumProviderTypeWithAggregatesFilter<"AIProvider"> | $Enums.ProviderType
     apiUrl?: StringWithAggregatesFilter<"AIProvider"> | string
@@ -6797,10 +6699,10 @@ export namespace Prisma {
     AND?: AIModelWhereInput | AIModelWhereInput[]
     OR?: AIModelWhereInput[]
     NOT?: AIModelWhereInput | AIModelWhereInput[]
-    id?: IntFilter<"AIModel"> | number
+    id?: StringFilter<"AIModel"> | string
     value?: StringFilter<"AIModel"> | string
     label?: StringFilter<"AIModel"> | string
-    providerId?: IntFilter<"AIModel"> | number
+    providerId?: StringFilter<"AIModel"> | string
     provider?: XOR<AIProviderScalarRelationFilter, AIProviderWhereInput>
   }
 
@@ -6813,14 +6715,14 @@ export namespace Prisma {
   }
 
   export type AIModelWhereUniqueInput = Prisma.AtLeast<{
-    id?: number
+    id?: string
     providerId_value?: AIModelProviderIdValueCompoundUniqueInput
     AND?: AIModelWhereInput | AIModelWhereInput[]
     OR?: AIModelWhereInput[]
     NOT?: AIModelWhereInput | AIModelWhereInput[]
     value?: StringFilter<"AIModel"> | string
     label?: StringFilter<"AIModel"> | string
-    providerId?: IntFilter<"AIModel"> | number
+    providerId?: StringFilter<"AIModel"> | string
     provider?: XOR<AIProviderScalarRelationFilter, AIProviderWhereInput>
   }, "id" | "providerId_value">
 
@@ -6830,27 +6732,25 @@ export namespace Prisma {
     label?: SortOrder
     providerId?: SortOrder
     _count?: AIModelCountOrderByAggregateInput
-    _avg?: AIModelAvgOrderByAggregateInput
     _max?: AIModelMaxOrderByAggregateInput
     _min?: AIModelMinOrderByAggregateInput
-    _sum?: AIModelSumOrderByAggregateInput
   }
 
   export type AIModelScalarWhereWithAggregatesInput = {
     AND?: AIModelScalarWhereWithAggregatesInput | AIModelScalarWhereWithAggregatesInput[]
     OR?: AIModelScalarWhereWithAggregatesInput[]
     NOT?: AIModelScalarWhereWithAggregatesInput | AIModelScalarWhereWithAggregatesInput[]
-    id?: IntWithAggregatesFilter<"AIModel"> | number
+    id?: StringWithAggregatesFilter<"AIModel"> | string
     value?: StringWithAggregatesFilter<"AIModel"> | string
     label?: StringWithAggregatesFilter<"AIModel"> | string
-    providerId?: IntWithAggregatesFilter<"AIModel"> | number
+    providerId?: StringWithAggregatesFilter<"AIModel"> | string
   }
 
   export type MCPServerWhereInput = {
     AND?: MCPServerWhereInput | MCPServerWhereInput[]
     OR?: MCPServerWhereInput[]
     NOT?: MCPServerWhereInput | MCPServerWhereInput[]
-    id?: IntFilter<"MCPServer"> | number
+    id?: StringFilter<"MCPServer"> | string
     serverId?: StringFilter<"MCPServer"> | string
     name?: StringFilter<"MCPServer"> | string
     isActive?: BoolFilter<"MCPServer"> | boolean
@@ -6872,7 +6772,7 @@ export namespace Prisma {
   }
 
   export type MCPServerWhereUniqueInput = Prisma.AtLeast<{
-    id?: number
+    id?: string
     serverId?: string
     AND?: MCPServerWhereInput | MCPServerWhereInput[]
     OR?: MCPServerWhereInput[]
@@ -6895,17 +6795,15 @@ export namespace Prisma {
     args?: SortOrderInput | SortOrder
     sseUrl?: SortOrderInput | SortOrder
     _count?: MCPServerCountOrderByAggregateInput
-    _avg?: MCPServerAvgOrderByAggregateInput
     _max?: MCPServerMaxOrderByAggregateInput
     _min?: MCPServerMinOrderByAggregateInput
-    _sum?: MCPServerSumOrderByAggregateInput
   }
 
   export type MCPServerScalarWhereWithAggregatesInput = {
     AND?: MCPServerScalarWhereWithAggregatesInput | MCPServerScalarWhereWithAggregatesInput[]
     OR?: MCPServerScalarWhereWithAggregatesInput[]
     NOT?: MCPServerScalarWhereWithAggregatesInput | MCPServerScalarWhereWithAggregatesInput[]
-    id?: IntWithAggregatesFilter<"MCPServer"> | number
+    id?: StringWithAggregatesFilter<"MCPServer"> | string
     serverId?: StringWithAggregatesFilter<"MCPServer"> | string
     name?: StringWithAggregatesFilter<"MCPServer"> | string
     isActive?: BoolWithAggregatesFilter<"MCPServer"> | boolean
@@ -6919,34 +6817,38 @@ export namespace Prisma {
     AND?: QuickMessageWhereInput | QuickMessageWhereInput[]
     OR?: QuickMessageWhereInput[]
     NOT?: QuickMessageWhereInput | QuickMessageWhereInput[]
-    id?: IntFilter<"QuickMessage"> | number
-    originalId?: IntFilter<"QuickMessage"> | number
+    id?: StringFilter<"QuickMessage"> | string
+    sortId?: IntFilter<"QuickMessage"> | number
     content?: StringFilter<"QuickMessage"> | string
     result?: StringFilter<"QuickMessage"> | string
+    category?: StringFilter<"QuickMessage"> | string
   }
 
   export type QuickMessageOrderByWithRelationInput = {
     id?: SortOrder
-    originalId?: SortOrder
+    sortId?: SortOrder
     content?: SortOrder
     result?: SortOrder
+    category?: SortOrder
   }
 
   export type QuickMessageWhereUniqueInput = Prisma.AtLeast<{
-    id?: number
-    originalId?: number
+    id?: string
+    sortId?: number
     AND?: QuickMessageWhereInput | QuickMessageWhereInput[]
     OR?: QuickMessageWhereInput[]
     NOT?: QuickMessageWhereInput | QuickMessageWhereInput[]
     content?: StringFilter<"QuickMessage"> | string
     result?: StringFilter<"QuickMessage"> | string
-  }, "id" | "originalId">
+    category?: StringFilter<"QuickMessage"> | string
+  }, "id" | "sortId">
 
   export type QuickMessageOrderByWithAggregationInput = {
     id?: SortOrder
-    originalId?: SortOrder
+    sortId?: SortOrder
     content?: SortOrder
     result?: SortOrder
+    category?: SortOrder
     _count?: QuickMessageCountOrderByAggregateInput
     _avg?: QuickMessageAvgOrderByAggregateInput
     _max?: QuickMessageMaxOrderByAggregateInput
@@ -6958,10 +6860,11 @@ export namespace Prisma {
     AND?: QuickMessageScalarWhereWithAggregatesInput | QuickMessageScalarWhereWithAggregatesInput[]
     OR?: QuickMessageScalarWhereWithAggregatesInput[]
     NOT?: QuickMessageScalarWhereWithAggregatesInput | QuickMessageScalarWhereWithAggregatesInput[]
-    id?: IntWithAggregatesFilter<"QuickMessage"> | number
-    originalId?: IntWithAggregatesFilter<"QuickMessage"> | number
+    id?: StringWithAggregatesFilter<"QuickMessage"> | string
+    sortId?: IntWithAggregatesFilter<"QuickMessage"> | number
     content?: StringWithAggregatesFilter<"QuickMessage"> | string
     result?: StringWithAggregatesFilter<"QuickMessage"> | string
+    category?: StringWithAggregatesFilter<"QuickMessage"> | string
   }
 
   export type SettingCreateInput = {
@@ -7000,6 +6903,7 @@ export namespace Prisma {
   }
 
   export type AIProviderCreateInput = {
+    id?: string
     name: string
     type: $Enums.ProviderType
     apiUrl: string
@@ -7009,7 +6913,7 @@ export namespace Prisma {
   }
 
   export type AIProviderUncheckedCreateInput = {
-    id?: number
+    id?: string
     name: string
     type: $Enums.ProviderType
     apiUrl: string
@@ -7019,6 +6923,7 @@ export namespace Prisma {
   }
 
   export type AIProviderUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     type?: EnumProviderTypeFieldUpdateOperationsInput | $Enums.ProviderType
     apiUrl?: StringFieldUpdateOperationsInput | string
@@ -7028,7 +6933,7 @@ export namespace Prisma {
   }
 
   export type AIProviderUncheckedUpdateInput = {
-    id?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     type?: EnumProviderTypeFieldUpdateOperationsInput | $Enums.ProviderType
     apiUrl?: StringFieldUpdateOperationsInput | string
@@ -7038,7 +6943,7 @@ export namespace Prisma {
   }
 
   export type AIProviderCreateManyInput = {
-    id?: number
+    id?: string
     name: string
     type: $Enums.ProviderType
     apiUrl: string
@@ -7047,6 +6952,7 @@ export namespace Prisma {
   }
 
   export type AIProviderUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     type?: EnumProviderTypeFieldUpdateOperationsInput | $Enums.ProviderType
     apiUrl?: StringFieldUpdateOperationsInput | string
@@ -7055,7 +6961,7 @@ export namespace Prisma {
   }
 
   export type AIProviderUncheckedUpdateManyInput = {
-    id?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     type?: EnumProviderTypeFieldUpdateOperationsInput | $Enums.ProviderType
     apiUrl?: StringFieldUpdateOperationsInput | string
@@ -7064,51 +6970,55 @@ export namespace Prisma {
   }
 
   export type AIModelCreateInput = {
+    id?: string
     value: string
     label: string
     provider: AIProviderCreateNestedOneWithoutModelsInput
   }
 
   export type AIModelUncheckedCreateInput = {
-    id?: number
+    id?: string
     value: string
     label: string
-    providerId: number
+    providerId: string
   }
 
   export type AIModelUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
     value?: StringFieldUpdateOperationsInput | string
     label?: StringFieldUpdateOperationsInput | string
     provider?: AIProviderUpdateOneRequiredWithoutModelsNestedInput
   }
 
   export type AIModelUncheckedUpdateInput = {
-    id?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
     value?: StringFieldUpdateOperationsInput | string
     label?: StringFieldUpdateOperationsInput | string
-    providerId?: IntFieldUpdateOperationsInput | number
+    providerId?: StringFieldUpdateOperationsInput | string
   }
 
   export type AIModelCreateManyInput = {
-    id?: number
+    id?: string
     value: string
     label: string
-    providerId: number
+    providerId: string
   }
 
   export type AIModelUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
     value?: StringFieldUpdateOperationsInput | string
     label?: StringFieldUpdateOperationsInput | string
   }
 
   export type AIModelUncheckedUpdateManyInput = {
-    id?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
     value?: StringFieldUpdateOperationsInput | string
     label?: StringFieldUpdateOperationsInput | string
-    providerId?: IntFieldUpdateOperationsInput | number
+    providerId?: StringFieldUpdateOperationsInput | string
   }
 
   export type MCPServerCreateInput = {
+    id?: string
     serverId: string
     name: string
     isActive: boolean
@@ -7119,7 +7029,7 @@ export namespace Prisma {
   }
 
   export type MCPServerUncheckedCreateInput = {
-    id?: number
+    id?: string
     serverId: string
     name: string
     isActive: boolean
@@ -7130,6 +7040,7 @@ export namespace Prisma {
   }
 
   export type MCPServerUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
     serverId?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -7140,7 +7051,7 @@ export namespace Prisma {
   }
 
   export type MCPServerUncheckedUpdateInput = {
-    id?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
     serverId?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -7151,7 +7062,7 @@ export namespace Prisma {
   }
 
   export type MCPServerCreateManyInput = {
-    id?: number
+    id?: string
     serverId: string
     name: string
     isActive: boolean
@@ -7162,6 +7073,7 @@ export namespace Prisma {
   }
 
   export type MCPServerUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
     serverId?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -7172,7 +7084,7 @@ export namespace Prisma {
   }
 
   export type MCPServerUncheckedUpdateManyInput = {
-    id?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
     serverId?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     isActive?: BoolFieldUpdateOperationsInput | boolean
@@ -7183,49 +7095,59 @@ export namespace Prisma {
   }
 
   export type QuickMessageCreateInput = {
-    originalId: number
+    id?: string
+    sortId: number
     content: string
     result: string
+    category?: string
   }
 
   export type QuickMessageUncheckedCreateInput = {
-    id?: number
-    originalId: number
+    id?: string
+    sortId: number
     content: string
     result: string
+    category?: string
   }
 
   export type QuickMessageUpdateInput = {
-    originalId?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
+    sortId?: IntFieldUpdateOperationsInput | number
     content?: StringFieldUpdateOperationsInput | string
     result?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
   }
 
   export type QuickMessageUncheckedUpdateInput = {
-    id?: IntFieldUpdateOperationsInput | number
-    originalId?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
+    sortId?: IntFieldUpdateOperationsInput | number
     content?: StringFieldUpdateOperationsInput | string
     result?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
   }
 
   export type QuickMessageCreateManyInput = {
-    id?: number
-    originalId: number
+    id?: string
+    sortId: number
     content: string
     result: string
+    category?: string
   }
 
   export type QuickMessageUpdateManyMutationInput = {
-    originalId?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
+    sortId?: IntFieldUpdateOperationsInput | number
     content?: StringFieldUpdateOperationsInput | string
     result?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
   }
 
   export type QuickMessageUncheckedUpdateManyInput = {
-    id?: IntFieldUpdateOperationsInput | number
-    originalId?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
+    sortId?: IntFieldUpdateOperationsInput | number
     content?: StringFieldUpdateOperationsInput | string
     result?: StringFieldUpdateOperationsInput | string
+    category?: StringFieldUpdateOperationsInput | string
   }
 
   export type StringFilter<$PrismaModel = never> = {
@@ -7311,17 +7233,6 @@ export namespace Prisma {
     _max?: NestedJsonFilter<$PrismaModel>
   }
 
-  export type IntFilter<$PrismaModel = never> = {
-    equals?: number | IntFieldRefInput<$PrismaModel>
-    in?: number[]
-    notIn?: number[]
-    lt?: number | IntFieldRefInput<$PrismaModel>
-    lte?: number | IntFieldRefInput<$PrismaModel>
-    gt?: number | IntFieldRefInput<$PrismaModel>
-    gte?: number | IntFieldRefInput<$PrismaModel>
-    not?: NestedIntFilter<$PrismaModel> | number
-  }
-
   export type EnumProviderTypeFilter<$PrismaModel = never> = {
     equals?: $Enums.ProviderType | EnumProviderTypeFieldRefInput<$PrismaModel>
     in?: $Enums.ProviderType[]
@@ -7348,10 +7259,6 @@ export namespace Prisma {
     defaultModelValue?: SortOrder
   }
 
-  export type AIProviderAvgOrderByAggregateInput = {
-    id?: SortOrder
-  }
-
   export type AIProviderMaxOrderByAggregateInput = {
     id?: SortOrder
     name?: SortOrder
@@ -7370,26 +7277,6 @@ export namespace Prisma {
     defaultModelValue?: SortOrder
   }
 
-  export type AIProviderSumOrderByAggregateInput = {
-    id?: SortOrder
-  }
-
-  export type IntWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: number | IntFieldRefInput<$PrismaModel>
-    in?: number[]
-    notIn?: number[]
-    lt?: number | IntFieldRefInput<$PrismaModel>
-    lte?: number | IntFieldRefInput<$PrismaModel>
-    gt?: number | IntFieldRefInput<$PrismaModel>
-    gte?: number | IntFieldRefInput<$PrismaModel>
-    not?: NestedIntWithAggregatesFilter<$PrismaModel> | number
-    _count?: NestedIntFilter<$PrismaModel>
-    _avg?: NestedFloatFilter<$PrismaModel>
-    _sum?: NestedIntFilter<$PrismaModel>
-    _min?: NestedIntFilter<$PrismaModel>
-    _max?: NestedIntFilter<$PrismaModel>
-  }
-
   export type EnumProviderTypeWithAggregatesFilter<$PrismaModel = never> = {
     equals?: $Enums.ProviderType | EnumProviderTypeFieldRefInput<$PrismaModel>
     in?: $Enums.ProviderType[]
@@ -7406,7 +7293,7 @@ export namespace Prisma {
   }
 
   export type AIModelProviderIdValueCompoundUniqueInput = {
-    providerId: number
+    providerId: string
     value: string
   }
 
@@ -7414,11 +7301,6 @@ export namespace Prisma {
     id?: SortOrder
     value?: SortOrder
     label?: SortOrder
-    providerId?: SortOrder
-  }
-
-  export type AIModelAvgOrderByAggregateInput = {
-    id?: SortOrder
     providerId?: SortOrder
   }
 
@@ -7433,11 +7315,6 @@ export namespace Prisma {
     id?: SortOrder
     value?: SortOrder
     label?: SortOrder
-    providerId?: SortOrder
-  }
-
-  export type AIModelSumOrderByAggregateInput = {
-    id?: SortOrder
     providerId?: SortOrder
   }
 
@@ -7501,10 +7378,6 @@ export namespace Prisma {
     sseUrl?: SortOrder
   }
 
-  export type MCPServerAvgOrderByAggregateInput = {
-    id?: SortOrder
-  }
-
   export type MCPServerMaxOrderByAggregateInput = {
     id?: SortOrder
     serverId?: SortOrder
@@ -7523,10 +7396,6 @@ export namespace Prisma {
     connectionType?: SortOrder
     command?: SortOrder
     sseUrl?: SortOrder
-  }
-
-  export type MCPServerSumOrderByAggregateInput = {
-    id?: SortOrder
   }
 
   export type BoolWithAggregatesFilter<$PrismaModel = never> = {
@@ -7585,35 +7454,63 @@ export namespace Prisma {
     _max?: NestedJsonNullableFilter<$PrismaModel>
   }
 
+  export type IntFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel>
+    in?: number[]
+    notIn?: number[]
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntFilter<$PrismaModel> | number
+  }
+
   export type QuickMessageCountOrderByAggregateInput = {
     id?: SortOrder
-    originalId?: SortOrder
+    sortId?: SortOrder
     content?: SortOrder
     result?: SortOrder
+    category?: SortOrder
   }
 
   export type QuickMessageAvgOrderByAggregateInput = {
-    id?: SortOrder
-    originalId?: SortOrder
+    sortId?: SortOrder
   }
 
   export type QuickMessageMaxOrderByAggregateInput = {
     id?: SortOrder
-    originalId?: SortOrder
+    sortId?: SortOrder
     content?: SortOrder
     result?: SortOrder
+    category?: SortOrder
   }
 
   export type QuickMessageMinOrderByAggregateInput = {
     id?: SortOrder
-    originalId?: SortOrder
+    sortId?: SortOrder
     content?: SortOrder
     result?: SortOrder
+    category?: SortOrder
   }
 
   export type QuickMessageSumOrderByAggregateInput = {
-    id?: SortOrder
-    originalId?: SortOrder
+    sortId?: SortOrder
+  }
+
+  export type IntWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel>
+    in?: number[]
+    notIn?: number[]
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntWithAggregatesFilter<$PrismaModel> | number
+    _count?: NestedIntFilter<$PrismaModel>
+    _avg?: NestedFloatFilter<$PrismaModel>
+    _sum?: NestedIntFilter<$PrismaModel>
+    _min?: NestedIntFilter<$PrismaModel>
+    _max?: NestedIntFilter<$PrismaModel>
   }
 
   export type StringFieldUpdateOperationsInput = {
@@ -7650,14 +7547,6 @@ export namespace Prisma {
     update?: AIModelUpdateWithWhereUniqueWithoutProviderInput | AIModelUpdateWithWhereUniqueWithoutProviderInput[]
     updateMany?: AIModelUpdateManyWithWhereWithoutProviderInput | AIModelUpdateManyWithWhereWithoutProviderInput[]
     deleteMany?: AIModelScalarWhereInput | AIModelScalarWhereInput[]
-  }
-
-  export type IntFieldUpdateOperationsInput = {
-    set?: number
-    increment?: number
-    decrement?: number
-    multiply?: number
-    divide?: number
   }
 
   export type AIModelUncheckedUpdateManyWithoutProviderNestedInput = {
@@ -7698,6 +7587,14 @@ export namespace Prisma {
 
   export type NullableStringFieldUpdateOperationsInput = {
     set?: string | null
+  }
+
+  export type IntFieldUpdateOperationsInput = {
+    set?: number
+    increment?: number
+    decrement?: number
+    multiply?: number
+    divide?: number
   }
 
   export type NestedStringFilter<$PrismaModel = never> = {
@@ -7765,33 +7662,6 @@ export namespace Prisma {
     in?: $Enums.ProviderType[]
     notIn?: $Enums.ProviderType[]
     not?: NestedEnumProviderTypeFilter<$PrismaModel> | $Enums.ProviderType
-  }
-
-  export type NestedIntWithAggregatesFilter<$PrismaModel = never> = {
-    equals?: number | IntFieldRefInput<$PrismaModel>
-    in?: number[]
-    notIn?: number[]
-    lt?: number | IntFieldRefInput<$PrismaModel>
-    lte?: number | IntFieldRefInput<$PrismaModel>
-    gt?: number | IntFieldRefInput<$PrismaModel>
-    gte?: number | IntFieldRefInput<$PrismaModel>
-    not?: NestedIntWithAggregatesFilter<$PrismaModel> | number
-    _count?: NestedIntFilter<$PrismaModel>
-    _avg?: NestedFloatFilter<$PrismaModel>
-    _sum?: NestedIntFilter<$PrismaModel>
-    _min?: NestedIntFilter<$PrismaModel>
-    _max?: NestedIntFilter<$PrismaModel>
-  }
-
-  export type NestedFloatFilter<$PrismaModel = never> = {
-    equals?: number | FloatFieldRefInput<$PrismaModel>
-    in?: number[]
-    notIn?: number[]
-    lt?: number | FloatFieldRefInput<$PrismaModel>
-    lte?: number | FloatFieldRefInput<$PrismaModel>
-    gt?: number | FloatFieldRefInput<$PrismaModel>
-    gte?: number | FloatFieldRefInput<$PrismaModel>
-    not?: NestedFloatFilter<$PrismaModel> | number
   }
 
   export type NestedEnumProviderTypeWithAggregatesFilter<$PrismaModel = never> = {
@@ -7894,13 +7764,41 @@ export namespace Prisma {
     not?: InputJsonValue | JsonFieldRefInput<$PrismaModel> | JsonNullValueFilter
   }
 
+  export type NestedIntWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel>
+    in?: number[]
+    notIn?: number[]
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntWithAggregatesFilter<$PrismaModel> | number
+    _count?: NestedIntFilter<$PrismaModel>
+    _avg?: NestedFloatFilter<$PrismaModel>
+    _sum?: NestedIntFilter<$PrismaModel>
+    _min?: NestedIntFilter<$PrismaModel>
+    _max?: NestedIntFilter<$PrismaModel>
+  }
+
+  export type NestedFloatFilter<$PrismaModel = never> = {
+    equals?: number | FloatFieldRefInput<$PrismaModel>
+    in?: number[]
+    notIn?: number[]
+    lt?: number | FloatFieldRefInput<$PrismaModel>
+    lte?: number | FloatFieldRefInput<$PrismaModel>
+    gt?: number | FloatFieldRefInput<$PrismaModel>
+    gte?: number | FloatFieldRefInput<$PrismaModel>
+    not?: NestedFloatFilter<$PrismaModel> | number
+  }
+
   export type AIModelCreateWithoutProviderInput = {
+    id?: string
     value: string
     label: string
   }
 
   export type AIModelUncheckedCreateWithoutProviderInput = {
-    id?: number
+    id?: string
     value: string
     label: string
   }
@@ -7934,13 +7832,14 @@ export namespace Prisma {
     AND?: AIModelScalarWhereInput | AIModelScalarWhereInput[]
     OR?: AIModelScalarWhereInput[]
     NOT?: AIModelScalarWhereInput | AIModelScalarWhereInput[]
-    id?: IntFilter<"AIModel"> | number
+    id?: StringFilter<"AIModel"> | string
     value?: StringFilter<"AIModel"> | string
     label?: StringFilter<"AIModel"> | string
-    providerId?: IntFilter<"AIModel"> | number
+    providerId?: StringFilter<"AIModel"> | string
   }
 
   export type AIProviderCreateWithoutModelsInput = {
+    id?: string
     name: string
     type: $Enums.ProviderType
     apiUrl: string
@@ -7949,7 +7848,7 @@ export namespace Prisma {
   }
 
   export type AIProviderUncheckedCreateWithoutModelsInput = {
-    id?: number
+    id?: string
     name: string
     type: $Enums.ProviderType
     apiUrl: string
@@ -7974,6 +7873,7 @@ export namespace Prisma {
   }
 
   export type AIProviderUpdateWithoutModelsInput = {
+    id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     type?: EnumProviderTypeFieldUpdateOperationsInput | $Enums.ProviderType
     apiUrl?: StringFieldUpdateOperationsInput | string
@@ -7982,7 +7882,7 @@ export namespace Prisma {
   }
 
   export type AIProviderUncheckedUpdateWithoutModelsInput = {
-    id?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
     name?: StringFieldUpdateOperationsInput | string
     type?: EnumProviderTypeFieldUpdateOperationsInput | $Enums.ProviderType
     apiUrl?: StringFieldUpdateOperationsInput | string
@@ -7991,24 +7891,25 @@ export namespace Prisma {
   }
 
   export type AIModelCreateManyProviderInput = {
-    id?: number
+    id?: string
     value: string
     label: string
   }
 
   export type AIModelUpdateWithoutProviderInput = {
+    id?: StringFieldUpdateOperationsInput | string
     value?: StringFieldUpdateOperationsInput | string
     label?: StringFieldUpdateOperationsInput | string
   }
 
   export type AIModelUncheckedUpdateWithoutProviderInput = {
-    id?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
     value?: StringFieldUpdateOperationsInput | string
     label?: StringFieldUpdateOperationsInput | string
   }
 
   export type AIModelUncheckedUpdateManyWithoutProviderInput = {
-    id?: IntFieldUpdateOperationsInput | number
+    id?: StringFieldUpdateOperationsInput | string
     value?: StringFieldUpdateOperationsInput | string
     label?: StringFieldUpdateOperationsInput | string
   }

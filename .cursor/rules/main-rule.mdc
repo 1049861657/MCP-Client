@@ -3,4 +3,55 @@ description:
 globs: 
 alwaysApply: true
 ---
-任何代码中不要做多余的错误捕捉，直接抛出问题
+# MCP-Client 代码规范
+
+## 1. 文件与目录结构
+
+- `/src` 目录下按功能模块组织代码：
+  - `/api`: 控制器和路由
+  - `/services`: 业务逻辑服务
+  - `/servers`: 一般服务
+  - `/utils`: 通用工具类
+  - `/config`: 配置文件
+  - `/types`: 类型定义
+  - `/interfaces`: 接口定义
+  - `/lib`: 封装功能
+  - `/core`: 核心功能模块
+
+## 2. 命名约定
+
+- **类名**：使用 PascalCase，如 `OpenAIController`
+- **方法和变量**：使用 camelCase，如 `getServiceForVendor`
+- **常量**：使用大写下划线分隔，如 `MAX_TOKENS`
+- **接口**：使用 PascalCase 并以 `I` 前缀，如 `IApiResponse`
+- **类型**：使用 PascalCase，如 `MessageType`
+- **文件名**：使用 kebab-case，如 `openai-util.ts`
+
+## 3. 错误处理
+
+- **直接抛出问题**：不做多余的错误捕捉，保持代码简洁
+- 不预留错误回退的默认配置，以简洁为主
+
+## 4. TypeScript 类型规范
+
+- 明确声明所有变量和函数返回类型
+- 避免使用 `any`，优先使用精确类型或 `unknown`
+- 使用接口定义数据结构，使用类型别名组合类型
+- 导出所有公共接口和类型
+- 对可选参数使用 `?` 标记，而非联合类型与 `undefined`
+
+## 5. 导入/导出规范
+
+- 按类别分组导入语句（内置模块、第三方、项目内）
+- 使用 ES 模块 `.js` 扩展名（适配 Node.js ESM）
+- 避免循环依赖
+- 优先使用命名导出而非默认导出
+- 按字母顺序排列导入语句
+
+## 6. 异步编程
+
+- 使用 `async/await` 而非回调或 Promise 链
+- 对异步操作使用 `try/catch` 处理可能的错误
+- 不在顶层 `await`，总是使用 `await` 捕获 Promise 结果
+- 避免嵌套的 `then` 调用
+- 并行异步操作使用 `Promise.all()`

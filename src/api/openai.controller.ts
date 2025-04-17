@@ -60,6 +60,9 @@ export class OpenAIController {
       
       // 获取对应供应商的服务
       const service = OpenAIController.getServiceForVendor(vendor);
+      
+      // 检查服务是否有效
+      if (!service) { return;}
 
       // 准备消息
       let processedMessage;
@@ -133,6 +136,9 @@ export class OpenAIController {
       
       // 获取对应供应商的服务
       const service = OpenAIController.getServiceForVendor(vendor);
+      
+      // 检查服务是否有效
+      if (!service) {return;}
       
       // 准备消息
       let processedMessage;

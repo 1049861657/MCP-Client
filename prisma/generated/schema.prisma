@@ -33,7 +33,7 @@ model Setting {
 
 // AI 提供商模型
 model AIProvider {
-  id                Int          @id @default(autoincrement())
+  id                String       @id @default(cuid())
   name              String       @unique // 提供商名称
   type              ProviderType // 使用枚举类型
   apiUrl            String
@@ -44,10 +44,10 @@ model AIProvider {
 
 // AI 模型模型
 model AIModel {
-  id         Int        @id @default(autoincrement())
+  id         String     @id @default(cuid())
   value      String // 模型的值
   label      String // 模型的标签
-  providerId Int // 外键
+  providerId String // 外键
   provider   AIProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@unique([providerId, value]) // 确保每个提供商下模型值唯一
@@ -55,7 +55,7 @@ model AIModel {
 
 // MCP 服务器模型
 model MCPServer {
-  id             Int            @id @default(autoincrement())
+  id             String         @id @default(cuid())
   serverId       String         @unique // 对应 JSON 中的 id 字段
   name           String
   isActive       Boolean
@@ -67,8 +67,9 @@ model MCPServer {
 
 // 快捷消息模型
 model QuickMessage {
-  id         Int    @id @default(autoincrement())
-  originalId Int    @unique // 对应 JSON 中的 id 字段
-  content    String
-  result     String
+  id       String @id @default(cuid())
+  sortId   Int    @unique // 排序用
+  content  String
+  result   String
+  category String @default("默认")
 }

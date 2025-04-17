@@ -60,3 +60,12 @@ export interface MCPConfigType {
   servers: MCPServer[];
   toolPrompt: string;
 } 
+
+// 快捷消息配置接口
+export interface QuickMessage {
+  id?: string;
+  sortId: number;
+  content: string;
+  result: string;
+  category: string;
+}

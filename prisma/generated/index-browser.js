@@ -148,9 +148,10 @@ exports.Prisma.MCPServerScalarFieldEnum = {
 
 exports.Prisma.QuickMessageScalarFieldEnum = {
   id: 'id',
-  originalId: 'originalId',
+  sortId: 'sortId',
   content: 'content',
-  result: 'result'
+  result: 'result',
+  category: 'category'
 };
 
 exports.Prisma.SortOrder = {

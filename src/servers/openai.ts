@@ -1400,7 +1400,7 @@ for await (const chunk of stream) {
 const providerServices: { [key: string]: OpenAI } = {};
 
 // 默认服务实例
-let openaiService: OpenAI;
+let openaiService: OpenAI | undefined;
 
 // 初始化标志
 let isInitialized = false;
@@ -1408,35 +1408,43 @@ let isInitialized = false;
 /**
  * 异步初始化所有AI提供商服务
  * 从数据库加载配置并创建服务实例
- * @throws Error 如果数据库中没有提供商配置
  */
 export async function initializeProviders(): Promise<void> {
-  // 从数据库获取AI提供商配置
-  const config = await ConfigService.getAIProvidersConfig();
-  
-  if (!config || !config.providers || config.providers.length === 0) {
-    throw new Error('数据库中没有提供商配置');
+  try {
+    // 从数据库获取AI提供商配置
+    const config = await ConfigService.getAIProvidersConfig();
+    
+    // 处理没有提供商的情况
+    if (!config || !config.providers || config.providers.length === 0) {
+      Logger.info('OPENAI', '数据库中没有提供商配置，需要先添加提供商');
+      isInitialized = true; // 标记为已初始化，避免重复初始化
+      return; // 提前返回，不抛出异常
+    }
+    
+    // 创建所有服务提供商的实例
+    for (const provider of config.providers) {
+      providerServices[provider.name] = new OpenAI(provider);
+      Logger.info('OPENAI', `已初始化提供商实例: ${provider.name}`);
+    }
+    
+    // 设置默认服务实例
+    const defaultProviderName = config.defaultProvider;
+    if (defaultProviderName && providerServices[defaultProviderName]) {
+      openaiService = providerServices[defaultProviderName];
+      Logger.info('OPENAI', `使用默认提供商实例: ${defaultProviderName}`);
+    } else if (config.providers.length > 0) {
+      // 如果没有找到默认提供商，使用第一个
+      openaiService = providerServices[config.providers[0].name];
+      Logger.info('OPENAI', `默认提供商未指定，使用第一个提供商: ${config.providers[0].name}`);
+    }
+    
+    isInitialized = true;
+    Logger.info('OPENAI', '所有AI提供商服务初始化完成');
+  } catch (error) {
+    Logger.error('OPENAI', '初始化AI提供商服务失败:', error);
+    // 设置初始化标志为true，防止反复重试导致的错误堆积
+    isInitialized = true;
   }
-  
-  // 创建所有服务提供商的实例
-  for (const provider of config.providers) {
-    providerServices[provider.name] = new OpenAI(provider);
-    Logger.info('OPENAI', `已初始化提供商实例: ${provider.name}`);
-  }
-  
-  // 设置默认服务实例
-  const defaultProviderName = config.defaultProvider;
-  if (defaultProviderName && providerServices[defaultProviderName]) {
-    openaiService = providerServices[defaultProviderName];
-    Logger.info('OPENAI', `使用默认提供商实例: ${defaultProviderName}`);
-  } else {
-    // 如果没有找到默认提供商，使用第一个
-    openaiService = providerServices[config.providers[0].name];
-    Logger.info('OPENAI', `默认提供商未指定，使用第一个提供商: ${config.providers[0].name}`);
-  }
-  
-  isInitialized = true;
-  Logger.info('OPENAI', '所有AI提供商服务初始化完成');
 }
 
 /**
@@ -1456,7 +1464,7 @@ export async function getProviderService(providerName?: string): Promise<OpenAI>
   }
   
   if (!openaiService) {
-    throw new Error('无法获取有效的AI提供商服务');
+    throw new Error('无法获取有效的AI提供商服务，请先添加至少一个提供商');
   }
   
   return openaiService;
@@ -1473,7 +1481,7 @@ export async function getDefaultService(): Promise<OpenAI> {
   }
   
   if (!openaiService) {
-    throw new Error('无法获取默认AI提供商服务');
+    throw new Error('无法获取默认AI提供商服务，请先添加至少一个提供商');
   }
   
   return openaiService;
@@ -1482,42 +1490,61 @@ export async function getDefaultService(): Promise<OpenAI> {
 /**
  * 重新加载所有AI提供商配置
  * 在数据库配置变更后调用，无需重启服务器
- * @throws Error 如果数据库中没有有效配置
+ * @returns 提供商信息对象，包含所有提供商名称和默认提供商
  */
 export async function reloadProviders(): Promise<{providers: string[], default: string}> {
   Logger.info('OPENAI', '开始重新加载AI提供商配置');
   
-  // 从数据库获取最新配置
-  const config = await ConfigService.getAIProvidersConfig();
-  
-  if (!config || !config.providers || config.providers.length === 0) {
-    throw new Error('数据库中没有有效的提供商配置');
+  try {
+    // 从数据库获取最新配置
+    const config = await ConfigService.getAIProvidersConfig();
+    
+    // 处理没有提供商的情况
+    if (!config || !config.providers || config.providers.length === 0) {
+      Logger.info('OPENAI', '数据库中没有提供商配置，返回空结果');
+      // 清空当前提供商服务
+      Object.keys(providerServices).forEach(key => {
+        delete providerServices[key];
+      });
+      openaiService = undefined;
+      
+      return {
+        providers: [],
+        default: ''
+      };
+    }
+    
+    // 清空当前提供商服务
+    Object.keys(providerServices).forEach(key => {
+      delete providerServices[key];
+    });
+    
+    // 重新创建提供商实例
+    for (const provider of config.providers) {
+      providerServices[provider.name] = new OpenAI(provider);
+      Logger.info('OPENAI', `已重新加载提供商实例: ${provider.name}`);
+    }
+    
+    // 更新默认服务实例
+    if (config.defaultProvider && providerServices[config.defaultProvider]) {
+      openaiService = providerServices[config.defaultProvider];
+      Logger.info('OPENAI', `已将默认提供商更新为: ${config.defaultProvider}`);
+    } else if (config.providers.length > 0) {
+      openaiService = providerServices[config.providers[0].name];
+      Logger.info('OPENAI', `默认提供商未指定或无效，使用第一个提供商: ${config.providers[0].name}`);
+    } else {
+      openaiService = undefined;
+      Logger.info('OPENAI', '没有可用的提供商，默认服务实例被设置为undefined');
+    }
+    
+    return {
+      providers: Object.keys(providerServices),
+      default: config.defaultProvider || (config.providers.length > 0 ? config.providers[0].name : '')
+    };
+  } catch (error) {
+    Logger.error('OPENAI', '重新加载AI提供商配置失败:', error);
+    throw error;
   }
-  
-  // 清空当前提供商服务
-  Object.keys(providerServices).forEach(key => {
-    delete providerServices[key];
-  });
-  
-  // 重新创建提供商实例
-  for (const provider of config.providers) {
-    providerServices[provider.name] = new OpenAI(provider);
-    Logger.info('OPENAI', `已重新加载提供商实例: ${provider.name}`);
-  }
-  
-  // 更新默认服务实例
-  if (config.defaultProvider && providerServices[config.defaultProvider]) {
-    openaiService = providerServices[config.defaultProvider];
-    Logger.info('OPENAI', `已将默认提供商更新为: ${config.defaultProvider}`);
-  } else {
-    openaiService = providerServices[config.providers[0].name];
-    Logger.info('OPENAI', `默认提供商未指定或无效，使用第一个提供商: ${config.providers[0].name}`);
-  }
-  
-  return {
-    providers: Object.keys(providerServices),
-    default: config.defaultProvider || config.providers[0].name
-  };
 }
 
 // 自动初始化提供商服务

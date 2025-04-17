@@ -2,9 +2,9 @@
  * 配置服务
  * 负责从数据库实时读取和写入配置信息
  */
-import { ProviderType, QuickMessage } from '@prisma/client';
+import { ProviderType} from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
-import { AIProvidersConfigType, MCPConfigType, AIProvider, MCPServer } from '../types/config.types.js';
+import { AIProvidersConfigType, MCPConfigType, AIProvider, QuickMessage } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';
 
 export class ConfigService {
@@ -48,8 +48,7 @@ export class ConfigService {
 
   /**
    * 获取默认提供商名称
-   * @returns 默认提供商名称
-   * @throws 如果没有设置默认提供商，则抛出异常
+   * @returns 默认提供商名称，如果没有提供商则返回空字符串
    */
   static async getDefaultProviderName(): Promise<string> {
     try {
@@ -58,21 +57,24 @@ export class ConfigService {
         where: { key: 'defaultProvider' }
       });
       
-      // 如果没有设置默认提供商
-      if (!defaultProviderSetting?.value) {
-        // 获取第一个提供商作为默认值
-        const firstProvider = await prisma.aIProvider.findFirst({
-          orderBy: { id: 'asc' }
-        });
-        
-        if (!firstProvider) {
-          throw new Error('数据库中没有AI提供商配置');
-        }
-        
+      // 如果找到有效的默认提供商设置，直接返回
+      if (defaultProviderSetting?.value) {
+        return defaultProviderSetting.value as string;
+      }
+      
+      // 如果没有设置默认提供商，尝试获取第一个提供商作为默认值
+      const firstProvider = await prisma.aIProvider.findFirst({
+        orderBy: { id: 'asc' }
+      });
+      
+      // 如果找到了提供商，返回其名称
+      if (firstProvider) {
         return firstProvider.name;
       }
       
-      return defaultProviderSetting.value as string;
+      // 没有找到任何提供商，返回空字符串
+      Logger.info('ConfigService', '数据库中没有任何AI提供商配置，返回空默认提供商名称');
+      return '';
     } catch (error) {
       Logger.error('ConfigService', '获取默认提供商名称失败:', error);
       throw error;
@@ -132,7 +134,6 @@ export class ConfigService {
   /**
    * 获取所有AI提供商
    * @returns 所有提供商配置
-   * @throws 如果没有提供商配置，则抛出异常
    */
   static async getAllProviders(): Promise<AIProvider[]> {
     try {
@@ -140,8 +141,10 @@ export class ConfigService {
         include: { models: true }
       });
       
+      // 不再抛出异常，而是返回空数组
       if (providers.length === 0) {
-        throw new Error('数据库中没有AI提供商配置');
+        Logger.info('ConfigService', '数据库中没有AI提供商配置，返回空数组');
+        return [];
       }
       
       return providers.map(provider => ({
@@ -165,12 +168,17 @@ export class ConfigService {
   /**
    * 获取AI提供商配置
    * @returns AI提供商配置
-   * @throws 如果没有提供商配置，则抛出异常
    */
   static async getAIProvidersConfig(): Promise<AIProvidersConfigType> {
     try {
       const providers = await this.getAllProviders();
-      const defaultProviderName = await this.getDefaultProviderName();
+      // 尝试获取默认提供商名称，如果没有则使用空字符串
+      let defaultProviderName = '';
+      try {
+        defaultProviderName = await this.getDefaultProviderName();
+      } catch (error) {
+        Logger.info('ConfigService', '没有找到默认提供商名称，使用空字符串');
+      }
       
       return {
         providers,
@@ -308,16 +316,22 @@ export class ConfigService {
    * 获取快捷消息配置
    * @returns 快捷消息配置
    */
-  static async getQuickMessagesConfig(): Promise<any[]> {
+  static async getQuickMessagesConfig(): Promise<QuickMessage[]> {
     try {
       // 直接从QuickMessage表获取数据
-      const messages = await prisma.quickMessage.findMany();
-      
-      // 转换为预期的格式
-      return messages.map((msg: QuickMessage) => ({
-        id: msg.originalId,
+      const messages = await prisma.quickMessage.findMany({
+        orderBy: {
+          sortId: 'asc'
+        }
+      });
+
+      // 转换为完整字段结构
+      return messages.map((msg) => ({
+        id: msg.id,
+        sortId: msg.sortId,
         content: msg.content,
-        result: msg.result
+        result: msg.result,
+        category: msg.category
       }));
     } catch (error) {
       Logger.error('ConfigService', '获取快捷消息配置失败:', error);
@@ -330,7 +344,7 @@ export class ConfigService {
    * @param config 快捷消息配置
    * @returns 成功返回true，失败抛出异常
    */
-  static async saveQuickMessagesConfig(config: any[]): Promise<boolean> {
+  static async saveQuickMessagesConfig(config: QuickMessage[]): Promise<boolean> {
     try {
       // 清空现有数据
       await prisma.quickMessage.deleteMany({});
@@ -339,9 +353,10 @@ export class ConfigService {
       for (const msg of config) {
         await prisma.quickMessage.create({
           data: {
-            originalId: msg.id,
+            sortId: msg.sortId,
             content: msg.content,
-            result: msg.result
+            result: msg.result,
+            category: msg.category
           }
         });
       }

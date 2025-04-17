@@ -8,6 +8,9 @@ window.AIChatQuickMessage = {
     // 快捷消息数据缓存
     quickMessagesData: null,
     
+    // 当前选中的分类
+    currentCategory: '航标',
+    
     // SVG图标常量
     ICONS: {
         EDIT: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -38,23 +41,28 @@ window.AIChatQuickMessage = {
     },
     
     // 辅助函数：设置模态窗口关闭事件
-    setupModalEvents(modalId) {
+    setupModalEvents(modalId, onCloseCallback) {
         const modal = this.getElement(`#${modalId}`);
         if (!modal) return;
+        
+        const closeModal = () => {
+            modal.style.display = 'none';
+            // 如果提供了关闭回调函数，则执行它
+            if (typeof onCloseCallback === 'function') {
+                onCloseCallback();
+            }
+        };
         
         // 关闭按钮事件
         const closeButton = modal.querySelector('.close');
         if (closeButton) {
-            closeButton.onclick = () => {
-                modal.style.display = 'none';
-            };
+            closeButton.onclick = closeModal;
         }
         
         // 点击模态窗口外部时关闭 - 使用更可靠的方式绑定事件
-        // 移除之前可能存在的点击事件以防止重复
         modal.onclick = (event) => {
             if (event.target === modal) {
-                modal.style.display = 'none';
+                closeModal();
             }
         };
         
@@ -84,6 +92,10 @@ window.AIChatQuickMessage = {
         // 显示加载状态
         container.innerHTML = '<div class="loading-messages">正在加载快捷消息...</div>';
         
+        // 设置默认分类
+        this.currentCategory = '航标';
+        this.updateCategoryTabs();
+        
         // 加载数据
         fetch('/api/config/quick-messages')
             .then(response => {
@@ -92,14 +104,51 @@ window.AIChatQuickMessage = {
             })
             .then(data => {
                 if (!data) throw new Error('数据为空');
+                this.quickMessagesData = data;
                 this.renderQuickMessages(container, data);
                 
                 // 设置编辑模态窗口的事件
                 this.setupEditMessageModal();
+                
+                // 设置分类切换事件
+                this.setupCategoryTabs();
             })
             .catch(error => {
                 this.handleError(error, container, '加载快捷消息失败');
             });
+    },
+    
+    // 更新分类标签状态
+    updateCategoryTabs() {
+        const tabs = document.querySelectorAll('.category-tab');
+        tabs.forEach(tab => {
+            const category = tab.getAttribute('data-category');
+            if (category === this.currentCategory) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
+        });
+    },
+    
+    // 设置分类切换事件
+    setupCategoryTabs() {
+        const tabs = document.querySelectorAll('.category-tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const category = tab.getAttribute('data-category');
+                this.currentCategory = category;
+                
+                // 更新标签状态
+                this.updateCategoryTabs();
+                
+                // 重新渲染消息列表
+                const container = this.getElement('.quick-messages-container');
+                if (container && this.quickMessagesData) {
+                    this.renderQuickMessages(container, this.quickMessagesData);
+                }
+            });
+        });
     },
     
     // 渲染快捷消息
@@ -112,8 +161,29 @@ window.AIChatQuickMessage = {
             return;
         }
         
-        // 保存当前数据的引用，用于后续保存
-        this.quickMessagesData = JSON.parse(JSON.stringify(data));
+        // 根据当前分类过滤数据
+        let filteredData = data.filter(message => message.category === this.currentCategory);
+        
+        // 如果过滤后没有数据，显示提示
+        if (filteredData.length === 0) {
+            container.innerHTML = `<div class="no-messages">当前分类 "${this.currentCategory}" 下没有消息</div>`;
+            
+            // 创建操作区域和添加按钮
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'quick-messages-actions';
+            
+            // 添加新增按钮
+            const addButton = document.createElement('button');
+            addButton.className = 'add-quick-message';
+            addButton.innerHTML = `${this.ICONS.ADD} 添加消息`;
+            
+            actionsDiv.appendChild(addButton);
+            container.appendChild(actionsDiv);
+            
+            // 设置事件委托
+            this.setupQuickMessageEvents();
+            return;
+        }
         
         // 创建表格容器
         const tableDiv = document.createElement('div');
@@ -123,7 +193,7 @@ window.AIChatQuickMessage = {
         const headerDiv = document.createElement('div');
         headerDiv.className = 'quick-messages-header';
         headerDiv.innerHTML = `
-            <div class="message-test-id">ID</div>
+            <div class="message-test-id">序号</div>
             <div class="message-test-item">测试项目</div>
             <div class="message-test-result">测试结果</div>
             <div class="message-test-actions">操作</div>
@@ -131,7 +201,7 @@ window.AIChatQuickMessage = {
         tableDiv.appendChild(headerDiv);
         
         // 添加消息项
-        data.forEach((message, index) => {
+        filteredData.forEach((message, index) => {
             if (!message.content) return;
             
             const itemDiv = document.createElement('div');
@@ -141,19 +211,21 @@ window.AIChatQuickMessage = {
                 itemDiv.classList.add('even-row');
             }
             
-            // 标记可以点击并存储消息索引
+            // 标记可以点击并存储消息索引和ID
             itemDiv.setAttribute('data-message', message.content);
-            itemDiv.setAttribute('data-index', index);
+            itemDiv.setAttribute('data-index', this.getOriginalIndex(data, message));
+            itemDiv.setAttribute('data-id', message.id);
+            itemDiv.setAttribute('data-category', message.category);
             
             // 设置结果图标，默认为成功（√）
             const resultIcon = message.result === '×' ? 
                 '<span class="result-icon failure">×</span>' : 
                 '<span class="result-icon success">√</span>';
             
-            // ID单元格
+            // 序号单元格 - 显示sortId而非id
             const idCell = document.createElement('div');
             idCell.className = 'message-test-id';
-            idCell.textContent = message.id;
+            idCell.textContent = message.sortId;
             
             // HTML安全编码全文内容
             const contentCell = document.createElement('div');
@@ -174,14 +246,16 @@ window.AIChatQuickMessage = {
             editButton.className = 'action-icon edit';
             editButton.innerHTML = this.ICONS.EDIT;
             editButton.setAttribute('title', '编辑');
-            editButton.setAttribute('data-index', index);
+            editButton.setAttribute('data-index', this.getOriginalIndex(data, message));
+            editButton.setAttribute('data-id', message.id);
             
             // 删除按钮
             const deleteButton = document.createElement('span');
             deleteButton.className = 'action-icon delete';
             deleteButton.innerHTML = this.ICONS.DELETE;
             deleteButton.setAttribute('title', '删除');
-            deleteButton.setAttribute('data-index', index);
+            deleteButton.setAttribute('data-index', this.getOriginalIndex(data, message));
+            deleteButton.setAttribute('data-id', message.id);
             
             actionsCell.appendChild(editButton);
             actionsCell.appendChild(deleteButton);
@@ -216,9 +290,38 @@ window.AIChatQuickMessage = {
         this.setupQuickMessageEvents();
     },
     
+    // 获取消息在原始数据中的索引
+    getOriginalIndex(data, message) {
+        return data.findIndex(item => 
+            item.id === message.id && 
+            item.sortId === message.sortId && 
+            item.content === message.content);
+    },
+    
     // 设置编辑模态窗口事件
     setupEditMessageModal() {
-        const modal = this.setupModalEvents('edit-message-modal');
+        // 定义一个重置批量添加模式的函数
+        const resetBatchMode = () => {
+            const batchModeCheckbox = document.getElementById('enable-batch-mode');
+            const batchModeDescription = document.getElementById('batch-mode-description');
+            const contentInput = document.getElementById('edit-message-content');
+            
+            if (batchModeCheckbox) {
+                batchModeCheckbox.checked = false;
+            }
+            
+            if (batchModeDescription) {
+                batchModeDescription.style.display = 'none';
+            }
+            
+            if (contentInput) {
+                contentInput.rows = 4; // 恢复默认高度
+                contentInput.placeholder = "";
+            }
+        };
+        
+        // 设置模态窗口事件，并传入关闭回调函数
+        const modal = this.setupModalEvents('edit-message-modal', resetBatchMode);
         if (!modal) return;
         
         // 取消按钮点击事件
@@ -226,6 +329,7 @@ window.AIChatQuickMessage = {
         if (cancelButton) {
             cancelButton.onclick = () => {
                 modal.style.display = 'none';
+                resetBatchMode(); // 同样重置批量添加模式
             };
         }
         
@@ -235,6 +339,7 @@ window.AIChatQuickMessage = {
             form.onsubmit = (e) => {
                 e.preventDefault();
                 this.saveMessageEdit();
+                // 提交后会自动关闭窗口并触发关闭回调，不需要额外重置
             };
         }
     },
@@ -328,9 +433,15 @@ window.AIChatQuickMessage = {
         const form = document.getElementById('edit-message-form');
         const indexInput = document.getElementById('edit-message-index');
         const idInput = document.getElementById('edit-message-id');
+        const sortIdInput = document.getElementById('edit-message-sortid');
         const resultSelect = document.getElementById('edit-message-result');
+        const categorySelect = document.getElementById('edit-message-category');
+        const batchModeGroup = document.querySelector('.batch-mode-group');
+        const batchModeCheckbox = document.getElementById('enable-batch-mode');
+        const batchModeDescription = document.getElementById('batch-mode-description');
+        const contentInput = document.getElementById('edit-message-content');
         
-        if (!modal || !form || !indexInput || !idInput || !resultSelect) return;
+        if (!modal || !form || !indexInput || !idInput || !sortIdInput || !resultSelect || !categorySelect) return;
         
         // 设置标题和重置表单
         title.textContent = '添加快捷消息';
@@ -339,18 +450,51 @@ window.AIChatQuickMessage = {
         // 设置为添加模式
         indexInput.value = '-1';
         
-        // 设置新ID为当前最大ID+1
-        let maxId = 0;
-        if (this.quickMessagesData && this.quickMessagesData.length > 0) {
-            maxId = Math.max(...this.quickMessagesData.map(item => parseInt(item.id) || 0));
-        }
-        idInput.value = maxId + 1;
+        // ID字段为空，将在服务端生成
+        idInput.value = '';
         
-        // 禁用ID输入框，不允许修改
-        idInput.disabled = true;
+        // 设置新sortId为当前最大sortId+1 (自动生成序号)
+        let maxSortId = 0;
+        if (this.quickMessagesData && this.quickMessagesData.length > 0) {
+            maxSortId = Math.max(...this.quickMessagesData.map(item => parseInt(item.sortId) || 0));
+        }
+        sortIdInput.value = maxSortId + 1;
         
         // 默认结果为失败
         resultSelect.value = '×';
+        
+        // 使用当前显示的分类作为默认值
+        Array.from(categorySelect.options).forEach(option => {
+            if (option.value === this.currentCategory) {
+                categorySelect.value = this.currentCategory;
+            }
+        });
+        
+        // 显示批量添加选项
+        if (batchModeGroup) {
+            batchModeGroup.style.display = 'block';
+            
+            // 设置批量模式切换事件
+            if (batchModeCheckbox) {
+                batchModeCheckbox.checked = false;
+                
+                batchModeCheckbox.onchange = function() {
+                    if (batchModeDescription) {
+                        batchModeDescription.style.display = this.checked ? 'block' : 'none';
+                    }
+                    
+                    if (contentInput) {
+                        if (this.checked) {
+                            contentInput.rows = 8; // 增加文本框高度
+                            contentInput.placeholder = "输入多行内容，每行将作为一条独立消息\n例如：\n卡号为1476731的最新数据是多少\n航标名称为苏申外港线19号的最新数据是多少";
+                        } else {
+                            contentInput.rows = 4; // 恢复默认高度
+                            contentInput.placeholder = "";
+                        }
+                    }
+                };
+            }
+        }
         
         // 显示模态窗口
         modal.style.display = 'block';
@@ -368,38 +512,92 @@ window.AIChatQuickMessage = {
         const title = document.getElementById('edit-message-title');
         const indexInput = document.getElementById('edit-message-index');
         const idInput = document.getElementById('edit-message-id');
+        const sortIdInput = document.getElementById('edit-message-sortid');
         const contentInput = document.getElementById('edit-message-content');
         const resultSelect = document.getElementById('edit-message-result');
+        const categorySelect = document.getElementById('edit-message-category');
+        const batchModeGroup = document.querySelector('.batch-mode-group');
         
-        if (!modal || !title || !indexInput || !idInput || !contentInput || !resultSelect) return;
+        if (!modal || !title || !indexInput || !idInput || !sortIdInput || !contentInput || !resultSelect || !categorySelect) return;
         
         // 设置标题和填充表单
         title.textContent = '编辑快捷消息';
         indexInput.value = index;
         idInput.value = message.id || '';
+        sortIdInput.value = message.sortId || '';
         contentInput.value = message.content || '';
         resultSelect.value = message.result || '√';
         
-        // 禁用ID输入框，不允许修改
-        idInput.disabled = true;
+        // 设置分类下拉框值
+        if (message.category) {
+            // 检查是否有匹配的选项
+            const options = Array.from(categorySelect.options);
+            const matchingOption = options.find(option => option.value === message.category);
+            
+            if (matchingOption) {
+                categorySelect.value = message.category;
+            } else {
+                // 如果没有匹配的选项，选择第一个
+                categorySelect.selectedIndex = 0;
+            }
+        } else {
+            // 默认选择第一个选项
+            categorySelect.selectedIndex = 0;
+        }
+        
+        // 隐藏批量添加选项（编辑模式下不需要）
+        if (batchModeGroup) {
+            batchModeGroup.style.display = 'none';
+        }
         
         // 显示模态窗口
         modal.style.display = 'block';
+    },
+    
+    // 处理批量文本，将多行文本拆分为多条消息
+    processBatchMessages(text, result, category) {
+        if (!text || !text.trim()) return [];
+        
+        // 按行分割文本（处理不同操作系统的换行符）
+        const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+        
+        // 获取当前最大sortId
+        let maxSortId = 0;
+        if (this.quickMessagesData && this.quickMessagesData.length > 0) {
+            maxSortId = Math.max(...this.quickMessagesData.map(item => parseInt(item.sortId) || 0));
+        }
+        
+        // 为每行创建一个消息对象
+        return lines.map((line, index) => {
+            return {
+                id: '', // 新消息，ID为空
+                sortId: maxSortId + index + 1, // 从最大sortId开始递增
+                content: line.trim(),
+                result: result,
+                category: category
+            };
+        });
     },
     
     // 保存编辑
     saveMessageEdit() {
         const indexInput = document.getElementById('edit-message-index');
         const idInput = document.getElementById('edit-message-id');
+        const sortIdInput = document.getElementById('edit-message-sortid');
         const contentInput = document.getElementById('edit-message-content');
         const resultSelect = document.getElementById('edit-message-result');
+        const categorySelect = document.getElementById('edit-message-category');
+        const batchModeCheckbox = document.getElementById('enable-batch-mode');
+        const batchModeDescription = document.getElementById('batch-mode-description');
         
-        if (!indexInput || !idInput || !contentInput || !resultSelect) return;
+        if (!indexInput || !sortIdInput || !contentInput || !resultSelect || !categorySelect) return;
         
         const index = parseInt(indexInput.value);
-        const id = parseInt(idInput.value);
+        const id = idInput.value; // 可能为空，创建新记录时
+        let sortId = parseInt(sortIdInput.value);
         const content = contentInput.value.trim();
         const result = resultSelect.value;
+        const category = categorySelect.value;
         
         // 验证数据
         if (!content) {
@@ -407,13 +605,55 @@ window.AIChatQuickMessage = {
             return;
         }
         
-        // 保存数据
-        const newMessage = { id, content, result };
-        let needRerender = false;
-        
         // 关闭模态窗口
         const modal = document.getElementById('edit-message-modal');
-        if (modal) modal.style.display = 'none';
+        if (modal) {
+            modal.style.display = 'none';
+            
+            // 手动重置批量添加模式状态
+            if (batchModeCheckbox) batchModeCheckbox.checked = false;
+            if (batchModeDescription) batchModeDescription.style.display = 'none';
+            if (contentInput) {
+                contentInput.rows = 4;
+                contentInput.placeholder = "";
+            }
+        }
+        
+        // 检查是否是批量添加模式
+        if (index === -1 && batchModeCheckbox && batchModeCheckbox.checked) {
+            // 处理批量添加
+            const messages = this.processBatchMessages(content, result, category);
+            
+            if (messages.length === 0) {
+                window.AIChatUI.showTooltip('没有有效的消息内容');
+                return;
+            }
+            
+            // 添加所有消息到数据集
+            this.quickMessagesData = [...this.quickMessagesData, ...messages];
+            
+            // 强制重新渲染
+            const container = this.getElement('.quick-messages-container');
+            if (container) this.renderQuickMessages(container, this.quickMessagesData);
+            
+            // 显示提示
+            window.AIChatUI.showTooltip(`成功添加 ${messages.length} 条消息`);
+            
+            // 保存到服务器
+            this.saveQuickMessagesWithoutReload();
+            return;
+        }
+        
+        // 常规单条消息处理（原有逻辑）
+        // 保存数据
+        const newMessage = { 
+            id: id, // 如果是新记录，后端会生成
+            sortId, 
+            content, 
+            result, 
+            category 
+        };
+        let needRerender = false;
         
         if (index === -1) {
             // 添加新消息
@@ -426,6 +666,8 @@ window.AIChatQuickMessage = {
             } 
         } else {
             // 更新现有消息 - 尝试原地更新
+            // 保持原有的sortId不变
+            newMessage.sortId = this.quickMessagesData[index].sortId;
             this.quickMessagesData[index] = newMessage;
             
             // 尝试原地更新UI，如果失败再重新渲染
@@ -452,6 +694,12 @@ window.AIChatQuickMessage = {
         const container = this.getElement('.quick-messages-container');
         if (!container) return false;
         
+        // 检查消息分类是否与当前选中分类匹配
+        if (message.category !== this.currentCategory) {
+            // 如果分类不匹配，返回false触发完整重新渲染
+            return false;
+        }
+        
         // 查找表格容器
         const tableDiv = container.querySelector('.quick-messages-table');
         if (!tableDiv) return false;
@@ -465,19 +713,21 @@ window.AIChatQuickMessage = {
             itemDiv.classList.add('even-row');
         }
         
-        // 标记可以点击并存储消息索引
+        // 标记可以点击并存储消息索引和ID
         itemDiv.setAttribute('data-message', message.content);
         itemDiv.setAttribute('data-index', index);
+        itemDiv.setAttribute('data-id', message.id);
+        itemDiv.setAttribute('data-category', message.category);
         
         // 设置结果图标
         const resultIcon = message.result === '×' ? 
             '<span class="result-icon failure">×</span>' : 
             '<span class="result-icon success">√</span>';
         
-        // ID单元格
+        // 序号单元格 - 显示sortId
         const idCell = document.createElement('div');
         idCell.className = 'message-test-id';
-        idCell.textContent = message.id;
+        idCell.textContent = message.sortId;
         
         // 内容单元格
         const contentCell = document.createElement('div');
@@ -500,6 +750,7 @@ window.AIChatQuickMessage = {
         editButton.innerHTML = this.ICONS.EDIT;
         editButton.setAttribute('title', '编辑');
         editButton.setAttribute('data-index', index);
+        editButton.setAttribute('data-id', message.id);
         
         // 删除按钮
         const deleteButton = document.createElement('span');
@@ -507,6 +758,7 @@ window.AIChatQuickMessage = {
         deleteButton.innerHTML = this.ICONS.DELETE;
         deleteButton.setAttribute('title', '删除');
         deleteButton.setAttribute('data-index', index);
+        deleteButton.setAttribute('data-id', message.id);
         
         // 组装单元格
         actionsCell.appendChild(editButton);
@@ -544,9 +796,9 @@ window.AIChatQuickMessage = {
                 // 删除数据
                 this.quickMessagesData.splice(index, 1);
                 
-                // 重新计算所有消息的ID，确保ID序列连续
+                // 重新计算所有消息的sortId，确保序列连续
                 this.quickMessagesData.forEach((item, idx) => {
-                    item.id = idx + 1; // 从1开始重新编号
+                    item.sortId = idx + 1; // 从1开始重新编号
                 });
                 
                 // 尝试直接从DOM中删除行
@@ -574,12 +826,12 @@ window.AIChatQuickMessage = {
                                     if (deleteButton) deleteButton.setAttribute('data-index', currentIndex - 1);
                                 }
                                 
-                                // 更新ID显示
+                                // 更新序号显示
                                 const idCell = row.querySelector('.message-test-id');
                                 if (idCell) {
-                                    // 获取对应的新ID
-                                    const newId = this.quickMessagesData[i].id;
-                                    idCell.textContent = newId;
+                                    // 获取对应的新sortId
+                                    const newSortId = this.quickMessagesData[i].sortId;
+                                    idCell.textContent = newSortId;
                                 }
                             }
                         });
@@ -725,12 +977,25 @@ window.AIChatQuickMessage = {
         const row = container.querySelector(`.quick-messages-row[data-index="${index}"]`);
         if (!row) return false;
         
+        // 检查是否分类发生变化
+        const oldCategory = row.getAttribute('data-category');
+        if (oldCategory !== newMessage.category) {
+            return false;
+        }
+        
+        // 检查当前消息分类是否与当前显示的分类匹配
+        if (newMessage.category !== this.currentCategory) {
+            return false;
+        }
+        
         // 更新行的数据属性
         row.setAttribute('data-message', newMessage.content);
+        row.setAttribute('data-id', newMessage.id);
+        row.setAttribute('data-category', newMessage.category);
         
         // 更新各个单元格
         const idCell = row.querySelector('.message-test-id');
-        if (idCell) idCell.textContent = newMessage.id;
+        if (idCell) idCell.textContent = newMessage.sortId;
         
         const contentCell = row.querySelector('.message-test-item');
         if (contentCell) {

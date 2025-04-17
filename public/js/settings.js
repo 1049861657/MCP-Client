@@ -286,170 +286,106 @@ document.addEventListener('DOMContentLoaded', () => {
      * 设置事件监听器
      */
     function setupEventListeners() {
+        console.log('开始设置事件监听器...');
+        
         // 保存提供商配置
-        saveProvidersButton.addEventListener('click', saveProvidersConfig);
+        if (saveProvidersButton) {
+            console.log('找到保存按钮，添加点击事件监听器');
+            saveProvidersButton.addEventListener('click', saveProvidersConfig);
+        } else {
+            console.error('未找到保存按钮元素');
+        }
         
         // 默认提供商改变时自动保存
-        defaultProviderSelect.addEventListener('change', async function() {
-            const selectedProvider = this.value;
-            // 更新本地数据
-            providersData.defaultProvider = selectedProvider;
-            // 保存到服务器
-            await saveDefaultProvider(selectedProvider);
-        });
+        if (defaultProviderSelect) {
+            console.log('找到默认提供商下拉框，添加change事件监听器');
+            defaultProviderSelect.addEventListener('change', async function() {
+                const selectedProvider = this.value;
+                // 更新本地数据
+                providersData.defaultProvider = selectedProvider;
+                // 保存到服务器
+                await saveDefaultProvider(selectedProvider);
+            });
+        } else {
+            console.error('未找到默认提供商下拉框元素');
+        }
         
         // 添加提供商
-        addProviderButton.addEventListener('click', addNewProvider);
+        if (addProviderButton) {
+            console.log('找到添加提供商按钮，添加点击事件监听器');
+            // 先移除可能已存在的事件监听器，防止重复添加
+            addProviderButton.removeEventListener('click', addNewProvider);
+            // 添加事件监听器
+            addProviderButton.addEventListener('click', addNewProvider);
+            // 为确保按钮可点击，添加额外调试信息
+            console.log('添加提供商按钮状态:', {
+                id: addProviderButton.id,
+                className: addProviderButton.className,
+                style: addProviderButton.style.cssText,
+                disabled: addProviderButton.disabled,
+                clientWidth: addProviderButton.clientWidth,
+                clientHeight: addProviderButton.clientHeight,
+                offsetParent: addProviderButton.offsetParent ? true : false
+            });
+        } else {
+            console.error('未找到添加提供商按钮元素');
+        }
         
         // 委托事件 - 删除提供商
-        providersContainer.addEventListener('click', event => {
-            if (event.target.classList.contains('delete-provider')) {
-                deleteProvider(event);
-            }
-        });
+        if (providersContainer) {
+            console.log('为提供商容器添加委托事件(删除提供商)');
+            providersContainer.addEventListener('click', event => {
+                if (event.target.classList.contains('delete-provider')) {
+                    deleteProvider(event);
+                }
+            });
+        } else {
+            console.error('未找到提供商容器元素');
+        }
         
         // 委托事件 - 添加模型
-        providersContainer.addEventListener('click', event => {
-            if (event.target.classList.contains('add-model') || 
-                (event.target.parentElement && event.target.parentElement.classList.contains('add-model'))) {
-                const button = event.target.classList.contains('add-model') ? 
-                    event.target : event.target.parentElement;
-                addModel(button.dataset.providerIndex);
-            }
-        });
+        if (providersContainer) {
+            console.log('为提供商容器添加委托事件(添加模型)');
+            providersContainer.addEventListener('click', event => {
+                const addModelButton = event.target.closest('.add-model');
+                if (addModelButton) {
+                    const providerIndex = addModelButton.dataset.providerIndex;
+                    addModel(providerIndex);
+                }
+            });
+        }
         
         // 委托事件 - 删除模型
-        providersContainer.addEventListener('click', event => {
-            if (event.target.classList.contains('delete-model')) {
-                deleteModel(event);
-            }
-        });
-        
-        // 委托事件 - 切换密码可见性
-        providersContainer.addEventListener('click', event => {
-            if (event.target.classList.contains('toggle-password') || 
-                (event.target.parentElement && event.target.parentElement.classList.contains('toggle-password'))) {
-                const button = event.target.classList.contains('toggle-password') ? 
-                    event.target : event.target.parentElement;
-                togglePasswordVisibility(button);
-            }
-        });
-        
-        // 委托事件 - 提供商类型变更时更新API路径
-        providersContainer.addEventListener('change', event => {
-            if (event.target.id && event.target.id.startsWith('provider-type-')) {
-                const card = event.target.closest('.provider-card');
-                if (card) {
-                    const index = parseInt(card.dataset.index);
-                    const selectedType = event.target.value;
-                    
-                    // 更新提供商数据中的类型
-                    if (providersData.providers[index]) {
-                        providersData.providers[index].type = selectedType;
-                        
-                        // 根据类型更新API路径
-                        if (providerTypes && providerTypes.length > 0) {
-                            const typeInfo = providerTypes.find(t => t.value === selectedType);
-                            if (typeInfo) {
-                                providersData.providers[index].apiPath = typeInfo.apiPath;
-                            }
-                        } else {
-                            // 如果没有提供商类型数据，使用硬编码的映射
-                            let apiPath = '/api/openai';
-                            if (selectedType === 'openai') {
-                                apiPath = '/api/openai';
-                            } else if (selectedType === 'anthropic') {
-                                apiPath = '/api/anthropic';
-                            } else if (selectedType === 'gemini') {
-                                apiPath = '/api/gemini';
-                            } else if (selectedType === 'custom') {
-                                apiPath = '/api/custom';
-                            }
-                            providersData.providers[index].apiPath = apiPath;
-                        }
-                        
-                        console.log(`已更新提供商[${index}]类型为 ${selectedType}，API路径为 ${providersData.providers[index].apiPath}`);
-                    }
+        if (providersContainer) {
+            console.log('为提供商容器添加委托事件(删除模型)');
+            providersContainer.addEventListener('click', event => {
+                if (event.target.classList.contains('delete-model')) {
+                    deleteModel(event);
                 }
-            }
-        });
+            });
+        }
         
-        // 委托事件 - 设置默认模型
-        providersContainer.addEventListener('change', event => {
-            if (event.target.classList.contains('default-model-radio')) {
-                const modelItem = event.target.closest('.model-item');
-                const card = event.target.closest('.provider-card');
-                if (modelItem && card) {
-                    const providerIndex = parseInt(card.dataset.index);
-                    
-                    // 移除所有模型的默认样式
-                    const modelItems = card.querySelectorAll('.model-item');
-                    modelItems.forEach(item => {
-                        item.classList.remove('default-model');
-                    });
-                    
-                    // 添加默认样式到当前选中的模型
-                    modelItem.classList.add('default-model');
-                    
-                    // 更新提供商数据中的默认模型
-                    providersData.providers[providerIndex].defaultModel = event.target.value;
-                    
+        // 委托事件 - 切换密码显示
+        if (providersContainer) {
+            console.log('为提供商容器添加委托事件(切换密码显示)');
+            providersContainer.addEventListener('click', event => {
+                if (event.target.closest('.toggle-password')) {
+                    const button = event.target.closest('.toggle-password');
+                    togglePasswordVisibility(button);
                 }
-            }
-        });
+            });
+        }
         
-        // 委托事件 - 模型值或标签变化时更新
-        providersContainer.addEventListener('input', event => {
-            if (event.target.classList.contains('model-value') || 
-                event.target.classList.contains('model-label')) {
-                const modelItem = event.target.closest('.model-item');
-                const card = event.target.closest('.provider-card');
-                if (modelItem && card) {
-                    try {
-                        const providerIndex = parseInt(card.dataset.index);
-                        const modelIndex = parseInt(modelItem.dataset.modelIndex);
-                        
-                        // 更新提供商数据中的模型
-                        let modelValueInput = modelItem.querySelector('input.model-value');
-                        if (!modelValueInput) {
-                            modelValueInput = modelItem.querySelector('.model-value input');
-                        }
-                        
-                        let modelLabelInput = modelItem.querySelector('input.model-label');
-                        if (!modelLabelInput) {
-                            modelLabelInput = modelItem.querySelector('.model-label input');
-                        }
-                        
-                        if (!modelValueInput || !modelLabelInput) {
-                            console.warn('未能找到模型输入元素', modelItem);
-                            return;
-                        }
-                        
-                        const modelValue = modelValueInput.value.trim();
-                        const modelLabel = modelLabelInput.value.trim();
-                        
-                        if (providersData.providers[providerIndex].models &&
-                            providersData.providers[providerIndex].models[modelIndex]) {
-                            providersData.providers[providerIndex].models[modelIndex].value = modelValue;
-                            providersData.providers[providerIndex].models[modelIndex].label = modelLabel;
-                            
-                            // 如果这是默认模型，更新单选按钮的值
-                            if (providersData.providers[providerIndex].defaultModel === providersData.providers[providerIndex].models[modelIndex].value) {
-                                providersData.providers[providerIndex].defaultModel = modelValue;
-                            }
-                            
-                            // 更新单选按钮值
-                            const radio = card.querySelector(`#model-default-${providerIndex}-${modelIndex}`);
-                            if (radio) {
-                                radio.value = modelValue;
-                            }
-                        }
-                    } catch (error) {
-                        console.error('更新模型值时出错:', error);
-                    }
-                }
-            }
-        });
+        // 通知关闭按钮
+        const notificationCloseBtn = document.querySelector('.notification .close');
+        if (notificationCloseBtn) {
+            console.log('找到通知关闭按钮，添加点击事件监听器');
+            notificationCloseBtn.addEventListener('click', () => {
+                notification.classList.remove('show');
+            });
+        }
+        
+        console.log('所有事件监听器设置完成');
     }
     
     /**
@@ -617,38 +553,71 @@ document.addEventListener('DOMContentLoaded', () => {
      * 添加新提供商
      */
     function addNewProvider() {
-        // 获取默认的提供商类型和API路径
-        let defaultType = 'openai';
-        let defaultApiPath = '/api/openai';
-        
-        // 如果已加载提供商类型列表，使用第一个作为默认
-        if (providerTypes && providerTypes.length > 0) {
-            defaultType = providerTypes[0].value;
-            defaultApiPath = providerTypes[0].apiPath;
+        try {
+            console.log('开始添加新提供商');
+            
+            // 获取默认的提供商类型和API路径
+            let defaultType = 'openai';
+            let defaultApiPath = '/api/openai';
+            
+            // 如果已加载提供商类型列表，使用第一个作为默认
+            if (providerTypes && providerTypes.length > 0) {
+                defaultType = providerTypes[0].value;
+                defaultApiPath = providerTypes[0].apiPath;
+                console.log(`使用提供商类型: ${defaultType}, API路径: ${defaultApiPath}`);
+            } else {
+                console.log('未找到提供商类型列表，使用默认值');
+            }
+            
+            // 创建新提供商对象
+            const newProvider = {
+                name: '',
+                type: defaultType,
+                apiPath: defaultApiPath,
+                apiUrl: '',
+                apiKey: '',
+                defaultModel: '',
+                models: []
+            };
+            
+            console.log('新提供商对象已创建:', newProvider);
+            
+            // 检查providersData是否存在
+            if (!providersData) {
+                console.error('providersData对象不存在');
+                providersData = { providers: [], defaultProvider: '' };
+                console.log('已创建默认providersData对象');
+            }
+            
+            // 检查providersData.providers是否是数组
+            if (!Array.isArray(providersData.providers)) {
+                console.error('providersData.providers不是数组');
+                providersData.providers = [];
+                console.log('已重置providersData.providers为空数组');
+            }
+            
+            // 添加到数组
+            providersData.providers.push(newProvider);
+            console.log(`新提供商已添加，当前共有${providersData.providers.length}个提供商`);
+            
+            // 设置新添加的提供商为当前激活的提供商
+            activeProviderIndex = providersData.providers.length - 1;
+            console.log(`激活的提供商索引已更新为: ${activeProviderIndex}`);
+            
+            // 更新UI
+            console.log('开始更新UI...');
+            updateProviderFunctionality();
+            console.log('UI更新完成');
+            
+            // 滚动到底部
+            window.scrollTo(0, document.body.scrollHeight);
+            console.log('已滚动到页面底部');
+            
+            console.log('添加新提供商完成');
+        } catch (error) {
+            console.error('添加新提供商时发生错误:', error);
+            showNotification('添加新提供商失败: ' + (error.message || '未知错误'), true);
         }
-        
-        // 创建新提供商对象
-        const newProvider = {
-            name: '',
-            type: defaultType,
-            apiPath: defaultApiPath,
-            apiUrl: '',
-            apiKey: '',
-            defaultModel: '',
-            models: []
-        };
-        
-        // 添加到数组
-        providersData.providers.push(newProvider);
-        
-        // 设置新添加的提供商为当前激活的提供商
-        activeProviderIndex = providersData.providers.length - 1;
-        
-        // 更新UI
-        updateProviderFunctionality();
-        
-        // 滚动到底部
-        window.scrollTo(0, document.body.scrollHeight);
     }
     
     /**
