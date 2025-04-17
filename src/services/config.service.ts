@@ -2,7 +2,7 @@
  * 配置服务
  * 负责从数据库实时读取和写入配置信息
  */
-import { ProviderType} from '@prisma/client';
+import { ProviderType} from '../../prisma/generated/index.js';
 import { prisma } from '../lib/prisma.js';
 import { AIProvidersConfigType, MCPConfigType, AIProvider, QuickMessage } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';

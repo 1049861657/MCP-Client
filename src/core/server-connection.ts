@@ -3,7 +3,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { AppConfig } from "../config/app.config.js";
 import { Logger } from "../utils/logger.js";
-import { ConnectionType} from "@prisma/client";
+import { ConnectionType} from "../../prisma/generated/index.js";
 import { ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
 import { ConfigService } from "../services/config.service.js";
 import { MCPConfigType, MCPServer } from "../types/config.types.js";

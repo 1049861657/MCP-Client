@@ -1,4 +1,4 @@
-import { ProviderType, ConnectionType } from '@prisma/client'
+import { ProviderType, ConnectionType } from '../../prisma/generated/index.js'
 /**
  * 配置相关的类型定义
  */

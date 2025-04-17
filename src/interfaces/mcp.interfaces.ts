@@ -1,4 +1,4 @@
-import { ConnectionType } from "@prisma/client";
+import { ConnectionType } from "../../prisma/generated/index.js";
 
 /**
  * Deepseek聊天请求接口

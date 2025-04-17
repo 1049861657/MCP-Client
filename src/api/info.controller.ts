@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { mcpClient, reloadMCPConfig } from '../core/client.js';
 import { ErrorResponse } from '../interfaces/mcp.interfaces.js';
 import { ConfigService } from '../services/config.service.js';
-import { ConnectionType} from '@prisma/client';
+import { ConnectionType} from '../../prisma/generated/index.js';
 import { MCPServer } from '../types/config.types.js';
 /**
  * MCP信息控制器类

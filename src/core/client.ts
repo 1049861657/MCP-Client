@@ -2,7 +2,7 @@ import { ConfigService } from "../services/config.service.js";
 import { Logger } from "../utils/logger.js";
 import { ClientInfo, MCPServerInfo, ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
 import { ServerConnection } from "./server-connection.js";
-import { ConnectionType} from "@prisma/client";
+import { ConnectionType} from "../../prisma/generated/index.js";
 import { MCPServer } from "../types/config.types.js";
 /**
  * MCP客户端管理器类

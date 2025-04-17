@@ -595,7 +595,7 @@
 .markdown-content table td {
     border: 1px solid #dfe2e5;
     padding: 8px 12px;
-    text-align: left;
+    text-align: center;
     position: relative; /* 为悬停提示定位 */
     vertical-align: middle; /* 垂直居中对齐 */
 }
@@ -610,7 +610,7 @@
 
 /* 对数字类内容应用特殊样式 */
 .markdown-content table td.number-cell {
-    text-align: right;
+    text-align: center;
     font-variant-numeric: tabular-nums;
     font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
     white-space: nowrap;
