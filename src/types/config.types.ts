@@ -1,9 +1,7 @@
+import { ProviderType, ConnectionType } from '@prisma/client'
 /**
  * 配置相关的类型定义
  */
-
-// 提供商类型
-export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'custom';
 
 // 提供商类型信息
 export interface ProviderTypeInfo {
@@ -37,34 +35,6 @@ export interface AIProvidersConfigType {
   defaultProvider: string;
 }
 
-// API设置配置接口
-export interface APISettings {
-  apiUrl: string;
-  apiKey: string;
-  defaultModel: string;
-  defaultTemperature: number;
-  defaultMaxTokens: number;
-}
-
-// 用户设置接口
-export interface UserSettings {
-  [key: string]: APISettings;
-}
-
-// 连接类型
-export type ConnectionType = 'stdio' | 'sse';
-
-// MCP服务器配置接口
-export interface MCPServer {
-  id: string;
-  name: string;
-  isActive?: boolean;
-  connectionType: ConnectionType;
-  command?: string;
-  args?: string[];
-  sseUrl?: string;
-}
-
 // MCP客户端配置接口
 export interface MCPClient {
   name: string;
@@ -72,6 +42,16 @@ export interface MCPClient {
   capabilities: {
     tools: Record<string, any>;
   };
+}
+
+export interface MCPServer {
+  serverId: string;
+  name: string;
+  isActive: boolean;
+  connectionType: ConnectionType;
+  command?: string;
+  args?: string[];
+  sseUrl?: string;
 }
 
 // MCP配置接口

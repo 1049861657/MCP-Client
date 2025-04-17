@@ -1,11 +1,11 @@
 import { OpenAI as OpenAIClient } from 'openai';
 import { Logger } from '../utils/logger.js';
-import { AIProvidersConfig, MCPConfig, reloadConfigAndUpdate } from '../config/app.config.js';
 import { ChatConfig, ToolsConfig } from '../config/feature-config.js';
 import { mcpClient } from '../core/client.js';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
 import { AIProvider } from '../types/config.types.js';
 import { OpenAINameCodec } from '../utils/openai-util.js';
+import { ConfigService } from '../services/config.service.js';
 
 // 扩展Delta接口以支持reasoning_content属性
 interface ExtendedDelta {
@@ -479,9 +479,9 @@ export class OpenAI {
   
   /**
    * 构造函数
-   * @param providerName 提供商名称，默认使用默认提供商
+   * @param providerConfig 提供商配置对象
    */
-  constructor(providerName: string = 'default') {
+  constructor(providerConfig: AIProvider) {
     // 加载全局默认配置
     this.chatConfig = {
       defaultTemperature: ChatConfig.defaultTemperature,
@@ -493,46 +493,16 @@ export class OpenAI {
       enableParamValidation: ToolsConfig.enableParamValidation
     };
     
-    // 根据providerName查找对应的配置
-    let provider: AIProvider | undefined;
-    
-    if (providerName === 'default') {
-      // 使用默认提供商
-      const defaultProviderName = AIProvidersConfig.defaultProvider;
-      provider = AIProvidersConfig.providers.find((p: AIProvider) => p.name === defaultProviderName);
-    } else {
-      // 查找指定的提供商
-      provider = AIProvidersConfig.providers.find((p: AIProvider) => p.name === providerName);
-    }
-    
-    // 如果没有找到提供商，使用第一个提供商或创建默认配置
-    if (!provider && AIProvidersConfig.providers.length > 0) {
-      provider = AIProvidersConfig.providers[0];
-    } else if (!provider) {
-      Logger.warn('OPENAI', `找不到提供商: ${providerName}，使用默认配置`);
-      // 创建默认配置
-      provider = {
-        name: 'Default',
-        type: 'openai',
-        apiPath: '/api/openai',
-        apiUrl: 'https://api.openai.com/v1',
-        apiKey: 'sk-invalid',
-        defaultModel: 'gpt-3.5-turbo',
-        models: []
-      };
-    }
-    
-    // 使用提供商配置
-    this.config = provider;
-    this.providerName = provider.name;
+    this.config = providerConfig;
+    this.providerName = providerConfig.name;
     
     // 覆盖默认值（如果提供商有指定）
-    if (provider.defaultTemperature) {
-      this.chatConfig.defaultTemperature = provider.defaultTemperature;
+    if (this.config.defaultTemperature) {
+      this.chatConfig.defaultTemperature = this.config.defaultTemperature;
     }
     
-    if (provider.defaultMaxTokens) {
-      this.chatConfig.defaultMaxTokens = provider.defaultMaxTokens;
+    if (this.config.defaultMaxTokens) {
+      this.chatConfig.defaultMaxTokens = this.config.defaultMaxTokens;
     }
     
     // 创建客户端
@@ -603,7 +573,7 @@ export class OpenAI {
    * @param enableTools 是否启用工具调用
    * @returns 格式化后的消息数组
    */
-  private formatMessages(message: string | ChatCompletionMessageParam[], enableTools: boolean = false): ChatCompletionMessageParam[] {
+  private async formatMessages(message: string | ChatCompletionMessageParam[], enableTools: boolean = false): Promise<ChatCompletionMessageParam[]> {
     let messages: ChatCompletionMessageParam[];
     
     // 将输入转换为标准消息数组格式
@@ -622,11 +592,13 @@ export class OpenAI {
       
       // 如果没有系统消息，添加MCP工具预设词作为系统消息
       if (!hasSystemMessage) {
+        // 从数据库获取MCP配置中的工具提示
+        const mcpConfig = await ConfigService.getMCPConfig();
+          
         messages.unshift({
           role: 'system',
-          content: MCPConfig.toolPrompt
+          content: mcpConfig.toolPrompt
         });
-        
       }
     }
     
@@ -634,7 +606,7 @@ export class OpenAI {
   }
   
   /**
-   * 获取工具定义列表
+   * 使用辅助函数获取工具定义列表
    * @param enableTools 是否启用工具调用
    * @returns 工具定义列表
    */
@@ -737,35 +709,14 @@ export class OpenAI {
     // 首先尝试从已初始化的服务实例中获取
     if (providerServices[providerName]) {
       const providerInstance = providerServices[providerName];
-      Logger.info('OPENAI', `使用已初始化的${providerName}客户端进行验证, 模型: ${providerInstance.config.defaultModel}`);
       return { 
         client: providerInstance.client, 
         model: providerInstance.config.defaultModel 
       };
     }
     
-    // 如果无法从服务实例获取，则查找提供商配置并创建新实例
-    const provider = AIProvidersConfig.providers.find(p => p.name === providerName);
-    
-    if (provider) {
-      // 创建新的客户端实例
-      const client = new OpenAIClient({
-        apiKey: provider.apiKey,
-        baseURL: provider.apiUrl
-      });
-      // 使用提供商默认模型或常用模型
-      let model = provider.defaultModel;
-      if (providerName === "Deepseek") {
-        model = "deepseek-chat"; // Deepseek特定模型
-      }
-      Logger.info('OPENAI', `创建${providerName}客户端进行参数验证, 使用模型: ${model}`);
-      
-      return { client, model };
-    } else {
-      // 如果找不到指定提供商配置，使用当前客户端
-      Logger.warn('OPENAI', `无法找到${providerName}配置，使用当前客户端进行参数验证`);
-      return { client: this.client, model: this.config.defaultModel };
-    }
+    // 如果找不到提供商，使用当前客户端
+    return { client: this.client, model: this.config.defaultModel };
   }
 
   /**
@@ -908,7 +859,7 @@ export class OpenAI {
     
     try {
       // 使用辅助函数处理消息格式
-      const messages = this.formatMessages(message, enableTools);
+      const messages = await this.formatMessages(message, enableTools);
       
       // 使用辅助函数获取工具定义
       const openAITools = await this.getToolDefinitions(enableTools);
@@ -1222,7 +1173,7 @@ for await (const chunk of stream) {
     
     try {
       // 使用辅助函数处理消息格式
-      const messages = this.formatMessages(message, enableTools);
+      const messages = await this.formatMessages(message, enableTools);
       
       // 使用辅助函数获取工具定义
       const openAITools = await this.getToolDefinitions(enableTools);
@@ -1445,72 +1396,133 @@ for await (const chunk of stream) {
   }
 }
 
-// 为每个提供商创建服务实例
+// 为每个提供商创建服务实例映射
 const providerServices: { [key: string]: OpenAI } = {};
 
-// 创建所有服务提供商的实例
-AIProvidersConfig.providers.forEach(provider => {
-  providerServices[provider.name] = new OpenAI(provider.name);
-});
-
-// 创建默认实例 - 复用已有的默认提供商实例，避免重复初始化
+// 默认服务实例
 let openaiService: OpenAI;
-const defaultProviderName = AIProvidersConfig.defaultProvider;
-if (defaultProviderName && providerServices[defaultProviderName]) {
-  // 复用已经创建的默认提供商实例
-  openaiService = providerServices[defaultProviderName];
-  Logger.info('OPENAI', `使用已初始化的默认提供商实例: ${defaultProviderName}`);
-} else {
-  // 如果没有找到默认提供商实例，创建一个新的默认实例
-  openaiService = new OpenAI();
+
+// 初始化标志
+let isInitialized = false;
+
+/**
+ * 异步初始化所有AI提供商服务
+ * 从数据库加载配置并创建服务实例
+ * @throws Error 如果数据库中没有提供商配置
+ */
+export async function initializeProviders(): Promise<void> {
+  // 从数据库获取AI提供商配置
+  const config = await ConfigService.getAIProvidersConfig();
+  
+  if (!config || !config.providers || config.providers.length === 0) {
+    throw new Error('数据库中没有提供商配置');
+  }
+  
+  // 创建所有服务提供商的实例
+  for (const provider of config.providers) {
+    providerServices[provider.name] = new OpenAI(provider);
+    Logger.info('OPENAI', `已初始化提供商实例: ${provider.name}`);
+  }
+  
+  // 设置默认服务实例
+  const defaultProviderName = config.defaultProvider;
+  if (defaultProviderName && providerServices[defaultProviderName]) {
+    openaiService = providerServices[defaultProviderName];
+    Logger.info('OPENAI', `使用默认提供商实例: ${defaultProviderName}`);
+  } else {
+    // 如果没有找到默认提供商，使用第一个
+    openaiService = providerServices[config.providers[0].name];
+    Logger.info('OPENAI', `默认提供商未指定，使用第一个提供商: ${config.providers[0].name}`);
+  }
+  
+  isInitialized = true;
+  Logger.info('OPENAI', '所有AI提供商服务初始化完成');
+}
+
+/**
+ * 获取提供商服务实例
+ * 如果还未初始化，则先初始化
+ * @param providerName 提供商名称
+ * @returns 提供商服务实例的Promise
+ * @throws Error 如果提供商不存在或初始化失败
+ */
+export async function getProviderService(providerName?: string): Promise<OpenAI> {
+  if (!isInitialized) {
+    await initializeProviders();
+  }
+  
+  if (providerName && providerServices[providerName]) {
+    return providerServices[providerName];
+  }
+  
+  if (!openaiService) {
+    throw new Error('无法获取有效的AI提供商服务');
+  }
+  
+  return openaiService;
+}
+
+/**
+ * 获取默认提供商服务实例
+ * @returns 默认提供商服务实例的Promise
+ * @throws Error 如果无法获取默认服务
+ */
+export async function getDefaultService(): Promise<OpenAI> {
+  if (!isInitialized) {
+    await initializeProviders();
+  }
+  
+  if (!openaiService) {
+    throw new Error('无法获取默认AI提供商服务');
+  }
+  
+  return openaiService;
 }
 
 /**
  * 重新加载所有AI提供商配置
- * 在配置文件变更后调用，无需重启服务器
+ * 在数据库配置变更后调用，无需重启服务器
+ * @throws Error 如果数据库中没有有效配置
  */
 export async function reloadProviders(): Promise<{providers: string[], default: string}> {
-  try {
-    // 使用配置系统中的重载函数更新全局配置对象
-    if (!reloadConfigAndUpdate('ai-providers.json', AIProvidersConfig)) {
-      throw new Error('无效的提供商配置');
-    }
-    
-    // 验证配置
-    if (!AIProvidersConfig || !AIProvidersConfig.providers || !Array.isArray(AIProvidersConfig.providers)) {
-      throw new Error('无效的提供商配置');
-    }
-    
-    Logger.info('OPENAI', '已更新全局配置对象AIProvidersConfig');
-    
-    // 清空当前提供商服务
-    Object.keys(providerServices).forEach(key => {
-      delete providerServices[key];
-    });
-    
-    // 重新创建提供商实例
-    for (const provider of AIProvidersConfig.providers) {
-      if (provider && typeof provider === 'object' && provider.name) {
-        providerServices[provider.name] = new OpenAI(provider.name);
-        Logger.info('OPENAI', `已重新加载提供商实例: ${provider.name}`);
-      }
-    }
-    
-    // 更新默认服务实例 (openaiService)
-    if (AIProvidersConfig.defaultProvider && providerServices[AIProvidersConfig.defaultProvider]) {
-      // 直接使用已创建的默认提供商实例
-      openaiService = providerServices[AIProvidersConfig.defaultProvider];
-      Logger.info('OPENAI', `已将默认提供商更新为: ${AIProvidersConfig.defaultProvider}`);
-    }
-    
-    return {
-      providers: Object.keys(providerServices),
-      default: AIProvidersConfig.defaultProvider || '默认'
-    };
-  } catch (error) {
-    Logger.error('OPENAI', '重新加载提供商配置失败:', error);
-    throw error;
+  Logger.info('OPENAI', '开始重新加载AI提供商配置');
+  
+  // 从数据库获取最新配置
+  const config = await ConfigService.getAIProvidersConfig();
+  
+  if (!config || !config.providers || config.providers.length === 0) {
+    throw new Error('数据库中没有有效的提供商配置');
   }
+  
+  // 清空当前提供商服务
+  Object.keys(providerServices).forEach(key => {
+    delete providerServices[key];
+  });
+  
+  // 重新创建提供商实例
+  for (const provider of config.providers) {
+    providerServices[provider.name] = new OpenAI(provider);
+    Logger.info('OPENAI', `已重新加载提供商实例: ${provider.name}`);
+  }
+  
+  // 更新默认服务实例
+  if (config.defaultProvider && providerServices[config.defaultProvider]) {
+    openaiService = providerServices[config.defaultProvider];
+    Logger.info('OPENAI', `已将默认提供商更新为: ${config.defaultProvider}`);
+  } else {
+    openaiService = providerServices[config.providers[0].name];
+    Logger.info('OPENAI', `默认提供商未指定或无效，使用第一个提供商: ${config.providers[0].name}`);
+  }
+  
+  return {
+    providers: Object.keys(providerServices),
+    default: config.defaultProvider || config.providers[0].name
+  };
 }
+
+// 自动初始化提供商服务
+initializeProviders().catch(error => {
+  Logger.error('OPENAI', '自动初始化AI提供商服务失败:', error);
+});
 
 export { openaiService, providerServices }; 

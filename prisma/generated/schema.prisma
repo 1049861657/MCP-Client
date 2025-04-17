@@ -1,0 +1,74 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "generated"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 提供商类型枚举
+enum ProviderType {
+  OPENAI
+}
+
+// 连接类型枚举
+enum ConnectionType {
+  STDIO
+  SSE
+}
+
+// 通用设置模型
+model Setting {
+  key   String @id // 主键，例如 'defaultProvider', 'ChatConfig', 'HistoryConfig'
+  value Json // 存储设置值，对于复杂结构可以存储 JSON 字符串
+}
+
+// AI 提供商模型
+model AIProvider {
+  id                Int          @id @default(autoincrement())
+  name              String       @unique // 提供商名称
+  type              ProviderType // 使用枚举类型
+  apiUrl            String
+  apiKey            String
+  defaultModelValue String // 该提供商的默认模型 value
+  models            AIModel[] // 关联的模型列表
+}
+
+// AI 模型模型
+model AIModel {
+  id         Int        @id @default(autoincrement())
+  value      String // 模型的值
+  label      String // 模型的标签
+  providerId Int // 外键
+  provider   AIProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, value]) // 确保每个提供商下模型值唯一
+}
+
+// MCP 服务器模型
+model MCPServer {
+  id             Int            @id @default(autoincrement())
+  serverId       String         @unique // 对应 JSON 中的 id 字段
+  name           String
+  isActive       Boolean
+  connectionType ConnectionType // 使用枚举类型
+  command        String? // stdio 类型可选
+  args           Json? // stdio 类型可选，存储 ["arg1", "arg2"]
+  sseUrl         String? // sse 类型可选
+}
+
+// 快捷消息模型
+model QuickMessage {
+  id         Int    @id @default(autoincrement())
+  originalId Int    @unique // 对应 JSON 中的 id 字段
+  content    String
+  result     String
+}

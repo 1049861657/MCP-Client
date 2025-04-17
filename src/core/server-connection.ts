@@ -1,11 +1,12 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { MCPConfig } from "../config/app.config.js";
+import { AppConfig } from "../config/app.config.js";
 import { Logger } from "../utils/logger.js";
-import { MCPServer } from "../types/config.types.js";
-import { ConnectionType } from "../types/config.types.js";
+import { ConnectionType} from "@prisma/client";
 import { ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
+import { ConfigService } from "../services/config.service.js";
+import { MCPConfigType, MCPServer } from "../types/config.types.js";
 
 /**
  * 服务器连接类
@@ -23,40 +24,58 @@ export class ServerConnection {
   private lastPingTime?: number;
   private lastPingResult?: boolean;
   private static readonly PING_TIMEOUT = 10000;
+  // 存储当前配置的引用
+  private mcpConfig: MCPConfigType | null = null;
 
   /**
    * 构造函数
    * @param serverConfig 服务器配置
    */
   constructor(serverConfig: MCPServer) {
-    this.id = serverConfig.id;
+    this.id = serverConfig.serverId;
     this.name = serverConfig.name;
-    this.connectionType = serverConfig.connectionType || 'stdio';
+    this.connectionType = serverConfig.connectionType;
     
     const transport = this.createClientTransport(serverConfig);
     if (!transport) {
-      throw new Error(`无法为服务器 ${serverConfig.name} (${serverConfig.id}) 创建传输层`);
+      throw new Error(`无法为服务器 ${serverConfig.name} (${serverConfig.serverId}) 创建传输层`);
     }
     
     this.transport = transport;
     this.client = new Client(
       {
-        name: MCPConfig.client.name,
-        version: MCPConfig.client.version
+        name: AppConfig.name,
+        version: AppConfig.version
       },
       {
-        capabilities: MCPConfig.client.capabilities
+        capabilities: { tools: {} }
       }
     );
+    
+    // 在构造函数中异步初始化配置
+    this.initConfig().catch(error => {
+      Logger.error('SERVER CONNECTION', '初始化配置失败:', error);
+    });
+  }
+
+  /**
+   * 初始化配置
+   */
+  private async initConfig(): Promise<void> {
+    try {
+      this.mcpConfig = await ConfigService.getMCPConfig();
+    } catch (error) {
+      Logger.error('SERVER CONNECTION', '获取MCP配置失败:', error);
+    }
   }
 
   /**
    * 创建客户端传输层
    */
   private createClientTransport(serverConfig: MCPServer): StdioClientTransport | SSEClientTransport | null {
-    const connectionType = serverConfig.connectionType || 'stdio';
+    const connectionType = serverConfig.connectionType;
     
-    if (connectionType === 'stdio') {
+    if (connectionType === ConnectionType.STDIO) {
       if (!serverConfig.command || !serverConfig.args) {
         Logger.error('SERVER CONNECTION', `无法创建stdio连接: 缺少command或args配置`);
         return null;
@@ -67,7 +86,7 @@ export class ServerConnection {
       });
     } 
     
-    if (connectionType === 'sse') {
+    if (connectionType === ConnectionType.SSE) {
       if (!serverConfig.sseUrl) {
         Logger.error('SERVER CONNECTION', `无法创建sse连接: 缺少sseUrl配置`);
         return null;
@@ -89,10 +108,9 @@ export class ServerConnection {
    */
   getConnectionDisplayCommand(serverConfig: MCPServer): string {
     if (!serverConfig) return '';
-    
-    if (this.connectionType === 'stdio' && serverConfig.command) {
+    if (this.connectionType === ConnectionType.STDIO && serverConfig.command) {
       return `${serverConfig.command} ${serverConfig.args?.join(' ') || ''}`;
-    } else if (this.connectionType === 'sse' && serverConfig.sseUrl) {
+    } else if (this.connectionType === ConnectionType.SSE && serverConfig.sseUrl) {
       return serverConfig.sseUrl;
     }
     return '';
@@ -107,8 +125,13 @@ export class ServerConnection {
     }
 
     try {
+      // 确保有最新配置
+      if (!this.mcpConfig) {
+        this.mcpConfig = await ConfigService.getMCPConfig();
+      }
+      
       if (this.transportClosed) {
-        const serverConfig = MCPConfig.servers.find(s => s.id === this.id);
+        const serverConfig = this.mcpConfig.servers.find(s => s.serverId === this.id);
         if (!serverConfig) {
           throw new Error(`未找到服务器配置: ${this.id}`);
         }
@@ -121,11 +144,11 @@ export class ServerConnection {
         this.transport = newTransport;
         this.client = new Client(
           {
-            name: MCPConfig.client.name,
-            version: MCPConfig.client.version
+            name: this.mcpConfig.client.name,
+            version: this.mcpConfig.client.version
           },
           {
-            capabilities: MCPConfig.client.capabilities
+            capabilities: this.mcpConfig.client.capabilities
           }
         );
         
@@ -208,10 +231,15 @@ export class ServerConnection {
   /**
    * 获取服务器信息
    */
-  getServerInfo(): ServerInfo {
-    const serverConfig = MCPConfig.servers.find(s => s.id === this.id);
-    const displayCommand = this.getConnectionDisplayCommand(serverConfig!);
+  async getServerInfo(): Promise<ServerInfo> {
+    // 确保有最新配置
+    if (!this.mcpConfig) {
+      this.mcpConfig = await ConfigService.getMCPConfig();
+    }
     
+    const serverConfig = this.mcpConfig.servers.find(s => s.serverId === this.id);
+    const displayCommand = this.getConnectionDisplayCommand(serverConfig!);
+
     return {
       id: this.id,
       name: serverConfig?.name || this.id,
@@ -220,9 +248,9 @@ export class ServerConnection {
       status: this.connected ? '已连接' : '未连接',
       connectionDetails: {
         connectionType: this.connectionType,
-        command: serverConfig?.command,
-        args: serverConfig?.args?.join(' '),
-        sseUrl: serverConfig?.sseUrl,
+        command: serverConfig?.command || undefined,
+        args: serverConfig?.args ? serverConfig.args.join(' ') : undefined,
+        sseUrl: serverConfig?.sseUrl || undefined,
         displayCommand
       }
     };
@@ -282,7 +310,7 @@ export class ServerConnection {
           };
         });
     } catch (error) {
-      Logger.error('SERVER CONNECTION', '获取工具列表失败:', error);
+      Logger.error('SERVER CONNECTION', `获取工具列表失败: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     }
   }
@@ -292,38 +320,24 @@ export class ServerConnection {
    */
   async callTool<T>(toolName: string, args: any): Promise<T> {
     if (!this.connected) {
-      await this.connect();
-    }
-
-    if (args === undefined || args === null) {
-      throw new Error(`调用工具 ${toolName} 失败: 参数不能为空`);
+      throw new Error('服务器未连接');
     }
     
-    if (typeof args === 'string') {
-      try {
-        args = JSON.parse(args);
-      } catch (error) {
-        throw new Error(`调用工具 ${toolName} 失败: 无法解析参数字符串为JSON`);
-      }
-    }
-    
-    if (typeof args !== 'object') {
-      throw new Error(`调用工具 ${toolName} 失败: 参数必须是对象类型，当前类型: ${typeof args}`);
-    }
-
     try {
-      return await this.client.callTool({
+      // 使用正确的API调用方法
+      const result = await this.client.callTool({
         name: toolName,
         arguments: args
       }) as T;
+      return result;
     } catch (error) {
-      Logger.error('SERVER CONNECTION', `调用工具 ${toolName} 失败:`, error);
+      Logger.error('SERVER CONNECTION', `调用工具 ${toolName} 失败: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
 
   /**
-   * 是否已连接
+   * 判断是否已连接
    */
   isConnected(): boolean {
     return this.connected;

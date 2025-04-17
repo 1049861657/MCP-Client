@@ -1,3 +1,5 @@
+import { ConnectionType } from "@prisma/client";
+
 /**
  * Deepseek聊天请求接口
  */
@@ -62,17 +64,6 @@ export interface ToolInfo {
   originalName?: string;
 }
 
-/**
- * MCP服务器配置
- */
-export interface MCPServerConfig {
-  id: string;
-  name: string;
-  connectionType?: 'stdio' | 'sse';  // 连接类型，默认为stdio
-  command?: string;                  // stdio连接需要
-  args?: string[];                   // stdio连接需要
-  sseUrl?: string;                   // sse连接需要
-}
 
 /**
  * 服务器信息
@@ -87,7 +78,7 @@ export interface ServerInfo {
   version: string;
   status: string;
   connectionDetails: {
-    connectionType: 'stdio' | 'sse';
+    connectionType: ConnectionType;
     command?: string;
     args?: string;
     sseUrl?: string;

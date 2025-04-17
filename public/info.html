@@ -581,11 +581,11 @@
                     <label class="form-label">连接类型*</label>
                     <div class="form-radio-group">
                         <label class="form-radio-label">
-                            <input type="radio" name="connection-type" value="stdio" class="form-radio" checked> 
+                            <input type="radio" name="connection-type" value="STDIO" class="form-radio" checked> 
                             标准输入/输出 (stdio)
                         </label>
                         <label class="form-radio-label">
-                            <input type="radio" name="connection-type" value="sse" class="form-radio"> 
+                            <input type="radio" name="connection-type" value="SSE" class="form-radio"> 
                             服务器发送事件 (sse)
                         </label>
                     </div>
@@ -675,7 +675,7 @@
             // 根据连接类型显示相应的表单字段
             document.querySelectorAll('input[name="connection-type"]').forEach(radio => {
                 radio.addEventListener('change', function() {
-                    if (this.value === 'stdio') {
+                    if (this.value === 'STDIO') {
                         document.getElementById('stdio-fields').style.display = 'block';
                         document.getElementById('sse-fields').style.display = 'none';
                     } else {
@@ -696,7 +696,7 @@
                 formMode.value = 'add';
                 serverIdInput.value = '';
                 serverForm.reset();
-                document.querySelector('input[name="connection-type"][value="stdio"]').checked = true;
+                document.querySelector('input[name="connection-type"][value="STDIO"]').checked = true;
                 document.getElementById('stdio-fields').style.display = 'block';
                 document.getElementById('sse-fields').style.display = 'none';
                 
@@ -717,14 +717,14 @@
                 };
                 
                 // 根据连接类型添加字段
-                if (connectionType === 'stdio') {
+                if (connectionType === 'STDIO') {
                     const command = document.getElementById('command').value.trim();
                     const argsStr = document.getElementById('args').value.trim();
                     const args = argsStr.split(',').map(arg => arg.trim());
                     
                     serverData.command = command;
                     serverData.args = args;
-                } else if (connectionType === 'sse') {
+                } else if (connectionType === 'SSE') {
                     serverData.sseUrl = document.getElementById('sse-url').value.trim();
                 }
                 
@@ -739,7 +739,7 @@
                     
                     if (mode === 'add') {
                         // 生成一个唯一ID
-                        serverData.id = 'server-' + Date.now();
+                        serverData.serverId = 'server-' + Date.now();
                         
                         // 调用添加API
                         response = await fetch('/api/server/add', {
@@ -814,7 +814,7 @@
                 const connectionType = server.connectionDetails.connectionType;
                 document.querySelector(`input[name="connection-type"][value="${connectionType}"]`).checked = true;
                 
-                if (connectionType === 'stdio') {
+                if (connectionType === 'STDIO') {
                     document.getElementById('stdio-fields').style.display = 'block';
                     document.getElementById('sse-fields').style.display = 'none';
                     
@@ -924,9 +924,9 @@
                 // 显示连接类型（友好名称）
                 const connectionType = data.server.connectionDetails.connectionType;
                 let connectionTypeName = '';
-                if (connectionType === 'stdio') {
+                if (connectionType === 'STDIO') {
                     connectionTypeName = 'Stdio (标准输入输出)';
-                } else if (connectionType === 'sse') {
+                } else if (connectionType === 'SSE') {
                     connectionTypeName = 'SSE (服务器发送事件)';
                 } else {
                     connectionTypeName = connectionType || '未知';

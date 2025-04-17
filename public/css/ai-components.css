@@ -187,28 +187,24 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+    align-items: center;
 }
 
 .total-token-usage {
     background: linear-gradient(135deg, #0062cc, #1e88e5);
     border: 1px solid #0d47a1;
     color: white;
-    padding: 4px 10px;
+    padding: 3px 12px;
     border-radius: 20px;
     font-weight: 600;
     font-size: 12px;
     white-space: nowrap;
     box-shadow: 0 2px 4px rgba(24, 96, 197, 0.2);
-    display: flex;
+    display: inline-flex;
     align-items: center;
     position: relative;
     overflow: hidden;
-}
-
-.total-token-usage::before {
-    content: "💎";
-    margin-right: 5px;
-    font-size: 12px;
+    height: 24px;
 }
 
 .total-token-usage::after {
@@ -280,22 +276,28 @@
     background-color: #e6f7ff;
     border: 1px solid #91d5ff;
     color: #0050b3;
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 3px 12px;
+    border-radius: 20px;
     font-weight: 500;
-    font-size: 11px;
+    font-size: 12px;
     white-space: nowrap;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
 }
 
 .tool-token-usage {
     background-color: #f6ffed;
     border: 1px solid #b7eb8f;
     color: #389e0d;
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 3px 12px;
+    border-radius: 20px;
     font-weight: 500;
-    font-size: 11px;
+    font-size: 12px;
     white-space: nowrap;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
 }
 
 .status-success {

@@ -40,12 +40,42 @@ export const HistoryConfig = {
 };
 
 /**
+ * 日志相关配置
+ */
+export const LogConfig = {
+  // 日志级别
+  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+  
+  // 是否输出到控制台
+  console: true,
+  
+  // 是否输出到文件
+  file: true,
+  
+  // 日志文件配置
+  files: {
+    // 所有日志文件
+    all: 'logs/app.log',
+    
+    // 错误日志文件
+    error: 'logs/error.log'
+  },
+  
+  // 日志文件大小限制（5MB）
+  maxSize: 5 * 1024 * 1024,
+  
+  // 保留日志文件数量
+  maxFiles: 5
+};
+
+/**
  * 所有特性配置聚合
  */
 export const FeatureConfig = {
   tools: ToolsConfig,
   chat: ChatConfig,
-  history: HistoryConfig
+  history: HistoryConfig,
+  log: LogConfig
 };
 
 export default FeatureConfig; 

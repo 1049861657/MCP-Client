@@ -2,10 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { ServerConfig, AppConfig, MCPConfig } from './config/app.config.js';
+import { ServerConfig, AppConfig } from './config/app.config.js';
 import apiRoutes from './api/routes.js';
-import { mcpClient } from './core/client.js';
 import { Logger } from './utils/logger.js';
+import { ConfigService } from './services/config.service.js';
 
 // 获取当前文件的目录路径
 const __filename = fileURLToPath(import.meta.url);
@@ -27,13 +27,14 @@ app.use('/api', apiRoutes);
  */
 async function startServer() {
   try {
-    // 初始化MCP服务连接
-    Logger.info('APP', '正在初始化MCP服务...');
+    // 获取服务器配置
+    const appInfo = await ConfigService.getSetting('appInfo') || AppConfig;
+    const serverConfig = await ConfigService.getSetting('serverConfig') || ServerConfig;
     
     // 启动服务器
-    app.listen(ServerConfig.port, () => {
-      Logger.info('APP', `${AppConfig.name} v${AppConfig.version} 已启动`);
-      Logger.info('APP', `Web服务器运行在 http://${ServerConfig.host}:${ServerConfig.port}`);
+    app.listen(serverConfig.port, () => {
+      Logger.info('APP', `${appInfo.name} v${appInfo.version} 已启动`);
+      Logger.info('APP', `Web服务器运行在 http://${serverConfig.host}:${serverConfig.port}`);
     });
   } catch (error) {
     Logger.error('APP', '启动失败:', error);

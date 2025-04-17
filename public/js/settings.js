@@ -51,13 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('提供商类型加载成功:', providerTypes);
         } catch (error) {
             console.error('加载提供商类型失败:', error);
-            // 设置默认的提供商类型
-            providerTypes = [
-                { value: 'openai', label: 'OpenAI', apiPath: '/api/openai' },
-                { value: 'anthropic', label: 'Anthropic', apiPath: '/api/anthropic' },
-                { value: 'gemini', label: 'Google Gemini', apiPath: '/api/gemini' },
-                { value: 'custom', label: '自定义', apiPath: '/api/custom' }
-            ];
         }
     }
     
@@ -212,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="form-section">
                     <div class="form-section-title">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M14 6.5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5h13Zm-13-1A1.5 1.5 0 0 0 0 7v7a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 16 14V7a1.5 1.5 0 0 0-1.5-1.5h-13Z"/>
+                            <path d="M14 6.5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-7a.5.5 0 0 1 .5-.5Zm-13-1A1.5 1.5 0 0 0 0 7v7a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 16 14V7a1.5 1.5 0 0 0-1.5-1.5h-13Z"/>
                             <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2H2V2Z"/>
                         </svg>
                         API配置

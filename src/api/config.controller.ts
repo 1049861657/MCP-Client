@@ -1,9 +1,7 @@
 import { Request, Response } from 'express';
-import { AIProvidersConfig, QuickMessagesConfig, reloadConfigAndUpdate } from '../config/app.config.js';
 import { Logger } from '../utils/logger.js';
 import { FeatureConfig } from '../config/feature-config.js';
-import fs from 'fs';
-import { getQuickMessagesConfigPath } from '../utils/path-util.js';
+import { ConfigService } from '../services/config.service.js';
 
 /**
  * 配置控制器类
@@ -18,7 +16,9 @@ export class ConfigController {
   static async getAIProviders(req: Request, res: Response): Promise<void> {
     try {
       Logger.info('API', '请求AI供应商配置');
-      res.json(AIProvidersConfig);
+      // 直接从数据库获取配置
+      const config = await ConfigService.getAIProvidersConfig();
+      res.json(config);
     } catch (error) {
       Logger.error('API', '获取AI供应商配置失败:', error);
       res.status(500).json({
@@ -57,7 +57,9 @@ export class ConfigController {
   static async getQuickMessages(req: Request, res: Response): Promise<void> {
     try {
       Logger.info('API', '请求快捷消息配置');
-      res.json(QuickMessagesConfig);
+      // 直接从数据库获取配置
+      const config = await ConfigService.getQuickMessagesConfig();
+      res.json(config);
     } catch (error) {
       Logger.error('API', '获取快捷消息配置失败:', error);
       res.status(500).json({
@@ -81,21 +83,42 @@ export class ConfigController {
         throw new Error('数据格式无效');
       }
       
-      // 配置文件路径
-      const configPath = getQuickMessagesConfigPath(import.meta.url);
-      
-      // 写入文件
-      fs.writeFileSync(configPath, JSON.stringify(data, null, 2), 'utf8');
-      
-      // 重新加载快捷消息配置
-      reloadConfigAndUpdate('quick-messages.json', QuickMessagesConfig)
-      
-      Logger.info('API', '快捷消息配置已保存');
+      // 直接保存到数据库
+      await ConfigService.saveQuickMessagesConfig(data);
       
       // 返回成功响应
       res.json({ success: true, message: '配置已保存' });
     } catch (error) {
       Logger.error('API', '保存快捷消息配置失败:', error);
+      res.status(500).json({
+        success: false,
+        error: "保存失败",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+  
+  /**
+   * 保存AI供应商配置
+   * @param req 请求对象
+   * @param res 响应对象
+   */
+  static async saveAIProviders(req: Request, res: Response): Promise<void> {
+    try {
+      const data = req.body;
+      
+      // 基本验证
+      if (!data || !data.providers || !Array.isArray(data.providers)) {
+        throw new Error('数据格式无效');
+      }
+      
+      // 直接保存到数据库
+      await ConfigService.saveAIProvidersConfig(data);
+      
+      // 返回成功响应
+      res.json({ success: true, message: '配置已保存' });
+    } catch (error) {
+      Logger.error('API', '保存AI供应商配置失败:', error);
       res.status(500).json({
         success: false,
         error: "保存失败",

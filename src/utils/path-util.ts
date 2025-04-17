@@ -21,39 +21,12 @@ export function getProjectRoot(importMetaUrl: string): string {
 }
 
 /**
- * 获取配置文件的完整路径
- * @param configFileName 配置文件名称
+ * 获取资源文件的完整路径
+ * @param resourcePath 资源文件相对于项目根目录的路径
  * @param importMetaUrl 当前模块的import.meta.url
- * @returns 配置文件的完整路径
+ * @returns 资源文件的完整路径
  */
-export function getConfigPath(configFileName: string, importMetaUrl: string): string {
+export function getResourcePath(resourcePath: string, importMetaUrl: string): string {
   const root = getProjectRoot(importMetaUrl);
-  return join(root, 'config', configFileName);
-}
-
-/**
- * 获取MCP配置文件路径
- * @param importMetaUrl 当前模块的import.meta.url
- * @returns MCP配置文件的完整路径
- */
-export function getMCPConfigPath(importMetaUrl: string): string {
-  return getConfigPath('mcp-config.json', importMetaUrl);
-}
-
-/**
- * 获取AI提供商配置文件路径
- * @param importMetaUrl 当前模块的import.meta.url
- * @returns AI提供商配置文件的完整路径
- */
-export function getAIProvidersConfigPath(importMetaUrl: string): string {
-  return getConfigPath('ai-providers.json', importMetaUrl);
-}
-
-/**
- * 获取快捷消息配置文件路径
- * @param importMetaUrl 当前模块的import.meta.url
- * @returns 快捷消息配置文件的完整路径
- */
-export function getQuickMessagesConfigPath(importMetaUrl: string): string {
-  return getConfigPath('quick-messages.json', importMetaUrl);
+  return join(root, resourcePath);
 } 

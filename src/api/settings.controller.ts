@@ -1,21 +1,9 @@
 import { Request, Response } from 'express';
-import { writeFileSync, readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import { Logger } from '../utils/logger.js';
 import { ProviderTypes } from '../config/app.config.js';
 // 导入提供商重载功能
 import { reloadProviders } from '../servers/openai.js';
-
-// 获取当前目录路径
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// 获取项目根目录
-const projectRoot = join(__dirname, '..', '..');
-
-// 配置文件路径 - 作为模块级变量而不是静态类属性
-const PROVIDERS_CONFIG_PATH = join(projectRoot, 'config', 'ai-providers.json');
+import { ConfigService } from '../services/config.service.js';
 
 /**
  * 配置管理控制器
@@ -26,8 +14,14 @@ export class SettingsController {
    */
   static async getProviders(req: Request, res: Response): Promise<void> {
     try {
-      const configContent = readFileSync(PROVIDERS_CONFIG_PATH, 'utf-8');
-      res.json(JSON.parse(configContent));
+      // 从数据库获取配置
+      const config = await ConfigService.getAIProvidersConfig();
+      if (config) {
+        res.json(config);
+      } else {
+        // 如果数据库中没有配置，返回空配置
+        res.json({ providers: [], defaultProvider: '' });
+      }
     } catch (error) {
       Logger.error('SETTINGS', '获取AI提供商配置失败:', error);
       res.status(500).json({
@@ -65,11 +59,15 @@ export class SettingsController {
         return;
       }
       
-      // 保存到文件
-      writeFileSync(PROVIDERS_CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+      // 保存到数据库
+      const success = await ConfigService.saveAIProvidersConfig(config);
       
-      Logger.info('SETTINGS', '已更新AI提供商配置');
-      res.json({ success: true, message: '提供商配置已更新' });
+      if (success) {
+        Logger.info('SETTINGS', '已更新AI提供商配置到数据库');
+        res.json({ success: true, message: '提供商配置已更新' });
+      } else {
+        throw new Error('保存配置失败');
+      }
       
     } catch (error) {
       Logger.error('SETTINGS', '更新AI提供商配置失败:', error);
@@ -85,6 +83,9 @@ export class SettingsController {
    */
   static async reloadProviders(req: Request, res: Response): Promise<void> {
     try {
+      // 从数据库获取最新配置
+      const config = await ConfigService.getAIProvidersConfig();
+      
       // 调用提供商服务的重载方法
       const result = await reloadProviders();
       
