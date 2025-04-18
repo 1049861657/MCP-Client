@@ -59,6 +59,7 @@ export interface MCPConfigType {
   client: MCPClient;
   servers: MCPServer[];
   toolPrompt: string;
+  enabledToolServerIds?: string[]; // 用于存储启用工具的服务器ID列表
 } 
 
 // 快捷消息配置接口

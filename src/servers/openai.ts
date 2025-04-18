@@ -529,7 +529,32 @@ export class OpenAI {
         return [];
       }
       
-      return mcpTools.map(tool => {
+      // 获取MCP配置中的启用工具服务器ID列表
+      const mcpConfig = await ConfigService.getMCPConfig();
+      const enabledServerIds = mcpConfig.enabledToolServerIds || [];
+      
+      // 如果有指定的服务器ID列表且不为空，则过滤工具
+      let filteredTools = mcpTools;
+      if (enabledServerIds.length > 0) {
+        // 获取服务器工具映射
+        const serverToolsMap = serverInfo.serverTools || {};
+        
+        // 过滤只包含指定服务器的工具
+        filteredTools = mcpTools.filter(tool => {
+          // 查找工具所属的服务器
+          for (const serverId in serverToolsMap) {
+            if (enabledServerIds.includes(serverId) && 
+                serverToolsMap[serverId].some(t => t.name === tool.name)) {
+              return true;
+            }
+          }
+          return false;
+        });
+        
+        Logger.info('OPENAI', `[${this.providerName}] 已过滤工具，原有 ${mcpTools.length} 个，过滤后 ${filteredTools.length} 个`);
+      }
+      
+      return filteredTools.map(tool => {
         // 构建参数Schema
         const properties: Record<string, any> = {};
         const required: string[] = [];
@@ -595,10 +620,10 @@ export class OpenAI {
         // 从数据库获取MCP配置中的工具提示
         const mcpConfig = await ConfigService.getMCPConfig();
           
-        messages.unshift({
-          role: 'system',
-          content: mcpConfig.toolPrompt
-        });
+        // messages.unshift({
+        //   role: 'system',
+        //   content: mcpConfig.toolPrompt
+        // });
       }
     }
     

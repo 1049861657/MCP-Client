@@ -573,5 +573,59 @@ window.AIChatAPI = {
             console.error('获取MCP工具出错:', error);
             return [];
         }
+    },
+    
+    /**
+     * 获取已配置的MCP服务器列表
+     * 用于显示服务器选择界面
+     */
+    async getMCPServers() {
+        try {
+            const response = await fetch('/api/mcp/servers');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP错误: ${response.status} ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.error) {
+                console.error('获取MCP服务器列表失败:', data.error);
+                return { servers: [], enabledServerIds: [] };
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('获取MCP服务器出错:', error);
+            return { servers: [], enabledServerIds: [] };
+        }
+    },
+    
+    /**
+     * 保存启用的MCP服务器ID列表
+     * @param {string[]} enabledServerIds 启用的服务器ID列表
+     * @returns {Promise<boolean>} 是否保存成功
+     */
+    async saveEnabledMCPServers(enabledServerIds) {
+        try {
+            const response = await fetch('/api/mcp/servers/enabled', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ enabledServerIds })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP错误: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            return data.success;
+        } catch (error) {
+            console.error('保存启用的MCP服务器列表失败:', error);
+            throw error;
+        }
     }
 }; 

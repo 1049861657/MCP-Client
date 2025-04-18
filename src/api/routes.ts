@@ -30,7 +30,7 @@ router.get('/info', InfoController.getInfo);
 router.get('/client-info', InfoController.getClientInfo);
 // 服务器切换路由
 router.post('/server/connect/:serverId', InfoController.connectServer);
-router.post('/server/switch/:serverId', InfoController.viewServer);
+router.post('/server/switch/:serverId', InfoController.switchServer);
 router.post('/server/disconnect/:serverId', InfoController.disconnectServer);
 
 // 服务器管理路由
@@ -41,5 +41,11 @@ router.post('/server/reload-config', InfoController.reloadConfig);
 
 // 工具列表路由
 router.get('/tools/list', OpenAIController.getAvailableTools);
+
+// MCP服务器列表路由
+router.get('/mcp/servers', OpenAIController.getMCPServers);
+
+// 更新MCP服务器启用状态
+router.post('/mcp/servers/enabled', OpenAIController.updateEnabledServers);
 
 export default router; 

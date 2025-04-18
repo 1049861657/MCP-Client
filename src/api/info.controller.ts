@@ -313,7 +313,7 @@ export class InfoController {
   /**
    * 查看MCP服务器配置
    */
-  static async viewServer(req: Request, res: Response): Promise<void> {
+  static async switchServer(req: Request, res: Response): Promise<void> {
     try {
       const serverId = req.params.serverId;
       

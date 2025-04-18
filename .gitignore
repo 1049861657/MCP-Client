@@ -26,5 +26,6 @@ yarn-error.log*
 *.swo 
 .cursor/
 
-# 配置文件
-config/
+# 数据库
+prisma/generated/
+prisma/dev.db

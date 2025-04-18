@@ -107,29 +107,6 @@ window.AIChatUtils = {
         
         console.log('工具模块事件增强功能初始化完成');
     },
-    
-    // 加载MCP工具
-    async loadMCPTools() {
-        const app = this.app;
-        
-        try {
-            console.log('正在获取可用的MCP工具...');
-            const tools = await app.API.getAvailableMCPTools();
-            
-            app.state.mcpTools = tools;
-            console.log(`已加载 ${tools.length} 个MCP工具:`, tools.map(t => t.name).join(', '));
-            
-            if (tools.length > 0) {
-                app.UI.showTooltip(`已加载 ${tools.length} 个MCP工具`);
-            } else {
-                app.UI.showTooltip('未找到可用的MCP工具，请确认MCP服务器已连接');
-            }
-        } catch (error) {
-            console.error('加载MCP工具失败:', error);
-            app.UI.showTooltip('获取MCP工具失败，请确认服务器连接正常');
-            throw error; // 重新抛出错误
-        }
-    }
 };
 
 // 时间管理工具

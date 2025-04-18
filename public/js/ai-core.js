@@ -24,7 +24,9 @@ window.AIChatApp = {
         messageHistoryCount: 3, // 历史消息数量，默认为3
         sessionId: '', // 当前会话的唯一标识符，每个供应商有自己的会话列表
         isEventsInitialized: false,
-        isLoading: false // 是否正在加载会话，防止快捷消息气泡冲突
+        isLoading: false, // 是否正在加载会话，防止快捷消息气泡冲突
+        enabledServerIds: [], // 存储启用的MCP服务器ID列表
+        mcpServers: [] // 存储MCP服务器列表
     },
     
     // 数据库引用
@@ -84,7 +86,8 @@ window.AIChatApp = {
             openSettings: document.getElementById('open-settings'),
             viewHistory: document.getElementById('view-history'),
             newSession: document.getElementById('new-session'),
-            quickMessages: document.getElementById('quick-messages')
+            quickMessages: document.getElementById('quick-messages'),
+            mcpQuickAccess: document.getElementById('mcp-quick-access')
         };
         
         // 检查关键元素是否存在
@@ -134,14 +137,14 @@ window.AIChatApp = {
             .then(() => {
                 console.log('供应商配置加载完成，初始化其余功能');
                 
-                // 加载MCP工具
-                this.loadMCPTools();
-                
                 // 更新会话显示
                 this.updateSessionDisplay();
                 
                 // 加载保存的设置
                 this.UI.loadSettings();
+                
+                // 加载MCP服务器列表并更新计数器
+                this.loadMCPServers();
                 
                 // 触发自定义事件，通知其他组件应用已初始化
                 const event = new CustomEvent('AIChatAppInitialized');
@@ -223,6 +226,12 @@ window.AIChatApp = {
             openSettings.addEventListener('click', () => this.UI.showSettingsModal());
         }
         
+        // MCP快速访问按钮
+        const { mcpQuickAccess } = this.elements;
+        if (mcpQuickAccess) {
+            mcpQuickAccess.addEventListener('click', () => this.UI.showMCPServersModal());
+        }
+        
         // 打开快捷消息面板
         const { quickMessages } = this.elements;
         if (quickMessages) {
@@ -242,7 +251,7 @@ window.AIChatApp = {
             console.error('快捷消息按钮元素不存在');
         }
         
-        // 切换工具开关的事件
+        // 消息历史和参数校验
         const { enableMCPTools, enableParamValidation, enableMessageHistory } = this.elements;
         if (enableMCPTools) {
             enableMCPTools.addEventListener('change', (e) => {
@@ -259,7 +268,6 @@ window.AIChatApp = {
                 this.state.enableMessageHistory = e.target.checked;
             });
         }
-        
         // 标记事件监听器已初始化
         this.state.isEventsInitialized = true;
         
@@ -311,15 +319,19 @@ window.AIChatApp = {
     // 从API获取特性配置
     async fetchFeatureConfig() {
         try {
-            console.log('开始获取特性配置');
+            console.log('正在加载特性配置...');
+            
             const response = await fetch('/api/config/features');
             
             if (!response.ok) {
-                throw new Error(`HTTP错误: ${response.status}`);
+                throw new Error(`HTTP错误: ${response.status} ${response.statusText}`);
             }
             
             const data = await response.json();
-            console.log('获取到特性配置:', data);
+            
+            if (data.error) {
+                throw new Error(`获取特性配置失败: ${data.error}`);
+            }
             
             if (data.success && data.config) {
                 // 更新工具相关配置
@@ -362,7 +374,7 @@ window.AIChatApp = {
             }
         } catch (error) {
             console.error('加载特性配置失败:', error);
-            throw error; // 重新抛出错误，而不是使用默认值
+            throw error; 
         }
     },
     
@@ -435,8 +447,7 @@ window.AIChatApp = {
     async fetchThinkingConfig() {
         try {
             console.log('获取思考模式配置');
-            // 思考模式配置通常是API返回的思考模式配置，此处简化为本地定义
-            // 未来可以改为从服务器获取
+
             const thinkingConfig = {
                 enabled: true,
                 models: ['claude-3-5-sonnet-20240620', 'gpt-4-0314', 'gpt-4-0613', 'gpt-4-1106-preview', 'gpt-4-vision-preview', 'gpt-4-turbo']
@@ -515,10 +526,182 @@ window.AIChatApp = {
         this.UI.updateUIForMode();
         this.UI.showTooltip(`已切换到${this.state.isStreamMode ? '流式' : '标准'}响应模式`);
     },
+
     
-    // 加载MCP工具
-    loadMCPTools() {
-        window.AIChatUtils.loadMCPTools();
+    /**
+     * 加载MCP服务器列表并显示选择界面
+     */
+    async loadMCPServers() {
+        try {
+            // 获取服务器列表
+            const data = await this.API.getMCPServers();
+            this.state.mcpServers = data.servers || [];
+            this.state.enabledServerIds = data.enabledServerIds || [];
+            this.updateMCPServersUI();
+            
+            // 更新MCP按钮计数器
+            this.UI.updateMCPButtonCounter();
+            
+            return data;
+        } catch (error) {
+            console.error('加载MCP服务器列表失败:', error);
+            this.UI.showTooltip('获取MCP服务器列表失败，请检查网络连接');
+            throw error;
+        }
+    },
+    
+    /**
+     * 更新MCP服务器选择界面
+     */
+    updateMCPServersUI() {
+        const container = document.getElementById('mcp-servers-list');
+        if (!container) return;
+        
+        // 清空容器
+        container.innerHTML = '';
+        
+        if (this.state.mcpServers.length === 0) {
+            container.innerHTML = '<div class="no-servers">没有可用的MCP服务器</div>';
+            return;
+        }
+        
+        // 为每个服务器创建卡片
+        this.state.mcpServers.forEach(server => {
+            const serverCard = document.createElement('div');
+            serverCard.className = `server-card ${server.isEnabled ? 'selected' : ''}`;
+            serverCard.dataset.serverId = server.id;
+            
+            // 创建复选框
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `server-${server.id}`;
+            checkbox.className = 'server-checkbox';
+            checkbox.value = server.id;
+            checkbox.checked = server.isEnabled;
+            
+            // 创建服务器名称
+            const serverName = document.createElement('div');
+            serverName.className = 'server-name';
+            serverName.textContent = server.name;
+            
+            // 如果有描述，添加描述
+            if (server.description) {
+                const serverDesc = document.createElement('div');
+                serverDesc.className = 'server-description';
+                serverDesc.textContent = server.description;
+                serverCard.appendChild(serverDesc);
+            }
+            
+            // 添加事件监听 - 对整个卡片添加点击事件
+            serverCard.addEventListener('click', (e) => {
+                // 如果点击的是复选框，避免重复触发
+                if (e.target !== checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    this.updateEnabledServers();
+                    
+                    // 更新卡片样式
+                    serverCard.classList.toggle('selected', checkbox.checked);
+                }
+            });
+            
+            // 复选框单独的事件处理
+            checkbox.addEventListener('change', () => {
+                this.updateEnabledServers();
+                // 更新卡片样式
+                serverCard.classList.toggle('selected', checkbox.checked);
+            });
+            
+            // 组装并添加到容器
+            serverCard.appendChild(checkbox);
+            serverCard.appendChild(serverName);
+            
+            container.appendChild(serverCard);
+        });
+        
+        // 添加全选/取消全选按钮事件
+        this.setupServerSelectionButtons();
+    },
+    
+    /**
+     * 设置服务器选择按钮事件
+     */
+    setupServerSelectionButtons() {
+        const selectAllBtn = document.getElementById('select-all-servers');
+        const deselectAllBtn = document.getElementById('deselect-all-servers');
+        
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => {
+                if (this.state.mcpServers.length === 0) {
+                    this.UI.showTooltip('没有可用的服务器');
+                    return;
+                }
+                
+                // 选中所有服务器
+                this.state.mcpServers.forEach(server => {
+                    const checkbox = document.getElementById(`server-${server.id}`);
+                    const card = document.querySelector(`.server-card[data-server-id="${server.id}"]`);
+                    
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                    
+                    if (card) {
+                        card.classList.add('selected');
+                    }
+                });
+                
+                this.updateEnabledServers();
+            });
+        }
+        
+        if (deselectAllBtn) {
+            deselectAllBtn.addEventListener('click', () => {
+                // 取消选中所有服务器
+                this.state.mcpServers.forEach(server => {
+                    const checkbox = document.getElementById(`server-${server.id}`);
+                    const card = document.querySelector(`.server-card[data-server-id="${server.id}"]`);
+                    
+                    if (checkbox) {
+                        checkbox.checked = false;
+                    }
+                    
+                    if (card) {
+                        card.classList.remove('selected');
+                    }
+                });
+                
+                this.updateEnabledServers();
+            });
+        }
+    },
+
+    /**
+     * 更新启用的服务器列表并保存到服务器
+     */
+    async updateEnabledServers() {
+        // 收集选中的服务器ID
+        const enabledIds = [];
+        this.state.mcpServers.forEach(server => {
+            const checkbox = document.getElementById(`server-${server.id}`);
+            if (checkbox && checkbox.checked) {
+                enabledIds.push(server.id);
+            }
+        });
+        
+        // 更新状态
+        this.state.enabledServerIds = enabledIds;
+        
+        try {
+            // 保存到服务器
+            await this.API.saveEnabledMCPServers(enabledIds);
+            console.log('已更新启用的MCP服务器列表:', enabledIds);
+            
+            // 显示提示
+            this.UI.showTooltip(`已更新启用的MCP服务器，当前启用 ${enabledIds.length} 个服务器`);
+        } catch (error) {
+            console.error('保存MCP服务器启用状态失败:', error);
+            this.UI.showTooltip('保存MCP服务器启用状态失败');
+        }
     },
     
     // 清除对话

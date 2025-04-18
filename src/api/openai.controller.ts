@@ -3,6 +3,7 @@ import { Logger } from '../utils/logger.js';
 import { openaiService, providerServices, reloadProviders } from '../servers/openai.js';
 import { mcpClient } from '../core/client.js';
 import { ToolsConfig } from '../config/feature-config.js';
+import { ConfigService } from '../services/config.service.js';
 
 /**
  * OpenAI API控制器
@@ -226,6 +227,69 @@ export class OpenAIController {
       });
     } catch (error: any) {
       Logger.error('API', '获取可用工具时出错:', error);
+      res.status(500).json({ 
+        error: error.message 
+      });
+    }
+  }
+  
+  /**
+   * 获取MCP服务器列表
+   * @param req 请求对象
+   * @param res 响应对象
+   */
+  static async getMCPServers(req: Request, res: Response): Promise<void> {
+    try {
+      // 直接获取启用的服务器ID列表
+      const enabledServerIds = await ConfigService.getSetting('mcpEnabledToolServerIds') || [];
+      
+      // 获取当前已连接的服务器
+      const serverInfo = await mcpClient.getServerInfo();
+      
+      // 直接使用connectedServers，并添加isEnabled标志
+      const servers = serverInfo.connectedServers?.map(server => ({
+        id: server.id,
+        name: server.name,
+        isEnabled: enabledServerIds.includes(server.id)
+      })) || [];
+      
+      res.json({
+        success: true,
+        servers,
+        enabledServerIds
+      });
+    } catch (error: any) {
+      Logger.error('API', '获取MCP服务器列表时出错:', error);
+      res.status(500).json({ 
+        error: error.message 
+      });
+    }
+  }
+  
+  /**
+   * 更新已启用的MCP服务器ID列表
+   * @param req 请求对象
+   * @param res 响应对象
+   */
+  static async updateEnabledServers(req: Request, res: Response): Promise<void> {
+    try {
+      const { enabledServerIds } = req.body;
+      
+      if (!Array.isArray(enabledServerIds)) {
+        res.status(400).json({
+          error: "enabledServerIds必须是数组"
+        });
+        return;
+      }
+      
+      await ConfigService.saveSetting('mcpEnabledToolServerIds', enabledServerIds);
+      
+      res.json({
+        success: true,
+        message: "已成功更新MCP服务器启用状态"
+      });
+    } catch (error: any) {
+      Logger.error('API', '更新MCP服务器启用状态时出错:', error);
       res.status(500).json({ 
         error: error.message 
       });

@@ -21,8 +21,6 @@ export class ServerConnection {
   private name: string;
   private version: string = "未知";
   private connectionType: ConnectionType;
-  private lastPingTime?: number;
-  private lastPingResult?: boolean;
   private static readonly PING_TIMEOUT = 10000;
   // 存储当前配置的引用
   private mcpConfig: MCPConfigType | null = null;
@@ -217,13 +215,8 @@ export class ServerConnection {
       const pingPromise = this.client.ping();
       const result = await Promise.race([pingPromise, timeoutPromise]);
       
-      this.lastPingTime = Date.now();
-      this.lastPingResult = !!result;
-      
       return !!result;
     } catch {
-      this.lastPingTime = Date.now();
-      this.lastPingResult = false;
       return false;
     }
   }

@@ -1169,6 +1169,35 @@
                 }
             }
             
+            // 更新MCP已启用服务器列表
+            async function updateMCPEnabledServers() {
+                // 获取当前所有连接的服务器信息
+                const infoResponse = await fetch('/api/info');
+                const infoData = await infoResponse.json();
+                const connectedServers = infoData.connectedServers || [];
+                
+                // 获取当前已启用的服务器ID列表
+                const mcpResponse = await fetch('/api/mcp/servers');
+                const mcpData = await mcpResponse.json();
+                let enabledServerIds = mcpData.enabledServerIds || [];
+                
+                // 过滤掉不可用的服务器ID
+                const connectedServerIds = connectedServers.map(server => server.id);
+                const initialEnabledIds = [...enabledServerIds];
+                enabledServerIds = enabledServerIds.filter(id => connectedServerIds.includes(id));
+                
+                // 检查是否有变化，如有则更新
+                if (initialEnabledIds.length !== enabledServerIds.length) {
+                    await fetch('/api/mcp/servers/enabled', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ enabledServerIds })
+                    });
+                }
+            }
+            
             // 断开服务器连接
             async function disconnectServer(serverId) {
                 try {
@@ -1195,6 +1224,9 @@
                     // 断开连接成功后主动刷新服务器信息
                     await fetchServerInfo();
                     
+                    // 更新数据库中的mcpEnabledToolServerIds
+                    await updateMCPEnabledServers();
+                    
                 } catch (error) {
                     console.error('断开服务器连接失败:', error);
                     const toggle = document.getElementById('connection-toggle');
@@ -1207,27 +1239,16 @@
             
             // 更新服务器的激活状态
             async function updateServerActiveStatus(serverId, isActive) {
-                try {
-                    console.log(`更新服务器 ${serverId} 的激活状态为: ${isActive}`);
-                    const response = await fetch(`/api/server/update/${serverId}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ isActive: isActive })
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error('更新服务器激活状态失败');
-                    }
-                    
-                    console.log('服务器激活状态更新成功');
-                    return true;
-                } catch (error) {
-                    console.error('更新服务器激活状态失败:', error);
-                    // 不要阻断主流程，所以这里只记录错误
-                    return false;
-                }
+                // 发送更新请求
+                return fetch(`/api/server/update/${serverId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ isActive: isActive })
+                })
+                .then(response => response.ok)
+                .catch(() => false); // 错误时返回false
             }
             
             // 获取最新的服务器信息

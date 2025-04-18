@@ -45,6 +45,11 @@
                     </div>
                     <div class="session-buttons">
                         <!-- 添加历史记录和清除对话按钮 -->
+                        <button id="mcp-quick-access" class="control-button mcp-button" title="MCP服务器工具">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+                            </svg>
+                        </button>
                         <button id="view-history" class="control-button history-button" title="历史记录">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
@@ -329,6 +334,34 @@
                         <button type="submit" id="save-edit" class="action-button primary">保存</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MCP服务器选择模态窗口 -->
+    <div id="mcp-servers-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>选择MCP服务器工具</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="mcp-servers-container" style="margin-top: 0;">
+                    <div class="mcp-servers-header">
+                        <h4 class="mcp-servers-title">选择要启用的MCP服务器工具</h4>
+                        <div class="mcp-servers-actions">
+                            <button type="button" id="mcp-select-all" class="mcp-servers-action">全选</button>
+                            <button type="button" id="mcp-deselect-all" class="mcp-servers-action">取消全选</button>
+                        </div>
+                    </div>
+                    <div id="mcp-modal-servers-list" class="mcp-servers-grid">
+                        <div class="loading-servers">加载服务器列表...</div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="margin-top: 15px; text-align: right;">
+                    <button type="button" id="mcp-cancel" class="action-button">取消</button>
+                    <button type="button" id="mcp-save" class="action-button primary">保存</button>
+                </div>
             </div>
         </div>
     </div>

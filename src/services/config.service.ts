@@ -38,7 +38,6 @@ export class ConfigService {
         update: { value },
         create: { key, value }
       });
-      Logger.info('ConfigService', `设置已保存 [${key}]`);
       return true;
     } catch (error) {
       Logger.error('ConfigService', `保存设置失败 [${key}]:`, error);
@@ -243,6 +242,7 @@ export class ConfigService {
       // 获取客户端和工具提示设置
       const clientSetting = await this.getSetting('mcpClient');
       const toolPromptSetting = await this.getSetting('mcpToolPrompt');
+      const enabledToolServerIdsSetting = await this.getSetting('mcpEnabledToolServerIds');
 
       // 处理客户端配置，确保类型安全
       const clientConfig = clientSetting;
@@ -251,6 +251,12 @@ export class ConfigService {
       let toolPromptValue: string = '';
       if (toolPromptSetting !== null) {
         toolPromptValue = String(toolPromptSetting);
+      }
+
+      // 处理启用的工具服务器ID列表
+      let enabledToolServerIds: string[] = [];
+      if (enabledToolServerIdsSetting !== null) {
+        enabledToolServerIds = enabledToolServerIdsSetting;
       }
 
       // 构建返回结果
@@ -265,7 +271,8 @@ export class ConfigService {
           args: server.args as string[] || undefined,
           sseUrl: server.sseUrl || undefined
         })),
-        toolPrompt: toolPromptValue
+        toolPrompt: toolPromptValue,
+        enabledToolServerIds: enabledToolServerIds
       };
 
       return result;
@@ -285,6 +292,7 @@ export class ConfigService {
       // 保存客户端和工具提示设置
       await this.saveSetting('mcpClient', config.client);
       await this.saveSetting('mcpToolPrompt', config.toolPrompt);
+      await this.saveSetting('mcpEnabledToolServerIds', config.enabledToolServerIds || []);
 
       // 清空现有服务器数据
       await prisma.mCPServer.deleteMany({});
@@ -304,7 +312,6 @@ export class ConfigService {
         });
       }
 
-      Logger.info('ConfigService', 'MCP配置已保存到数据库');
       return true;
     } catch (error) {
       Logger.error('ConfigService', '保存MCP配置失败:', error);

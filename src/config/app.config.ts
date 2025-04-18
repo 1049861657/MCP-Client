@@ -2,7 +2,7 @@
  * 应用配置常量
  * 仅定义不变的应用常量，所有配置从数据库实时读取
  */
-import { ProviderType } from '@prisma/client';
+import { ProviderType } from '../../prisma/generated/index.js';
 import { ProviderTypeInfo } from '../types/config.types.js';
 
 /**
