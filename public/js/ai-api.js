@@ -403,7 +403,7 @@ window.AIChatAPI = {
             // 确保思考状态被移除
             UI.hideThinking(aiMessageDiv);
             // 不更新时间的情况下完成消息处理
-            UI.finalizeAIMessageWithoutTimeUpdate(aiMessageDiv);
+            UI.finalizeAIMessage(aiMessageDiv, false);
         }
         // 处理内容事件
         else if (eventData) {
@@ -536,7 +536,7 @@ window.AIChatAPI = {
                     UI.hideThinking(aiMessageDiv);
                     
                     UI.updateAIMessage(aiMessageDiv, `错误: ${jsonData.error}`);
-                    UI.finalizeAIMessageWithoutTimeUpdate(aiMessageDiv);
+                    UI.finalizeAIMessage(aiMessageDiv, false);
                 }
             } catch (e) {
                 // 非JSON数据作为普通文本处理

@@ -48,20 +48,14 @@ export interface ToolParameter {
  */
 export interface ToolInfo {
   name: string;
+  //编码工具名称（防止工具重名）
+  codeName: string;
   description: string;
   parameters: ToolParameter[];
-  /**
-   * 工具来源的服务器ID
-   */
+  //工具来源的服务器ID
   serverId: string;
-  /**
-   * 工具来源服务器名称
-   */
+  //工具来源服务器名称
   serverName: string;
-  /**
-   * 原始工具名称（处理重名工具时使用）
-   */
-  originalName?: string;
 }
 
 

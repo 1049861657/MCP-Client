@@ -8,7 +8,8 @@
     "clean": "rimraf dist",
     "build": "npm run clean && tsc",
     "start": "npm run build && node dist/app.js",
-    "server": "node dist/app.js"
+    "server": "node dist/app.js",
+    "test:codec": "npm run build && node dist/test-openai-codec.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.0",

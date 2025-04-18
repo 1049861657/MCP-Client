@@ -952,6 +952,17 @@
                         toolName.className = 'tool-name';
                         toolName.textContent = tool.name;
                         
+                        // 添加编码名称显示
+                        if (tool.codeName) {
+                            const codeNameSpan = document.createElement('span');
+                            codeNameSpan.className = 'tool-code-name';
+                            codeNameSpan.textContent = ` (${tool.codeName})`;
+                            codeNameSpan.style.fontSize = '0.8em';
+                            codeNameSpan.style.color = '#666';
+                            codeNameSpan.style.marginLeft = '5px';
+                            toolName.appendChild(codeNameSpan);
+                        }
+                        
                         toolHeader.appendChild(toolName);
                         toolItem.appendChild(toolHeader);
                         

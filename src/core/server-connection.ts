@@ -7,6 +7,7 @@ import { ConnectionType} from "../../prisma/generated/index.js";
 import { ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
 import { ConfigService } from "../services/config.service.js";
 import { MCPConfigType, MCPServer } from "../types/config.types.js";
+import { OpenAINameCodec } from "../utils/openai-util.js";
 
 /**
  * 服务器连接类
@@ -249,9 +250,6 @@ export class ServerConnection {
     };
   }
 
-  /**
-   * 获取工具列表
-   */
   async getTools(): Promise<ToolInfo[]> {
     if (!this.connected) {
       return [];
@@ -264,48 +262,55 @@ export class ServerConnection {
         return [];
       }
       
-      return toolsResponse.tools
+      // Process all tools in parallel with a single map operation
+      return await Promise.all(toolsResponse.tools
         .filter((tool: any) => tool !== null && tool !== undefined)
-        .map((tool: any) => {
-          const parameters = [];
-          try {
-            if (tool.inputSchema?.properties) {
-              const props = tool.inputSchema.properties;
-              const required = Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required : [];
-              
-              for (const key in props) {
-                if (Object.prototype.hasOwnProperty.call(props, key)) {
-                  const schema = props[key] || {};
-                  parameters.push({
-                    name: key,
-                    type: schema.type || 'unknown',
-                    description: schema.description || `${key}`,
-                    required: required.includes(key)
-                  });
-                }
-              }
-            }
-          } catch (err) {
-            Logger.error('SERVER CONNECTION', `解析工具参数时出错:`, err);
-          }
-          
-          const toolName = tool && typeof tool.name === 'string' ? tool.name : "未命名工具";
-          const toolDesc = tool && typeof tool.description === 'string' ? 
-            tool.description : `${toolName}工具`;
+        .map(async (tool: any) => {
+          const toolName = tool?.name || "未命名工具";
+          const toolDesc = tool?.description || `${toolName}工具`;
+          const codeName = await OpenAINameCodec.encode(toolName, this.id);
+          const parameters = this.extractParameters(tool);
           
           return {
             name: toolName,
+            codeName,
             description: toolDesc,
             parameters,
             serverId: this.id,
-            serverName: this.name,
-            originalName: toolName
+            serverName: this.name
           };
-        });
+        }));
+        
     } catch (error) {
       Logger.error('SERVER CONNECTION', `获取工具列表失败: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     }
+  }
+  
+  private extractParameters(tool: any): any[] {
+    const parameters = [];
+    
+    try {
+      if (tool?.inputSchema?.properties) {
+        const props = tool.inputSchema.properties;
+        const required = Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required : [];
+        
+        for (const key in props) {
+          if (Object.prototype.hasOwnProperty.call(props, key)) {
+            const schema = props[key] || {};
+            parameters.push({
+              name: key,
+              type: schema.type,
+              description: schema.description || `${key}`,
+              required: required.includes(key)
+            });
+          }
+        }
+      }
+    } catch (err) {
+      Logger.error('SERVER CONNECTION', `解析工具参数时出错:`, err);
+    }
+    return parameters;
   }
 
   /**

@@ -160,13 +160,13 @@ class ToolCallManager {
   }
   
   /**
-   * 创建新的工具调用
-   * @param index 本地索引（当前回合内的索引）
+   * 创建工具调用对象
+   * @param index 工具在当前回合中的索引
    * @param id 工具调用ID
    * @param name 工具名称
    * @returns 全局索引
    */
-  createToolCall(index: number, id?: string, name: string = ''): number {
+  async createToolCall(index: number, id?: string, name: string = ''): Promise<number> {
     // 生成工具调用ID（如果未提供）
     const toolCallId = id || `tool-call-round-${this.currentRound}-${Date.now()}-${index}`;
     // 计算全局索引
@@ -179,7 +179,7 @@ class ToolCallManager {
     const toolCall: ToolCallInfo = {
       id: toolCallId,
       // 如果是元工具则不进行解码
-      name: metaTools.includes(name) ? name : OpenAINameCodec.decode(name),
+      name: metaTools.includes(name) ? name : await OpenAINameCodec.decode(name),
       arguments: {},
       meta: {
         round: this.currentRound,
@@ -526,6 +526,7 @@ export class OpenAI {
       const serverInfo = await mcpClient.getServerInfo();
       const mcpTools = serverInfo.tools;
       
+      // 工具为空，返回空数组
       if (!mcpTools || mcpTools.length === 0) {
         Logger.warn('OPENAI', '当前服务器没有可用的工具');
         return [];
@@ -552,11 +553,13 @@ export class OpenAI {
           }
           return false;
         });
-        
         Logger.info('OPENAI', `[${this.providerName}] 已过滤工具，原有 ${mcpTools.length} 个，过滤后 ${filteredTools.length} 个`);
+      }else{
+        Logger.info('OPENAI','未复选服务')
+        return []
       }
       
-      return filteredTools.map(tool => {
+      return await Promise.all(filteredTools.map(async tool => {
         // 构建参数Schema
         const properties: Record<string, any> = {};
         const required: string[] = [];
@@ -573,12 +576,11 @@ export class OpenAI {
           }
         }
         
-        // 创建OpenAI函数定义
         return {
           type: "function" as const,
           name: tool.name,
           function: {
-            name: OpenAINameCodec.encode(tool.name),
+            name: tool.codeName,
             description: tool.description,
             parameters: {
               type: "object",
@@ -587,7 +589,7 @@ export class OpenAI {
             }
           }
         };
-      });
+      }));
     } catch (error) {
       Logger.error('OPENAI', '获取或转换MCP工具失败:', error);
       return [];
@@ -923,7 +925,7 @@ export class OpenAI {
         
         // 处理每个工具调用
         for (const toolCall of assistantMessage.tool_calls) {
-          const toolName = OpenAINameCodec.decode(toolCall.function.name);
+          const toolName = await OpenAINameCodec.decode(toolCall.function.name);
           const toolArgs = JSON.parse(toolCall.function.arguments);
           
           Logger.info('OPENAI', `[${this.providerName}] 调用工具: ${toolName}, 参数: ${JSON.stringify(toolArgs)}`);
@@ -1116,25 +1118,25 @@ for await (const chunk of stream) {
           const existingToolCalls = toolManager.getAllToolCalls();
           const existingCall = existingToolCalls.find(tc => 
             tc.meta?.round === 0 && tc.meta?.localIndex === localIndex);
-          
-            if (!existingCall) {
-              // 创建新工具调用
-              globalIndex = toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name);
+            
+              if (!existingCall) {
+                // 创建新工具调用
+                globalIndex = await toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name);
+              } else {
+                globalIndex = existingCall.meta?.globalIndex as number;
+              }
             } else {
-              globalIndex = existingCall.meta?.globalIndex as number;
+              // 后续回合 - 检查是否已存在此索引的工具调用
+              if (!newToolCalls[localIndex]) {
+                // 创建新工具调用
+                globalIndex = await toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name || '');
+                
+                // 将新工具调用添加到集合
+                newToolCalls[localIndex] = toolManager.getAllToolCalls()[globalIndex];
+              } else {
+                globalIndex = newToolCalls[localIndex].meta?.globalIndex as number;
+              }
             }
-          } else {
-            // 后续回合 - 检查是否已存在此索引的工具调用
-            if (!newToolCalls[localIndex]) {
-              // 创建新工具调用
-              globalIndex = toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name || '');
-              
-              // 将新工具调用添加到集合
-              newToolCalls[localIndex] = toolManager.getAllToolCalls()[globalIndex];
-            } else {
-              globalIndex = newToolCalls[localIndex].meta?.globalIndex as number;
-            }
-          }
           
           // 更新工具参数流式信息
           if (deltaToolCall.function?.arguments) {

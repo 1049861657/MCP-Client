@@ -74,3 +74,10 @@ model QuickMessage {
   category   String @default("默认")
 }
 
+// 工具编码映射模型
+model ToolCodeMapping {
+  id             String    @id @default(cuid())
+  code           String    @unique // 编码值，用作工具的codeName
+  originalString String    // 原始字符串，通常是"serverId:toolName"格式
+}
+

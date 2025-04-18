@@ -155,84 +155,57 @@ window.AIChatUI = {
     
     // 解析Markdown文本为HTML
     parseMarkdown(text) {
-        try {
-            // 使用marked解析Markdown
-            let htmlContent = marked.parse(text);
-            
-            // 处理表格
-            htmlContent = this.processTablesInHtml(htmlContent);
-            
-            // 检测并转换图片URL
-            htmlContent = this.detectAndReplaceImageUrls(htmlContent);
-            
-            // 在下一个事件循环中绑定表格滚轮事件
-            setTimeout(() => this.bindTableWheelEvents(), 0);
-            
-            return htmlContent;
-        } catch (e) {
-            console.error('Markdown解析错误:', e);
-            return text;
-        }
+        let htmlContent = marked.parse(text);
+        
+        htmlContent = this.processTablesInHtml(htmlContent);
+        htmlContent = this.detectAndReplaceImageUrls(htmlContent);
+        
+        setTimeout(() => this.bindTableWheelEvents(), 0);
+        
+        return htmlContent;
     },
     
     // 处理HTML中的表格，添加滚动容器和智能单元格处理
     processTablesInHtml(html) {
-        // 创建临时DOM元素来处理HTML内容
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
         
-        // 处理表格 - 将所有表格包装到容器中以支持滚动
         tempDiv.querySelectorAll('table').forEach(table => {
-            // 避免重复包装 - 检查父元素是否已经是表格容器
             if (table.parentElement && table.parentElement.classList.contains('table-container')) {
                 return;
             }
             
-            // 创建表格容器
             const tableContainer = document.createElement('div');
             tableContainer.className = 'table-container';
             
-            // 将表格包装在容器中
             table.parentNode.insertBefore(tableContainer, table);
             tableContainer.appendChild(table);
             
-            // 智能处理表格单元格
             this.processTableCells(table);
             
-            // 给表格容器添加一个唯一ID，用于后续添加事件监听
             const containerId = 'table-container-' + Math.random().toString(36).substring(2, 15);
             tableContainer.id = containerId;
-            
-            // 添加自定义属性，用于在后续渲染后添加事件监听
             tableContainer.setAttribute('data-needs-wheel-handler', 'true');
         });
         
-        // 返回处理后的HTML内容
         return tempDiv.innerHTML;
     },
     
     // 处理表格单元格，添加智能分类和悬停提示
     processTableCells(table) {
-        // 处理所有数据单元格（非表头）
         table.querySelectorAll('td').forEach(cell => {
             const text = cell.textContent.trim();
             
-            // 如果单元格内容为空，不做处理
             if (!text) return;
             
-            // 保存完整文本用于悬停提示
             if (text.length > 20) {
-                // 使用title属性作为快速解决方案
                 cell.setAttribute('title', text);
                 
-                // 创建一个更好的悬停提示
                 cell.addEventListener('mouseenter', function(e) {
-                    // 移除可能已存在的提示
                     if (document.getElementById('cell-tooltip')) {
                         document.body.removeChild(document.getElementById('cell-tooltip'));
                     }
                     
-                    // 创建工具提示元素
                     const tooltip = document.createElement('div');
                     tooltip.id = 'cell-tooltip';
                     tooltip.textContent = text;
@@ -251,7 +224,6 @@ window.AIChatUI = {
                     tooltip.style.fontSize = '14px';
                     tooltip.style.lineHeight = '1.5';
                     
-                    // 计算位置，保持在视口内
                     const rect = cell.getBoundingClientRect();
                     const left = Math.min(rect.left, window.innerWidth - 310);
                     const top = rect.bottom + window.scrollY;
@@ -261,7 +233,6 @@ window.AIChatUI = {
                     
                     document.body.appendChild(tooltip);
                     
-                    // 存储提示框引用到单元格属性，以便移除
                     cell._tooltip = tooltip;
                 });
                 
@@ -272,83 +243,63 @@ window.AIChatUI = {
                     }
                 });
                 
-                // 设置CSS属性
                 cell.classList.add('long-text');
                 cell.setAttribute('data-truncated', 'true');
                 cell.setAttribute('data-full-text', text);
             }
             
-            // 判断内容类型并应用相应的样式类
             if (this.isNumeric(text)) {
-                // 数字类内容
                 cell.classList.add('number-cell');
             } else if (this.isDateTime(text)) {
-                // 日期时间类内容
                 cell.classList.add('datetime-cell');
             }
         });
         
-        // 优化表头
         table.querySelectorAll('th').forEach(header => {
-            // 为表头添加title属性，方便查看完整的列名
             if (header.textContent.trim()) {
                 header.setAttribute('title', header.textContent.trim());
             }
         });
     },
     
-    // 判断是否为数字类内容
     isNumeric(text) {
-        // 去除常见的数字格式字符
         const cleanText = text.replace(/[,%\s]/g, '');
         return !isNaN(parseFloat(cleanText)) && isFinite(cleanText);
     },
     
-    // 判断是否为日期时间类内容
     isDateTime(text) {
-        // 检查常见的日期时间格式
-        return /^\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}/.test(text) || // 年-月-日
-               /^\d{1,2}[-/\.]\d{1,2}[-/\.]\d{4}/.test(text) || // 日-月-年/月-日-年
-               /^\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}\s\d{1,2}:\d{1,2}/.test(text); // 年-月-日 时:分
+        return /^\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}/.test(text) || 
+               /^\d{1,2}[-/\.]\d{1,2}[-/\.]\d{4}/.test(text) || 
+               /^\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}\s\d{1,2}:\d{1,2}/.test(text);
     },
     
     // 检测并替换HTML中的图片URL
     detectAndReplaceImageUrls(html) {
-        // 创建临时DOM元素
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
         
-        // 图片URL正则表达式
         const imgUrlRegex = /(https?:\/\/[^\s"'<>]+?\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?[^\s"'<>]*)?)/gi;
         
-        // 递归处理所有文本节点
         function processNode(node) {
-            // 遍历所有子节点
             for (let i = 0; i < node.childNodes.length; i++) {
                 const child = node.childNodes[i];
                 
-                // 如果是文本节点，检查并替换图片URL
-                if (child.nodeType === 3) { // 文本节点
+                if (child.nodeType === 3) {
                     const content = child.nodeValue;
                     if (!content || !imgUrlRegex.test(content)) continue;
                     
-                    // 重置正则表达式
                     imgUrlRegex.lastIndex = 0;
                     
-                    // 创建文档片段
                     const fragment = document.createDocumentFragment();
                     let lastIndex = 0;
                     let match;
                     
-                    // 查找所有匹配
                     while ((match = imgUrlRegex.exec(content)) !== null) {
-                        // 添加匹配前的文本
                         if (match.index > lastIndex) {
                             fragment.appendChild(document.createTextNode(
                                 content.substring(lastIndex, match.index)));
                         }
                         
-                        // 创建图片元素
                         const imgContainer = document.createElement('div');
                         imgContainer.className = 'auto-detected-image';
                         
@@ -367,19 +318,16 @@ window.AIChatUI = {
                         lastIndex = match.index + match[0].length;
                     }
                     
-                    // 添加剩余文本
                     if (lastIndex < content.length) {
                         fragment.appendChild(document.createTextNode(
                             content.substring(lastIndex)));
                     }
                     
-                    // 替换原文本节点
                     if (lastIndex > 0) {
                         node.replaceChild(fragment, child);
-                        i--; // 调整索引，因为我们替换了一个节点
+                        i--;
                     }
                 } 
-                // 如果是元素节点且不是图片，递归处理
                 else if (child.nodeType === 1 && 
                          child.tagName !== 'IMG' && 
                          !child.classList.contains('auto-detected-image')) {
@@ -426,8 +374,6 @@ window.AIChatUI = {
             </div>
         `;
         window.AIChatApp.elements.chatMessages.appendChild(messageDiv);
-        
-        // 滚动到底部
         window.AIChatApp.elements.chatMessages.scrollTop = window.AIChatApp.elements.chatMessages.scrollHeight;
         
         return messageDiv;
@@ -435,18 +381,14 @@ window.AIChatUI = {
     
     // 添加AI消息到对话框
     addAIMessage(text = '') {
-        const provider = window.AIChatApp.state.providers[window.AIChatApp.elements.provider.value]?.name || 'AI';
         const messageDiv = document.createElement('div');
         messageDiv.className = 'chat-message ai';
         messageDiv.dataset.aiMessage = true;
         
-        // 检查是否是初始状态（无文本），如果是则显示思考中的状态
         let initialContent;
         if (text === '') {
-            // 思考中状态
             initialContent = '<div class="ai-thinking"><div class="thinking-spinner"></div>AI正在思考中...</div>';
         } else {
-            // 有内容时使用Markdown渲染
             initialContent = `<div class="markdown-content">${this.parseMarkdown(text)}</div><span class="cursor"></span>`;
         }
         
@@ -461,8 +403,6 @@ window.AIChatUI = {
             </div>
         `;
         window.AIChatApp.elements.chatMessages.appendChild(messageDiv);
-        
-        // 滚动到底部
         window.AIChatApp.elements.chatMessages.scrollTop = window.AIChatApp.elements.chatMessages.scrollHeight;
         
         return messageDiv;
@@ -473,7 +413,6 @@ window.AIChatUI = {
         const chatBubble = messageDiv.querySelector('.chat-bubble');
         if (!chatBubble) return;
         
-        // 保存消息信息区和其内部元素
         const messageInfo = chatBubble.querySelector('.message-info');
         let messageTimeContent = '';
         let tokenInfoContent = '';
@@ -490,83 +429,63 @@ window.AIChatUI = {
             }
         }
         
-        // 保存思考容器，确保它不会被删除
         const reasoningContainer = chatBubble.querySelector('.reasoning-container');
         
-        // 如果有思考中状态并且收到了文本，立即移除思考状态
         const thinkingIndicator = chatBubble.querySelector('.ai-thinking');
         if (thinkingIndicator && text.trim() !== '') {
-            // 完全移除思考状态
             this.hideThinking(messageDiv);
             
-            // 临时存储思考容器
             let savedReasoningContainer = null;
             if (reasoningContainer) {
                 savedReasoningContainer = reasoningContainer.cloneNode(true);
             }
             
-            // 重置气泡内容但保留信息区域
             chatBubble.innerHTML = '';
             
-            // 如果有思考容器，直接添加回去
             if (savedReasoningContainer) {
                 chatBubble.appendChild(savedReasoningContainer);
                 
-                // 重新绑定事件
                 const reasoningHeader = savedReasoningContainer.querySelector('.reasoning-header');
                 if (reasoningHeader) {
                     this.attachReasoningToggleEvent(reasoningHeader, savedReasoningContainer);
                 }
             }
             
-            // 添加Markdown渲染的内容
             const markdownDiv = document.createElement('div');
             markdownDiv.className = 'markdown-content';
             markdownDiv.innerHTML = this.parseMarkdown(text);
             chatBubble.appendChild(markdownDiv);
             
-            // 应用代码高亮和语言标签
             this.processCodeBlocks(markdownDiv);
             
-            // 添加光标
             chatBubble.appendChild(document.createElement('span')).className = 'cursor';
             
-            // 创建并恢复信息区
             const newMessageInfo = document.createElement('div');
             newMessageInfo.className = 'message-info';
             
-            // 恢复时间元素
             const newMessageTime = document.createElement('div');
             newMessageTime.className = 'message-time';
             newMessageTime.textContent = messageTimeContent || window.AIChatApp.timeManager.getTimeString();
             newMessageInfo.appendChild(newMessageTime);
             
-            // 恢复令牌信息
             const newTokenInfo = document.createElement('div');
             newTokenInfo.className = 'token-info';
             newTokenInfo.textContent = tokenInfoContent || '';
             newMessageInfo.appendChild(newTokenInfo);
             
-            // 添加到气泡
             chatBubble.appendChild(newMessageInfo);
         } else if (!thinkingIndicator) {
-            // 查找并更新现有的markdown-content
             const markdownDiv = chatBubble.querySelector('.markdown-content:not(.reasoning-content)');
             if (markdownDiv) {
                 markdownDiv.innerHTML = this.parseMarkdown(text);
-                
-                // 应用代码高亮和语言标签
                 this.processCodeBlocks(markdownDiv);
             } else {
-                // 如果没有找到markdown-content容器，创建一个并添加到适当位置
                 const markdownDiv = document.createElement('div');
                 markdownDiv.className = 'markdown-content';
                 markdownDiv.innerHTML = this.parseMarkdown(text);
                 
-                // 应用代码高亮和语言标签
                 this.processCodeBlocks(markdownDiv);
                 
-                // 添加到气泡的合适位置
                 if (reasoningContainer) {
                     chatBubble.insertBefore(markdownDiv, reasoningContainer.nextSibling);
                 } else if (messageInfo) {
@@ -577,64 +496,48 @@ window.AIChatUI = {
             }
         }
         
-        // 滚动到底部
         window.AIChatApp.elements.chatMessages.scrollTop = window.AIChatApp.elements.chatMessages.scrollHeight;
     },
     
     // 处理代码块：添加高亮和语言标签
     processCodeBlocks(container) {
         container.querySelectorAll('pre code').forEach((block) => {
-            // 获取语言类名
             const languageClass = Array.from(block.classList).find(cls => cls.startsWith('language-'));
             const language = languageClass ? languageClass.replace('language-', '') : 'text';
             
-            // 创建语言标签元素
             if (languageClass && language !== 'plaintext') {
                 const pre = block.parentElement;
                 
-                // 创建语言标签容器
                 const langLabel = document.createElement('div');
                 langLabel.className = 'code-language-label';
                 langLabel.textContent = language;
                 
-                // 将语言标签添加到pre元素前
                 if (pre && !pre.querySelector('.code-language-label')) {
                     pre.insertBefore(langLabel, pre.firstChild);
                 }
             }
             
-            // 应用高亮
             hljs.highlightElement(block);
         });
     },
     
     // 更新思考内容
     updateReasoningContent(messageDiv, reasoningText) {
-        // 如果思考已结束，不再更新思考内容
-        if (messageDiv.dataset.reasoningEnded === "true") {
-            console.log('思考已结束，不再更新思考内容');
-            return;
-        }
+        if (messageDiv.dataset.reasoningEnded === "true") return;
         
-        // 获取消息气泡
         const chatBubble = messageDiv.querySelector('.chat-bubble');
         if (!chatBubble) return;
         
-        // 获取或创建思考容器
         let reasoningContainer = chatBubble.querySelector('.reasoning-container');
         
-        // 如果没有思考起始时间，设置一个
         if (!messageDiv.dataset.thinkingStartTime) {
             messageDiv.dataset.thinkingStartTime = Date.now().toString();
-            console.log('设置思考开始时间:', messageDiv.dataset.thinkingStartTime);
         }
         
-        // 如果没有思考容器，创建一个
         if (!reasoningContainer) {
             reasoningContainer = document.createElement('div');
             reasoningContainer.className = 'reasoning-container';
             
-            // 创建思考标题栏
             const reasoningHeader = document.createElement('div');
             reasoningHeader.className = 'reasoning-header';
             reasoningHeader.innerHTML = `
@@ -650,32 +553,25 @@ window.AIChatUI = {
                 </div>
             `;
             
-            // 创建思考内容区
             const reasoningContentDiv = document.createElement('div');
             reasoningContentDiv.className = 'reasoning-content markdown-content';
-            reasoningContentDiv.dataset.rawContent = ''; // 初始化空内容
+            reasoningContentDiv.dataset.rawContent = '';
             
-            // 添加到容器
             reasoningContainer.appendChild(reasoningHeader);
             reasoningContainer.appendChild(reasoningContentDiv);
             
-            // 添加到聊天气泡的最前面
             chatBubble.insertBefore(reasoningContainer, chatBubble.firstChild);
             
-            // 添加切换显示/隐藏的点击事件
             this.attachReasoningToggleEvent(reasoningHeader, reasoningContainer);
         }
         
-        // 更新思考内容
         const reasoningContentDiv = reasoningContainer.querySelector('.reasoning-content');
         if (reasoningContentDiv) {
-            // 累加原始内容
             if (!reasoningContentDiv.dataset.rawContent) {
                 reasoningContentDiv.dataset.rawContent = '';
             }
             reasoningContentDiv.dataset.rawContent += reasoningText;
             
-            // 处理内容并渲染
             const processedContent = reasoningContentDiv.dataset.rawContent
                 .replace(/\n/g, '\n')
                 .replace(/\s/g, function(match) {
@@ -684,26 +580,21 @@ window.AIChatUI = {
             
             reasoningContentDiv.innerHTML = this.parseMarkdown(processedContent);
             
-            // 处理代码高亮
             this.processCodeBlocks(reasoningContentDiv);
             
-            // 如果容器未折叠，滚动到底部
             if (!reasoningContainer.classList.contains('collapsed')) {
                 reasoningContentDiv.scrollTop = reasoningContentDiv.scrollHeight;
             }
         }
         
-        // 计算并更新思考时间显示 - 只有在思考未结束时才更新思考时间
         if (messageDiv.dataset.thinkingStartTime && messageDiv.dataset.reasoningEnded !== "true") {
             const thinkingElapsedSeconds = Math.round((Date.now() - parseInt(messageDiv.dataset.thinkingStartTime)) / 1000);
             
-            // 更新思考时间显示
             const thinkingTimeSpan = reasoningContainer.querySelector('.thinking-time span');
             if (thinkingTimeSpan) {
                 thinkingTimeSpan.textContent = `${thinkingElapsedSeconds}秒`;
             }
             
-            // 同时保存到数据属性中，确保其他地方可以获取到最新的思考时间
             reasoningContainer.dataset.thinkingTime = thinkingElapsedSeconds.toString();
             messageDiv.dataset.aiThinkingTime = thinkingElapsedSeconds.toString();
         }
@@ -713,19 +604,16 @@ window.AIChatUI = {
     attachReasoningToggleEvent(header, container) {
         if (!header || !container) return;
         
-        // 移除可能存在的旧事件
         const newHeader = header.cloneNode(true);
         if (header.parentNode) {
             header.parentNode.replaceChild(newHeader, header);
         }
         
-        // 添加新的事件监听
         newHeader.addEventListener('click', function(event) {
-            event.stopPropagation(); // 阻止冒泡
+            event.stopPropagation();
             
             container.classList.toggle('collapsed');
             
-            // 调整内容高度
             const content = container.querySelector('.reasoning-content');
             if (content) {
                 if (container.classList.contains('collapsed')) {
@@ -744,57 +632,42 @@ window.AIChatUI = {
     },
     
     // 完成AI消息处理
-    finalizeAIMessage(messageDiv) {
-        // 确保思考状态被移除
+    finalizeAIMessage(messageDiv, updateTime = true) {
         this.hideThinking(messageDiv);
         
-        // 移除打字效果光标
         const cursor = messageDiv.querySelector('.cursor');
         if (cursor) cursor.remove();
         
-        // 处理思考框
         const reasoningContainer = messageDiv.querySelector('.reasoning-container');
         if (reasoningContainer) {
-            // 更新标题
             const headerText = reasoningContainer.querySelector('.reasoning-header .title-text');
             if (headerText && headerText.textContent === 'AI正在思考中...') {
                 headerText.textContent = '查看AI思考过程';
             }
             
-            // 使用已保存的思考时间，如果存在的话
-            if (!messageDiv.dataset.reasoningEnded) {
-                // 如果还没有设置思考结束标记，更新思考时间
+            if (updateTime && !messageDiv.dataset.reasoningEnded) {
                 const thinkingTime = reasoningContainer.querySelector('.thinking-time span');
                 if (thinkingTime && messageDiv.dataset.thinkingStartTime) {
-                    // 使用已保存的思考时间，或者计算当前思考时间
                     let elapsedThinkingTime;
                     
                     if (messageDiv.dataset.aiThinkingTime) {
-                        // 优先使用已保存的思考时间
                         elapsedThinkingTime = parseInt(messageDiv.dataset.aiThinkingTime);
                     } else {
-                        // 计算思考时间
                         const thinkingEndTime = Date.now();
                         elapsedThinkingTime = Math.round((thinkingEndTime - parseInt(messageDiv.dataset.thinkingStartTime)) / 1000);
                         
-                        // 保存计算结果
                         messageDiv.dataset.aiThinkingTime = elapsedThinkingTime.toString();
                         reasoningContainer.dataset.thinkingTime = elapsedThinkingTime.toString();
                     }
                     
-                    // 更新显示
                     thinkingTime.textContent = `${elapsedThinkingTime}秒`;
-                    console.log('最终思考时间:', elapsedThinkingTime, '秒');
                 }
                 
-                // 设置思考结束标记
                 messageDiv.dataset.reasoningEnded = "true";
             }
             
-            // 消息完成后折叠思考框
             reasoningContainer.classList.add('collapsed');
             
-            // 调整高度
             const reasoningContent = reasoningContainer.querySelector('.reasoning-content');
             if (reasoningContent) {
                 reasoningContent.style.maxHeight = '0px';
@@ -802,97 +675,40 @@ window.AIChatUI = {
                 reasoningContent.style.paddingBottom = '0px';
             }
             
-            // 更新点击事件
             const reasoningHeader = reasoningContainer.querySelector('.reasoning-header');
             if (reasoningHeader) {
                 this.attachReasoningToggleEvent(reasoningHeader, reasoningContainer);
             }
         }
         
-        // 确保消息信息区域可见
         const messageInfo = messageDiv.querySelector('.message-info');
         if (messageInfo) {
             messageInfo.classList.remove('hidden');
         }
         
-        // 应用代码高亮
         const markdownDiv = messageDiv.querySelector('.markdown-content');
         if (markdownDiv) {
             this.processCodeBlocks(markdownDiv);
         }
-    },
-    
-    // 不更新时间的消息完成方法
-    finalizeAIMessageWithoutTimeUpdate(messageDiv) {
-        // 移除打字效果光标
-        const cursor = messageDiv.querySelector('.cursor');
-        if (cursor) cursor.remove();
-        
-        // 处理思考框
-        const reasoningContainer = messageDiv.querySelector('.reasoning-container');
-        if (reasoningContainer) {
-            // 更新标题
-            const headerText = reasoningContainer.querySelector('.reasoning-header .title-text');
-            if (headerText && headerText.textContent === 'AI正在思考中...') {
-                headerText.textContent = '查看AI思考过程';
-            }
-            
-            // 消息完成后折叠思考框
-            reasoningContainer.classList.add('collapsed');
-            
-            // 调整高度
-            const reasoningContent = reasoningContainer.querySelector('.reasoning-content');
-            if (reasoningContent) {
-                reasoningContent.style.maxHeight = '0px';
-                reasoningContent.style.paddingTop = '0px';
-                reasoningContent.style.paddingBottom = '0px';
-            }
-            
-            // 更新点击事件
-            const reasoningHeader = reasoningContainer.querySelector('.reasoning-header');
-            if (reasoningHeader) {
-                this.attachReasoningToggleEvent(reasoningHeader, reasoningContainer);
-            }
-        }
-        
-        // 确保消息信息区域可见
-        const messageInfo = messageDiv.querySelector('.message-info');
-        if (messageInfo) {
-            messageInfo.classList.remove('hidden');
-        }
-        
-        // 应用代码高亮
-        const markdownDiv = messageDiv.querySelector('.markdown-content');
-        if (markdownDiv) {
-            this.processCodeBlocks(markdownDiv);
-        }
-        
-        console.log('完成消息处理（跳过时间更新）');
     },
     
     // 显示AI思考状态
     showThinking(messageDiv) {
         if (!messageDiv) return;
         
-        console.log('显示AI思考状态');
-        
         const chatBubble = messageDiv.querySelector('.chat-bubble');
         if (!chatBubble) return;
         
-        // 检查是否已经有思考状态
         if (!chatBubble.querySelector('.ai-thinking')) {
-            // 添加思考中状态
             const thinkingDiv = document.createElement('div');
             thinkingDiv.className = 'ai-thinking';
             thinkingDiv.innerHTML = '<div class="thinking-spinner"></div>AI正在思考中...';
             
-            // 如果有Markdown内容，先清除
             const markdownContent = chatBubble.querySelector('.markdown-content');
             if (markdownContent) {
                 markdownContent.remove();
             }
             
-            // 添加到气泡前面
             const messageInfo = chatBubble.querySelector('.message-info');
             if (messageInfo) {
                 chatBubble.insertBefore(thinkingDiv, messageInfo);
@@ -901,10 +717,7 @@ window.AIChatUI = {
             }
         }
         
-        // 记录思考开始时间
         messageDiv.dataset.thinkingStartTime = Date.now().toString();
-        
-        // 标记思考未结束
         messageDiv.dataset.reasoningEnded = "false";
     },
     
@@ -915,22 +728,17 @@ window.AIChatUI = {
         const chatBubble = messageDiv.querySelector('.chat-bubble');
         if (!chatBubble) return;
         
-        // 查找思考状态元素
         const thinkingDiv = chatBubble.querySelector('.ai-thinking');
         if (thinkingDiv) {
-            // 移除思考状态
             thinkingDiv.remove();
         }
         
-        // 如果已记录思考开始时间，计算思考时间
         if (messageDiv.dataset.thinkingStartTime && !messageDiv.dataset.reasoningEnded) {
             const thinkingEndTime = Date.now();
             const elapsedThinkingTime = Math.round((thinkingEndTime - parseInt(messageDiv.dataset.thinkingStartTime)) / 1000);
             
-            // 保存思考时间数据
             messageDiv.dataset.aiThinkingTime = elapsedThinkingTime.toString();
             
-            // 更新思考容器的时间显示
             const reasoningContainer = chatBubble.querySelector('.reasoning-container');
             if (reasoningContainer) {
                 const thinkingTimeSpan = reasoningContainer.querySelector('.thinking-time span');
@@ -938,14 +746,12 @@ window.AIChatUI = {
                     thinkingTimeSpan.textContent = `${elapsedThinkingTime}秒`;
                 }
                 
-                // 更新标题
                 const headerText = reasoningContainer.querySelector('.reasoning-header .title-text');
                 if (headerText && headerText.textContent === 'AI正在思考中...') {
                     headerText.textContent = '查看AI思考过程';
                 }
             }
             
-            // 标记思考已结束
             messageDiv.dataset.reasoningEnded = "true";
         }
     },
@@ -965,19 +771,16 @@ window.AIChatUI = {
         const chatBubble = messageDiv.querySelector('.chat-bubble');
         if (!chatBubble) return null;
         
-        // 创建工具调用容器
         const toolCall = document.createElement('div');
-        toolCall.className = 'tool-call collapsed'; // 添加collapsed类使其默认折叠
+        toolCall.className = 'tool-call collapsed';
         toolCall.dataset.toolName = toolInfo.name;
         if (toolInfo.id) {
             toolCall.dataset.toolId = toolInfo.id;
         }
         
-        // 工具调用头部（名称和图标以及状态显示）
         const toolHeader = document.createElement('div');
         toolHeader.className = 'tool-call-header';
         
-        // 创建左侧标题部分
         const toolTitle = document.createElement('div');
         toolTitle.className = 'tool-call-title';
         toolTitle.innerHTML = `
@@ -992,55 +795,39 @@ window.AIChatUI = {
             </div>
         `;
         
-        // 创建右侧状态显示部分
         const toolStatus = document.createElement('div');
         toolStatus.className = 'tool-call-status';
         toolStatus.innerHTML = `<div class="status-indicator"></div>执行中...`;
         
-        // 将标题和状态添加到头部
         toolHeader.appendChild(toolTitle);
         toolHeader.appendChild(toolStatus);
         toolCall.appendChild(toolHeader);
         
-        // 创建内容容器（用于折叠/展开）
         const contentContainer = document.createElement('div');
         contentContainer.className = 'tool-call-content';
         toolCall.appendChild(contentContainer);
         
-        // 工具参数区域
         const argsDiv = document.createElement('div');
         argsDiv.className = 'tool-call-args';
         
-        // 将参数格式化为JSON字符串并美化显示
         let argsStr = '';
-        try {
-            // 尝试解析参数
-            if (typeof toolInfo.args === 'string') {
-                // 如果参数是字符串，尝试解析为JSON
-                if (toolInfo.args.trim().startsWith('{') || toolInfo.args.trim().startsWith('[')) {
-                    try {
-                        const parsed = JSON.parse(toolInfo.args);
-                        argsStr = JSON.stringify(parsed, null, 2);
-                    } catch {
-                        // 如果无法解析为JSON，直接显示原始字符串
-                        argsStr = toolInfo.args;
-                    }
-                } else {
+        if (typeof toolInfo.args === 'string') {
+            if (toolInfo.args.trim().startsWith('{') || toolInfo.args.trim().startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(toolInfo.args);
+                    argsStr = JSON.stringify(parsed, null, 2);
+                } catch {
                     argsStr = toolInfo.args;
                 }
-            } else if (typeof toolInfo.args === 'object') {
-                // 如果参数已经是对象，直接格式化
-                argsStr = JSON.stringify(toolInfo.args, null, 2);
             } else {
-                // 如果参数格式不确定，尝试直接字符串化
-                argsStr = String(toolInfo.args || '{}');
+                argsStr = toolInfo.args;
             }
-        } catch (e) {
-            console.error('解析工具参数失败:', e);
-            argsStr = typeof toolInfo.args === 'string' ? toolInfo.args : JSON.stringify(toolInfo.args || '{}');
+        } else if (typeof toolInfo.args === 'object') {
+            argsStr = JSON.stringify(toolInfo.args, null, 2);
+        } else {
+            argsStr = String(toolInfo.args || '{}');
         }
         
-        // 检查参数是否为空，如果是则显示加载提示
         if (!argsStr) {
             argsDiv.innerHTML = '<div class="args-loading">正在接收参数...</div>';
         } else {
@@ -1049,14 +836,11 @@ window.AIChatUI = {
         
         contentContainer.appendChild(argsDiv);
         
-        // 结果区域 - 初始为空，将在获取结果后更新
         const resultDiv = document.createElement('div');
         resultDiv.className = 'tool-call-result';
         resultDiv.innerHTML = '<div class="thinking-spinner"></div>执行中...';
         contentContainer.appendChild(resultDiv);
         
-        // 添加到消息中
-        // 查找合适的位置 - 如果有markdown-content，添加在它之前
         const markdownContent = chatBubble.querySelector('.markdown-content');
         const messageInfo = chatBubble.querySelector('.message-info');
         
@@ -1068,16 +852,14 @@ window.AIChatUI = {
             chatBubble.appendChild(toolCall);
         }
         
-        // 添加折叠/展开事件处理
         const toggleButton = toolCall.querySelector('.tool-call-toggle');
         if (toggleButton) {
             toggleButton.addEventListener('click', (e) => {
-                e.stopPropagation(); // 防止事件冒泡
+                e.stopPropagation();
                 toolCall.classList.toggle('collapsed');
             });
         }
         
-        // 滚动到底部
         if (window.AIChatApp.elements.chatMessages) {
             window.AIChatApp.elements.chatMessages.scrollTop = window.AIChatApp.elements.chatMessages.scrollHeight;
         }
@@ -1099,34 +881,27 @@ window.AIChatUI = {
     updateToolCallResult(messageDiv, toolName, result, isError = false, index = -1, toolId = null, executionTime = null, tokenUsage = null) {
         if (!messageDiv) return;
         
-        console.log(`工具 ${toolName} token使用情况:`, tokenUsage);
-        
-        // 查找工具调用元素
         const toolCallElements = messageDiv.querySelectorAll('.tool-call');
         if (!toolCallElements.length) return;
         
-        // 找到要更新的工具调用元素
         let targetToolCall;
         if (index >= 0 && toolCallElements.length > index) {
             targetToolCall = toolCallElements[index];
         } else if (toolId) {
-            // 通过ID查找
             targetToolCall = Array.from(toolCallElements).find(el => el.dataset.toolId === toolId);
         } else {
-            // 默认使用最后一个
             targetToolCall = toolCallElements[toolCallElements.length - 1];
         }
         
         if (!targetToolCall) return;
         
-        // 查找或创建结果容器
         let resultDiv = targetToolCall.querySelector('.tool-call-result');
         if (!resultDiv) {
             resultDiv = document.createElement('div');
             resultDiv.className = 'tool-call-result';
             targetToolCall.appendChild(resultDiv);
         }
-        // 转换结果为字符串
+        
         let resultStr = '';
         if (result === null || result === undefined) {
             resultStr = '';
@@ -1136,10 +911,8 @@ window.AIChatUI = {
             resultStr = String(result);
         }
         
-        // 构建结果HTML
         let resultHtml = '';
         
-        // 使用不同样式显示错误结果
         if (isError) {
             resultHtml = `<strong class="error">错误:</strong><pre class="error-result">${resultStr}</pre>`;
             resultDiv.classList.add('error');
@@ -1148,15 +921,12 @@ window.AIChatUI = {
             resultDiv.classList.remove('error');
         }
 
-        // 更新HTML内容
         resultDiv.innerHTML = resultHtml;
         
-        // 更新状态显示
         const statusDiv = targetToolCall.querySelector('.tool-call-status');
         if (statusDiv) {
             let statusHtml = '';
             
-            // 执行状态指示器和文本
             if (isError) {
                 statusHtml += `
                     <div class="status-indicator error"></div>
@@ -1169,29 +939,24 @@ window.AIChatUI = {
                 `;
             }
             
-            // 执行时间显示 (始终显示，即使折叠)
             if (executionTime !== null && executionTime !== undefined) {
                 const timeText = executionTime < 1000 
                     ? `${executionTime}ms` 
                     : `${(executionTime / 1000).toFixed(2)}s`;
                 statusHtml += `<span class="tool-execution-time">${timeText}</span>`;
                 
-                // 保存执行时间到dataset以供其他地方使用
                 targetToolCall.dataset.executionTime = executionTime;
             }
             
-            // Token消耗显示 (简化版显示在状态栏)
             if (tokenUsage && tokenUsage.totalTokens) {
                 statusHtml += `<span class="tool-token-usage" title="输入: ${tokenUsage.promptTokens || 0}|输出: ${tokenUsage.completionTokens || 0}">tokens:${tokenUsage.totalTokens}</span>`;
                 
-                // 保存token消耗到dataset以供其他地方使用
                 targetToolCall.dataset.tokenUsage = tokenUsage.totalTokens;
             }
             
             statusDiv.innerHTML = statusHtml;
         }
         
-        // 滚动到底部
         if (window.AIChatApp.elements.chatMessages) {
             window.AIChatApp.elements.chatMessages.scrollTop = window.AIChatApp.elements.chatMessages.scrollHeight;
         }
@@ -1207,19 +972,16 @@ window.AIChatUI = {
         const chatBubble = messageDiv.querySelector('.chat-bubble');
         if (!chatBubble) return;
         
-        // 确保思考状态已移除
         const thinkingIndicator = chatBubble.querySelector('.ai-thinking');
         if (thinkingIndicator) {
             this.hideThinking(messageDiv);
         }
         
-        // 查找或创建markdown内容区域
         let markdownDiv = chatBubble.querySelector('.markdown-content:not(.reasoning-content)');
         if (!markdownDiv) {
             markdownDiv = document.createElement('div');
             markdownDiv.className = 'markdown-content';
             
-            // 添加到合适的位置 - 在所有工具调用之后、消息信息之前
             const messageInfo = chatBubble.querySelector('.message-info');
             if (messageInfo) {
                 chatBubble.insertBefore(markdownDiv, messageInfo);
@@ -1228,13 +990,10 @@ window.AIChatUI = {
             }
         }
         
-        // 更新markdown内容
         markdownDiv.innerHTML = this.parseMarkdown(text);
         
-        // 应用代码高亮
         this.processCodeBlocks(markdownDiv);
         
-        // 确保光标存在
         let cursor = chatBubble.querySelector('.cursor');
         if (!cursor) {
             cursor = document.createElement('span');
@@ -1242,7 +1001,6 @@ window.AIChatUI = {
             chatBubble.insertBefore(cursor, chatBubble.querySelector('.message-info'));
         }
         
-        // 滚动到底部
         if (window.AIChatApp.elements.chatMessages) {
             window.AIChatApp.elements.chatMessages.scrollTop = window.AIChatApp.elements.chatMessages.scrollHeight;
         }
@@ -1251,15 +1009,10 @@ window.AIChatUI = {
     // 显示历史记录模态窗口
     showHistoryModal() {
         const modal = document.getElementById('history-modal');
-        if (!modal) {
-            console.error('找不到历史记录模态窗口');
-            return;
-        }
+        if (!modal) return;
         
-        // 显示模态窗口
         modal.style.display = 'block';
         
-        // 设置关闭按钮事件
         const closeBtn = modal.querySelector('.close');
         if (closeBtn) {
             closeBtn.onclick = () => {
@@ -1267,41 +1020,31 @@ window.AIChatUI = {
             };
         }
         
-        // 点击模态窗口外部区域关闭
         window.onclick = (event) => {
             if (event.target === modal) {
                 modal.style.display = 'none';
             }
         };
         
-        // 加载会话列表
         this.loadSessionList();
     },
     
     // 加载会话列表
     loadSessionList() {
-        // 获取当前供应商
         const currentProvider = window.AIChatApp.elements.provider
             ? window.AIChatApp.elements.provider.value 
             : '未知供应商';
         
-        // 获取会话列表容器
         const sessionsContainer = document.getElementById('sessions-container');
-        if (!sessionsContainer) {
-            console.error('找不到会话列表容器');
-            return;
-        }
+        if (!sessionsContainer) return;
         
-        // 显示加载中状态
         sessionsContainer.innerHTML = '<div class="loading-sessions">正在加载会话列表...</div>';
         
-        // 更新会话列表标题
         const listHeader = document.querySelector('.session-list-header h3');
         if (listHeader) {
             listHeader.textContent = `${currentProvider} 会话列表`;
         }
         
-        // 从数据库加载会话，传入当前供应商以过滤结果
         window.AIChatData.getAllChatSessions(currentProvider)
             .then(sessions => {
                 if (sessions.length === 0) {
@@ -1310,12 +1053,9 @@ window.AIChatUI = {
                 }
                 
                 this.renderSessionList(sessions);
-                
-                // 设置搜索功能
                 this.setupSessionSearch();
             })
             .catch(error => {
-                console.error('加载会话列表失败:', error);
                 sessionsContainer.innerHTML = `<div class="loading-sessions error">加载会话列表失败: ${error.message}</div>`;
             });
     },
@@ -1325,86 +1065,62 @@ window.AIChatUI = {
         const sessionsContainer = document.getElementById('sessions-container');
         if (!sessionsContainer) return;
         
-        // 如果没有会话，显示提示信息
         if (sessions.length === 0) {
             sessionsContainer.innerHTML = '<div class="loading-sessions">暂无聊天会话</div>';
             return;
         }
         
-        // 清空列表
         sessionsContainer.innerHTML = '';
         
-        // 创建会话项
         sessions.forEach(session => {
+            if (!session.id || session.id === 'session_NaN' || !session.id.startsWith('session_')) {
+                return;
+            }
+            
+            const sessionItem = document.createElement('div');
+            sessionItem.className = 'session-item';
+            sessionItem.dataset.sessionId = session.id;
+            
+            const sessionIdDisplay = session.id.replace('session_', '');
+            
+            if (!sessionIdDisplay || sessionIdDisplay === 'NaN' || sessionIdDisplay === 'undefined') {
+                return;
+            }
+            
+            let formattedDate = '未知时间';
             try {
-                // 验证会话ID是否有效
-                if (!session.id || session.id === 'session_NaN' || !session.id.startsWith('session_')) {
-                    console.warn('跳过渲染无效会话ID:', session.id);
-                    return; // 跳过这个会话
+                formattedDate = new Date(session.timestamp).toLocaleString();
+                if (formattedDate === 'Invalid Date') {
+                    formattedDate = '未知时间';
                 }
-                
-                const sessionItem = document.createElement('div');
-                sessionItem.className = 'session-item';
-                sessionItem.dataset.sessionId = session.id;
-                
-                // 提取会话ID，不再截断而是完整显示
-                // 移除session_前缀，使用完整ID
-                const sessionIdDisplay = session.id.replace('session_', '');
-                
-                // 再次验证显示ID是否有效
-                if (!sessionIdDisplay || sessionIdDisplay === 'NaN' || sessionIdDisplay === 'undefined') {
-                    console.warn('会话显示ID无效:', sessionIdDisplay);
-                    return; // 跳过这个会话
-                }
-                
-                // 格式化日期，只保留日期和时间，省略毫秒
-                let formattedDate = '未知时间';
-                try {
-                    formattedDate = new Date(session.timestamp).toLocaleString();
-                    // 检查日期是否有效
-                    if (formattedDate === 'Invalid Date') {
-                        formattedDate = '未知时间';
-                    }
-                } catch (e) {
-                    console.warn('日期格式化失败:', e);
-                }
-                
-                sessionItem.innerHTML = `
-                    <div class="session-name">会话: ${sessionIdDisplay}</div>
-                    <div class="session-modal-info">
-                        <span class="session-date">${formattedDate}</span>
-                        <span class="session-count">${session.messageCount || 0} 条消息</span>
-                    </div>
-                `;
-                
-                // 添加点击事件
-                sessionItem.addEventListener('click', () => {
-                    // 移除其他会话的选中状态
-                    sessionsContainer.querySelectorAll('.session-item').forEach(item => {
-                        item.classList.remove('active');
-                    });
-                    
-                    // 添加选中状态
-                    sessionItem.classList.add('active');
-                    
-                    // 加载会话详情
-                    this.loadSessionDetail(session.id);
-                    
-                    // 启用操作按钮
-                    const loadButton = document.getElementById('load-session');
-                    const deleteButton = document.getElementById('delete-session');
-                    if (loadButton) loadButton.disabled = false;
-                    if (deleteButton) deleteButton.disabled = false;
+            } catch (e) {}
+            
+            sessionItem.innerHTML = `
+                <div class="session-name">会话: ${sessionIdDisplay}</div>
+                <div class="session-modal-info">
+                    <span class="session-date">${formattedDate}</span>
+                    <span class="session-count">${session.messageCount || 0} 条消息</span>
+                </div>
+            `;
+            
+            sessionItem.addEventListener('click', () => {
+                sessionsContainer.querySelectorAll('.session-item').forEach(item => {
+                    item.classList.remove('active');
                 });
                 
-                sessionsContainer.appendChild(sessionItem);
-            } catch (error) {
-                console.error('渲染会话项时出错:', error, '会话:', session);
-                // 继续处理下一个会话，不中断循环
-            }
+                sessionItem.classList.add('active');
+                
+                this.loadSessionDetail(session.id);
+                
+                const loadButton = document.getElementById('load-session');
+                const deleteButton = document.getElementById('delete-session');
+                if (loadButton) loadButton.disabled = false;
+                if (deleteButton) deleteButton.disabled = false;
+            });
+            
+            sessionsContainer.appendChild(sessionItem);
         });
         
-        // 检查是否有渲染出的会话
         if (sessionsContainer.childElementCount === 0) {
             sessionsContainer.innerHTML = '<div class="no-sessions">暂无有效的聊天会话</div>';
         }
@@ -1423,7 +1139,6 @@ window.AIChatUI = {
                 const sessionName = item.querySelector('.session-name').textContent.toLowerCase();
                 const sessionDate = item.querySelector('.session-date').textContent.toLowerCase();
                 
-                // 如果名称或日期包含搜索词，显示该项，否则隐藏
                 if (sessionName.includes(searchTerm) || sessionDate.includes(searchTerm)) {
                     item.style.display = 'block';
                 } else {
@@ -1438,27 +1153,19 @@ window.AIChatUI = {
         const sessionMessages = document.getElementById('session-messages');
         const sessionTitle = document.getElementById('session-detail-title');
         
-        if (!sessionMessages || !sessionTitle) {
-            console.error('找不到会话详情容器');
-            return;
-        }
+        if (!sessionMessages || !sessionTitle) return;
         
-        // 移除session_前缀并完整显示ID
         const sessionIdDisplay = sessionId.replace('session_', '');
         
-        // 更新标题
         sessionTitle.textContent = `会话详情: ${sessionIdDisplay}`;
         
-        // 显示加载中
         sessionMessages.innerHTML = '<div class="loading-sessions">正在加载会话消息...</div>';
         
-        // 加载会话消息
         window.AIChatData.getSessionMessages(sessionId)
             .then(messages => {
                 this.renderSessionMessages(messages, sessionId);
             })
             .catch(error => {
-                console.error('加载会话消息失败:', error);
                 sessionMessages.innerHTML = `<div class="loading-sessions error">加载会话消息失败: ${error.message}</div>`;
             });
     },
@@ -1468,28 +1175,23 @@ window.AIChatUI = {
         const sessionMessages = document.getElementById('session-messages');
         if (!sessionMessages) return;
         
-        // 如果没有消息，显示提示信息
         if (messages.length === 0) {
             sessionMessages.innerHTML = '<div class="no-session-selected">此会话暂无消息</div>';
             return;
         }
         
-        // 清空消息容器
         sessionMessages.innerHTML = '';
         
-        // 添加每一条消息
         messages.forEach(message => {
             if (!message.role || !message.content) return;
             
             const messageItem = document.createElement('div');
             messageItem.className = 'session-message';
             
-            // 根据消息角色设置不同样式
             const isUser = message.role === 'user';
             messageItem.style.backgroundColor = isUser ? '#f1f3f5' : '#fff';
             messageItem.style.borderLeft = isUser ? '3px solid #4dabf7' : '3px solid #69db7c';
             
-            // 格式化时间
             const time = new Date(message.timestamp).toLocaleString();
             
             messageItem.innerHTML = `
@@ -1501,42 +1203,29 @@ window.AIChatUI = {
             sessionMessages.appendChild(messageItem);
         });
         
-        // 设置加载和删除会话按钮事件
         this.setupSessionActions(sessionId);
     },
     
     // 设置会话操作按钮事件
     setupSessionActions(sessionId) {
-        // 设置按钮动作
         const loadButton = document.getElementById('load-session');
         const deleteButton = document.getElementById('delete-session');
         
-        if (!loadButton || !deleteButton) {
-            console.error('未找到会话操作按钮');
-            return;
-        }
+        if (!loadButton || !deleteButton) return;
         
-        // 加载会话
         loadButton.onclick = async () => {
-            // 移除确认对话框，直接执行加载操作
             try {
-                // 获取会话详情
                 const messages = await window.AIChatData.getSessionMessages(sessionId);
-                console.log('获取到会话消息:', messages);
                 
-                // 验证消息数组
                 if (!Array.isArray(messages)) {
-                    console.error('会话数据结构错误:', messages);
                     throw new Error('会话数据结构错误');
                 }
                 
                 if (messages.length === 0) {
-                    console.warn('该会话没有消息记录');
                     window.AIChatApp.state.sessionId = sessionId;
                     window.AIChatApp.clearChat();
                     window.AIChatApp.updateSessionDisplay();
                     
-                    // 隐藏模态窗口
                     const modal = document.getElementById('history-modal');
                     modal.style.display = 'none';
                     
@@ -1544,40 +1233,30 @@ window.AIChatUI = {
                     return;
                 }
                 
-                // 清空当前聊天记录
                 window.AIChatApp.clearChat();
-                
-                // 设置当前会话ID
                 window.AIChatApp.state.sessionId = sessionId;
-                
-                // 更新会话显示
                 window.AIChatApp.updateSessionDisplay();
                 
-                // 添加消息到聊天界面（仅显示最新的10条消息）
                 const displayMessages = messages.slice(-10);
                 displayMessages.forEach(msg => {
                     if (msg.role === 'user') {
                         this.addUserMessage(msg.content);
                     } else if (msg.role === 'assistant') {
                         const aiMessage = this.addAIMessage(msg.content);
-                        this.finalizeAIMessageWithoutTimeUpdate(aiMessage);
+                        this.finalizeAIMessage(aiMessage, false);
                     }
                 });
                 
-                // 隐藏模态窗口
                 const modal = document.getElementById('history-modal');
                 modal.style.display = 'none';
                 
                 this.showTooltip('已加载会话');
             } catch (error) {
-                console.error('加载会话失败:', error);
                 this.showTooltip('加载会话失败: ' + error.message);
             }
         };
         
-        // 删除会话
         deleteButton.onclick = async () => {
-            // 使用自定义确认对话框替代系统confirm
             this.showConfirm({
                 title: '删除确认',
                 message: '确定要删除此会话吗？此操作无法撤销！',
@@ -1585,32 +1264,24 @@ window.AIChatUI = {
                 cancelText: '取消',
                 onConfirm: async () => {
                     try {
-                        // 从数据库中删除会话
                         await window.AIChatData.deleteSessionMessages(sessionId);
                         
-                        // 刷新会话列表
                         this.loadSessionList();
                         
-                        // 清空详情区域
                         const sessionMessages = document.getElementById('session-messages');
                         sessionMessages.innerHTML = `<div class="no-session-selected">请从左侧选择一个会话</div>`;
                         
-                        // 禁用按钮
                         loadButton.disabled = true;
                         deleteButton.disabled = true;
                         
-                        // 更新标题
                         document.getElementById('session-detail-title').textContent = '会话详情';
                         
                         this.showTooltip('已删除会话');
                         
-                        // 自动加载当前供应商的最新会话
                         window.AIChatData.loadLatestProviderSession()
                             .then(() => {
-                                // 更新会话显示
                                 window.AIChatApp.updateSessionDisplay();
                                 
-                                // 关闭历史记录模态窗口
                                 const modal = document.getElementById('history-modal');
                                 if (modal) {
                                     modal.style.display = 'none';
@@ -1619,11 +1290,9 @@ window.AIChatUI = {
                                 this.showTooltip('已加载最新会话');
                             })
                             .catch(error => {
-                                console.error('自动加载最新会话失败:', error);
                                 this.showTooltip('加载最新会话失败，请手动选择会话');
                             });
                     } catch (error) {
-                        console.error('删除会话失败:', error);
                         this.showTooltip('删除会话失败: ' + error.message);
                     }
                 }
@@ -1634,20 +1303,15 @@ window.AIChatUI = {
     // 显示设置面板
     showSettingsModal() {
         const modal = document.getElementById('settings-modal');
-        if (!modal) {
-            console.error('设置模态窗口未找到');
-            return;
-        }
+        if (!modal) return;
         
         modal.style.display = 'block';
         
-        // 为关闭按钮设置事件
         document.querySelector('#settings-modal .close').onclick = () => {
             modal.style.display = 'none';
             this.saveSettings();
         };
         
-        // 点击模态窗口外部时关闭
         window.onclick = (event) => {
             if (event.target === modal) {
                 modal.style.display = 'none';
@@ -1655,7 +1319,6 @@ window.AIChatUI = {
             }
         };
         
-        // 重置设置按钮事件
         const resetBtn = document.getElementById('reset-settings');
         if (resetBtn) {
             resetBtn.onclick = () => {
@@ -1665,47 +1328,36 @@ window.AIChatUI = {
         }
     },
     
-    // 显示快捷消息模态窗口
     showQuickMessagesModal() {
         window.AIChatQuickMessage.showQuickMessagesModal();
     },
 
-    // 在已有聊天内容后追加显示快捷消息气泡
     showAppendedQuickMessages() {
         window.AIChatQuickMessage.showAppendedQuickMessages();
     },
     
-    // 显示随机快捷消息气泡
     showRandomQuickMessages() {
         window.AIChatQuickMessage.showRandomQuickMessages();
     },
 
-    // 保存设置
     saveSettings() {
-        // 获取设置值
         const app = window.AIChatApp;
         const elements = app.elements;
         
-        // 更新响应模式设置
         app.state.isStreamMode = elements.modeStream.checked;
-        
-        // 更新UI以反映新的模式设置
         app.UI.updateUIForMode();
         
-        // 更新模型设置
         app.state.model = elements.model.value;
         app.state.temperature = parseFloat(elements.temperature.value);
         app.state.maxTokens = parseInt(elements.maxTokens.value);
         
-        // 更新工具设置
         app.state.enableMCPTools = elements.enableMCPTools.checked;
         app.state.enableParamValidation = elements.enableParamValidation.checked;
+        app.state.enablePrompts = elements.enablePrompts.checked
         
-        // 更新历史消息设置
         app.state.enableMessageHistory = elements.enableMessageHistory.checked;
         app.state.messageHistoryCount = parseInt(elements.messageHistoryCount.value);
         
-        // 保存到本地存储
         try {
             const settings = {
                 isStreamMode: app.state.isStreamMode,
@@ -1714,32 +1366,29 @@ window.AIChatUI = {
                 maxTokens: app.state.maxTokens,
                 enableMCPTools: app.state.enableMCPTools,
                 enableParamValidation: app.state.enableParamValidation,
+                enablePrompts: app.state.enablePrompts,
                 enableMessageHistory: app.state.enableMessageHistory,
                 messageHistoryCount: app.state.messageHistoryCount
             };
             
             localStorage.setItem('aiChatSettings', JSON.stringify(settings));
-        } catch (error) {
-            console.error('保存设置到本地存储失败:', error);
-        }
+        } catch (error) {}
     },
     
-    // 重置设置为默认值
     resetSettings() {
         const app = window.AIChatApp;
         const elements = app.elements;
         
-        // 重置为默认值
         elements.modeStream.checked = true;
         elements.modeRegular.checked = false;
         elements.temperature.value = 0.7;
         elements.maxTokens.value = 2048;
         elements.enableMCPTools.checked = true;
         elements.enableParamValidation.checked = false;
+        elements.enablePrompts.checked = true;
         elements.enableMessageHistory.checked = false;
         elements.messageHistoryCount.value = 3;
         
-        // 保存设置
         this.saveSettings();
     },
     
@@ -1786,6 +1435,11 @@ window.AIChatUI = {
                 app.state.enableParamValidation = settings.enableParamValidation;
             }
             
+            if (typeof settings.enablePrompts === 'boolean') {
+                elements.enablePrompts.checked = settings.enablePrompts;
+                app.state.enablePrompts = settings.enablePrompts;
+            }
+
             if (typeof settings.enableMessageHistory === 'boolean') {
                 elements.enableMessageHistory.checked = settings.enableMessageHistory;
                 app.state.enableMessageHistory = settings.enableMessageHistory;
@@ -1802,54 +1456,35 @@ window.AIChatUI = {
 
     // 在DOM更新后添加鼠标滚轮事件处理
     bindTableWheelEvents() {
-        // 查找所有需要添加滚轮事件的表格容器
         document.querySelectorAll('.table-container[data-needs-wheel-handler="true"]').forEach(container => {
-            // 移除标记，防止重复绑定
             container.removeAttribute('data-needs-wheel-handler');
             
-            // 添加鼠标滚轮事件监听
             container.addEventListener('wheel', (event) => {
-                // 始终阻止默认滚动行为
                 event.preventDefault();
-                
-                // 使用deltaY进行水平滚动
                 container.scrollLeft += event.deltaY;
-                
-                // 调试信息
-                console.log('滚轮事件触发', event.deltaY, container.scrollLeft);
-            }, { passive: false }); // passive: false 允许我们阻止默认行为
+            }, { passive: false });
         });
-        
-        // 在DOM更新完成后立即确认滚轮事件处理器是否已添加
-        console.log('已添加水平滚动事件处理器到', document.querySelectorAll('.table-container').length, '个表格');
     },
 
     // 显示MCP服务器选择模态框
     showMCPServersModal() {
         const modal = document.getElementById('mcp-servers-modal');
-        if (!modal) {
-            console.error('MCP服务器选择模态窗口未找到');
-            return;
-        }
+        if (!modal) return;
         
         modal.style.display = 'block';
         
-        // 为关闭按钮设置事件
         document.querySelector('#mcp-servers-modal .close').onclick = () => {
             modal.style.display = 'none';
         };
         
-        // 点击模态窗口外部时关闭
         window.onclick = (event) => {
             if (event.target === modal) {
                 modal.style.display = 'none';
             }
         };
         
-        // 加载服务器列表
         this.loadMCPServersList();
         
-        // 设置按钮事件
         const saveBtn = document.getElementById('mcp-save');
         const cancelBtn = document.getElementById('mcp-cancel');
         const selectAllBtn = document.getElementById('mcp-select-all');
@@ -1887,50 +1522,32 @@ window.AIChatUI = {
         const container = document.getElementById('mcp-modal-servers-list');
         if (!container) return;
         
-        // 清空容器
         container.innerHTML = '<div class="loading-servers">加载服务器列表...</div>';
         
-        // 获取服务器列表
         app.loadMCPServers().then(() => {
-            // 检查并自动清理不可用的服务器
             const initialEnabledIds = [...app.state.enabledServerIds];
             
-            // 过滤掉不可用的服务器ID（已断开连接或不存在的服务器）
             app.state.enabledServerIds = app.state.enabledServerIds.filter(id => {
                 const server = app.state.mcpServers.find(s => s.id === id);
                 return server !== undefined;
             });
             
-            // 更新服务器的启用状态
             app.state.mcpServers.forEach(server => {
                 server.isEnabled = app.state.enabledServerIds.includes(server.id);
             });
             
-            // 如果有不可用的服务器被移除了，则保存更新后的列表
             const hasChanges = initialEnabledIds.length !== app.state.enabledServerIds.length;
             if (hasChanges) {
-                console.log('检测到不可用的服务器，从启用列表中移除', {
-                    before: initialEnabledIds,
-                    after: app.state.enabledServerIds
-                });
-                
-                // 保存更新后的启用列表
                 app.API.saveEnabledMCPServers(app.state.enabledServerIds)
                     .then(() => {
                         this.showTooltip('已自动移除不可用的服务器');
                     })
-                    .catch(err => {
-                        console.error('保存更新后的服务器列表失败:', err);
-                    });
+                    .catch(err => {});
             }
             
-            // 渲染服务器列表
             this.renderMCPServersList();
-            
-            // 更新MCP按钮计数器
             this.updateMCPButtonCounter();
         }).catch(error => {
-            console.error('加载MCP服务器列表失败:', error);
             container.innerHTML = '<div class="no-servers">加载服务器列表失败，请重试</div>';
         });
     },
@@ -1941,7 +1558,6 @@ window.AIChatUI = {
         const container = document.getElementById('mcp-modal-servers-list');
         if (!container) return;
         
-        // 清空容器
         container.innerHTML = '';
         
         if (app.state.mcpServers.length === 0) {
@@ -1949,9 +1565,7 @@ window.AIChatUI = {
             return;
         }
         
-        // 为每个服务器创建卡片
         app.state.mcpServers.forEach(server => {
-            // 获取服务器选中状态
             const isSelected = server.isEnabled;
             
             const serverCard = document.createElement('div');
@@ -1959,16 +1573,13 @@ window.AIChatUI = {
             serverCard.dataset.serverId = server.id;
             serverCard.dataset.selected = isSelected ? 'true' : 'false';
             
-            // 创建选中状态指示器
             const statusIndicator = document.createElement('div');
             statusIndicator.className = 'selection-indicator';
             
-            // 创建服务器名称
             const serverName = document.createElement('div');
             serverName.className = 'server-name';
             serverName.textContent = server.name;
             
-            // 如果有描述，添加描述
             if (server.description) {
                 const serverDesc = document.createElement('div');
                 serverDesc.className = 'server-description';
@@ -1976,23 +1587,16 @@ window.AIChatUI = {
                 serverCard.appendChild(serverDesc);
             }
             
-            // 添加事件监听 - 对整个卡片添加点击事件
             serverCard.addEventListener('click', () => {
-                // 获取当前选中状态并反转
                 const currentSelected = serverCard.dataset.selected === 'true';
                 const newSelected = !currentSelected;
                 
-                // 更新数据属性
                 serverCard.dataset.selected = newSelected ? 'true' : 'false';
-                
-                // 更新卡片样式
                 serverCard.classList.toggle('selected', newSelected);
                 
-                // 更新服务器对象状态
                 server.isEnabled = newSelected;
             });
             
-            // 组装并添加到容器
             serverCard.appendChild(statusIndicator);
             serverCard.appendChild(serverName);
             
@@ -2000,7 +1604,6 @@ window.AIChatUI = {
         });
     },
     
-    // 全选MCP服务器
     selectAllMCPServers() {
         const app = window.AIChatApp;
         
@@ -2009,7 +1612,6 @@ window.AIChatUI = {
             return;
         }
         
-        // 选中所有服务器
         app.state.mcpServers.forEach(server => {
             const card = document.querySelector(`#mcp-modal-servers-list .server-card[data-server-id="${server.id}"]`);
             
@@ -2021,11 +1623,9 @@ window.AIChatUI = {
         });
     },
     
-    // 取消全选MCP服务器
     deselectAllMCPServers() {
         const app = window.AIChatApp;
         
-        // 取消选中所有服务器
         app.state.mcpServers.forEach(server => {
             const card = document.querySelector(`#mcp-modal-servers-list .server-card[data-server-id="${server.id}"]`);
             
@@ -2037,63 +1637,48 @@ window.AIChatUI = {
         });
     },
     
-    // 保存MCP服务器列表
     saveMCPServersList() {
         const app = window.AIChatApp;
         
-        // 收集选中的服务器ID
         const enabledIds = [];
         app.state.mcpServers.forEach(server => {
             const card = document.querySelector(`#mcp-modal-servers-list .server-card[data-server-id="${server.id}"]`);
             
-            // 保存被选中的服务器
             if (card && card.dataset.selected === 'true') {
                 enabledIds.push(server.id);
-                
-                // 更新服务器状态
                 server.isEnabled = true;
             } else {
                 server.isEnabled = false;
             }
         });
         
-        // 更新状态
         app.state.enabledServerIds = enabledIds;
         
-        // 保存到服务器
         app.API.saveEnabledMCPServers(enabledIds)
             .then(() => {
                 this.showTooltip(`已更新启用的MCP服务器，当前启用 ${enabledIds.length} 个服务器`);
                 
-                // 更新MCP按钮计数器
                 this.updateMCPButtonCounter();
-                
-                // 更新设置界面中的服务器列表
                 app.updateMCPServersUI();
             })
             .catch(error => {
-                console.error('保存MCP服务器启用状态失败:', error);
                 this.showTooltip('保存MCP服务器启用状态失败');
             });
     },
     
-    // 更新MCP按钮计数器
     updateMCPButtonCounter() {
         const app = window.AIChatApp;
         const mcpButton = document.getElementById('mcp-quick-access');
         
         if (!mcpButton) return;
         
-        // 移除旧的计数器
         const oldCounter = mcpButton.querySelector('.counter');
         if (oldCounter) {
             oldCounter.remove();
         }
         
-        // 获取已启用的服务器数量
         const enabledCount = app.state.enabledServerIds.length;
         
-        // 如果有启用的服务器，显示计数器
         if (enabledCount > 0) {
             const counter = document.createElement('span');
             counter.className = 'counter';
@@ -2101,4 +1686,4 @@ window.AIChatUI = {
             mcpButton.appendChild(counter);
         }
     },
-}; 
+};
