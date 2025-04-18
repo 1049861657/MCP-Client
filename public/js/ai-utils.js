@@ -18,48 +18,7 @@ window.AIChatUtils = {
     
     // 初始化事件监听器
     initEvents() {
-        console.log('初始化工具模块事件增强功能...');
-        
         const app = this.app;
-        
-        // MCP工具开关的增强功能绑定
-        if (app.elements.enableMCPTools) {
-            // 只添加显示提示功能，不重新绑定事件
-            const existingHandler = app.elements.enableMCPTools.onchange;
-            app.elements.enableMCPTools.onchange = (e) => {
-                // 先执行原有处理器
-                if (existingHandler) existingHandler.call(app.elements.enableMCPTools, e);
-                
-                // 如果启用了工具，尝试加载工具列表
-                if (app.state.enableMCPTools) {
-                    app.loadMCPTools();
-                    app.UI.showTooltip('已启用MCP工具调用功能');
-                } else {
-                    app.UI.showTooltip('已禁用MCP工具调用功能');
-                }
-                
-                console.log('MCP工具模式:', app.state.enableMCPTools ? '启用' : '禁用');
-            };
-        }
-        
-        // 参数校验开关的增强功能绑定
-        if (app.elements.enableParamValidation) {
-            // 只添加显示提示功能，不重新绑定事件
-            const existingHandler = app.elements.enableParamValidation.onchange;
-            app.elements.enableParamValidation.onchange = (e) => {
-                // 先执行原有处理器
-                if (existingHandler) existingHandler.call(app.elements.enableParamValidation, e);
-                
-                // 显示提示
-                if (app.state.enableParamValidation) {
-                    app.UI.showTooltip('已启用参数校验功能');
-                } else {
-                    app.UI.showTooltip('已禁用参数校验功能');
-                }
-                
-                console.log('参数校验模式:', app.state.enableParamValidation ? '启用' : '禁用');
-            };
-        }
         
         // 供应商变化的增强功能绑定
         if (app.elements.provider) {

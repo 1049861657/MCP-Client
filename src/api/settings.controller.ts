@@ -4,6 +4,7 @@ import { ProviderTypes } from '../config/app.config.js';
 // 导入提供商重载功能
 import { reloadProviders } from '../servers/openai.js';
 import { ConfigService } from '../services/config.service.js';
+import { ToolsConfig } from '../config/feature-config.js';
 
 /**
  * 配置管理控制器
@@ -102,5 +103,48 @@ export class SettingsController {
         details: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  /**
+  * 获取工具提示词
+  */
+  static async getToolPrompt(req: Request, res: Response): Promise<void> {
+      try {
+        const prompt = await ConfigService.getSetting('mcpToolPrompt');
+        
+        res.json({
+          success: true,
+          prompt
+        });
+      } catch (error: any) {
+        Logger.error('API', '获取工具提示词失败:', error);
+        res.status(500).json({ error: error.message });
+      }
+    }
+  
+  /**
+   * 保存工具提示词
+   */
+  static async saveToolPrompt(req: Request, res: Response): Promise<void> {
+      try {
+        const { prompt } = req.body;
+        
+        if (typeof prompt !== 'string') {
+          res.status(400).json({
+            error: "提示词必须是字符串"
+          });
+          return;
+        }
+        
+        await ConfigService.saveSetting('mcpToolPrompt', prompt);
+        
+        res.json({
+          success: true,
+          message: "工具提示词保存成功"
+        });
+      } catch (error: any) {
+        Logger.error('API', '保存工具提示词失败:', error);
+        res.status(500).json({ error: error.message });
+      }
   }
 } 

@@ -475,6 +475,7 @@ export class OpenAI {
   private toolsConfig: {
     enableMCPTools: boolean;
     enableParamValidation: boolean;
+    enablePrompts: boolean;
   };
   
   /**
@@ -490,7 +491,8 @@ export class OpenAI {
     
     this.toolsConfig = {
       enableMCPTools: ToolsConfig.enableMCPTools,
-      enableParamValidation: ToolsConfig.enableParamValidation
+      enableParamValidation: ToolsConfig.enableParamValidation,
+      enablePrompts: ToolsConfig.enablePrompts
     };
     
     this.config = providerConfig;
@@ -593,12 +595,13 @@ export class OpenAI {
   }
   
   /**
-   * 处理消息格式，统一处理字符串或消息数组
-   * @param message 用户消息或消息历史
+   * 格式化消息数组
+   * @param message 消息文本或消息数组
    * @param enableTools 是否启用工具调用
+   * @param enablePrompts 是否启用提示词
    * @returns 格式化后的消息数组
    */
-  private async formatMessages(message: string | ChatCompletionMessageParam[], enableTools: boolean = false): Promise<ChatCompletionMessageParam[]> {
+  private async formatMessages(message: string | ChatCompletionMessageParam[], enableTools: boolean = false, enablePrompts: boolean = false): Promise<ChatCompletionMessageParam[]> {
     let messages: ChatCompletionMessageParam[];
     
     // 将输入转换为标准消息数组格式
@@ -610,20 +613,20 @@ export class OpenAI {
       messages = [...message]; // 创建副本，避免修改原始数据
     }
     
-    // 如果启用了工具调用，添加系统消息
-    if (enableTools) {
+    // 如果启用了工具调用和提示词，添加系统消息
+    if (enableTools && enablePrompts) {
       // 检查是否已有系统消息
       const hasSystemMessage = messages.some(msg => msg.role === 'system');
       
       // 如果没有系统消息，添加MCP工具预设词作为系统消息
       if (!hasSystemMessage) {
         // 从数据库获取MCP配置中的工具提示
-        const mcpConfig = await ConfigService.getMCPConfig();
+        const toolPromp = await ConfigService.getSetting('mcpToolPrompt');
           
-        // messages.unshift({
-        //   role: 'system',
-        //   content: mcpConfig.toolPrompt
-        // });
+        messages.unshift({
+          role: 'system',
+          content: String(toolPromp)
+        });
       }
     }
     
@@ -862,14 +865,15 @@ export class OpenAI {
   }
 
   /**
-   * 发送聊天请求并获取响应
+   * 处理聊天请求
    * @param message 用户消息或消息历史
    * @param model 模型名称
    * @param temperature 温度参数
    * @param maxTokens 最大生成令牌数
-   * @param enableTools 是否启用工具调用
+   * @param enableTools 是否启用工具
    * @param enableParamValidation 是否启用参数校验
-   * @returns 聊天响应结果
+   * @param enablePrompts 是否启用提示词
+   * @returns 处理结果
    */
   async chat(
     message: string | ChatCompletionMessageParam[], 
@@ -877,14 +881,17 @@ export class OpenAI {
     temperature: number = this.chatConfig.defaultTemperature,
     maxTokens: number = this.chatConfig.defaultMaxTokens,
     enableTools: boolean = this.toolsConfig.enableMCPTools,  // 使用统一配置
-    enableParamValidation: boolean = this.toolsConfig.enableParamValidation  // 使用统一配置
+    enableParamValidation: boolean = this.toolsConfig.enableParamValidation,  // 使用统一配置
+    enablePrompts: boolean = this.toolsConfig.enablePrompts  // 使用统一配置
   ): Promise<ChatResponse> {
-    // 保存参数校验状态，供 verifyToolArguments 方法使用
-    this.toolsConfig.enableParamValidation = enableParamValidation;
-    
     try {
-      // 使用辅助函数处理消息格式
-      const messages = await this.formatMessages(message, enableTools);
+      // 客户端实例临时覆盖
+      if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
+        this.toolsConfig.enableParamValidation = enableParamValidation;
+      }
+      
+      // 格式化消息
+      const messages = await this.formatMessages(message, enableTools, enablePrompts);
       
       // 使用辅助函数获取工具定义
       const openAITools = await this.getToolDefinitions(enableTools);
@@ -1174,15 +1181,16 @@ for await (const chunk of stream) {
   }
 }
   /**
-   * 发送流式聊天请求并获取响应
+   * 处理流式聊天请求
    * @param message 用户消息或消息历史
-   * @param onChunk 数据块回调函数
+   * @param onChunk 数据块处理回调
    * @param model 模型名称
    * @param temperature 温度参数
    * @param maxTokens 最大生成令牌数
-   * @param enableTools 是否启用工具调用
+   * @param enableTools 是否启用工具
    * @param enableParamValidation 是否启用参数校验
-   * @returns 最终的聊天响应结果
+   * @param enablePrompts 是否启用提示词
+   * @returns 处理结果
    */
   async chatStream(
     message: string | ChatCompletionMessageParam[],
@@ -1191,14 +1199,17 @@ for await (const chunk of stream) {
     temperature: number = this.chatConfig.defaultTemperature,
     maxTokens: number = this.chatConfig.defaultMaxTokens,
     enableTools: boolean = this.toolsConfig.enableMCPTools,  // 使用统一配置
-    enableParamValidation: boolean = this.toolsConfig.enableParamValidation  // 使用统一配置
+    enableParamValidation: boolean = this.toolsConfig.enableParamValidation,  // 使用统一配置
+    enablePrompts: boolean = this.toolsConfig.enablePrompts  // 使用统一配置
   ): Promise<ChatResponse> {
-    // 保存参数校验状态，供 verifyToolArguments 方法使用
-    this.toolsConfig.enableParamValidation = enableParamValidation;
-    
     try {
-      // 使用辅助函数处理消息格式
-      const messages = await this.formatMessages(message, enableTools);
+      // 客户端实例临时覆盖
+      if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
+        this.toolsConfig.enableParamValidation = enableParamValidation;
+      }
+      
+      // 格式化消息
+      const messages = await this.formatMessages(message, enableTools, enablePrompts);
       
       // 使用辅助函数获取工具定义
       const openAITools = await this.getToolDefinitions(enableTools);

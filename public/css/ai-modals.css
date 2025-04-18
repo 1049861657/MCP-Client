@@ -1216,6 +1216,16 @@ input:checked + .toggle-slider:before {
         width: 100%;
     }
     
+    /* 提示词模态窗口的移动设备优化 */
+    #prompts-modal .modal-content {
+        width: 95%;
+        margin: 2% auto;
+    }
+    
+    #tool-prompt-content {
+        min-height: 250px;
+    }
+    
     .quick-messages-header .message-test-id,
     .quick-messages-header .message-test-item,
     .quick-messages-header .message-test-result,
@@ -1442,4 +1452,32 @@ input:checked + .toggle-slider:before {
     background-color: #f8fafc;
     border-radius: 8px;
     margin: 20px;
+}
+
+/* 提示词编辑模态窗口样式 */
+#prompts-modal .modal-content {
+    max-height: 95vh;
+}
+
+/* 提示词文本区域样式优化 */
+#tool-prompt-content {
+    min-height: 350px;
+    resize: vertical;
+    line-height: 1.6;
+    font-size: 14px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    padding: 15px;
+    border: 1px solid #d0d7de;
+    background-color: #f9fafc;
+}
+
+#tool-prompt-content:focus {
+    background-color: #fff;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+@keyframes slideDown {
+    from { transform: translateY(-50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 } 

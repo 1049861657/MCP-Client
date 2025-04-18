@@ -48,7 +48,8 @@ export class OpenAIController {
         maxTokens, 
         vendor,
         enableTools = ToolsConfig.enableMCPTools,  // 使用统一配置
-        enableParamValidation = ToolsConfig.enableParamValidation  // 使用统一配置
+        enableParamValidation = ToolsConfig.enableParamValidation,  // 使用统一配置
+        enablePrompts = ToolsConfig.enablePrompts  // 使用统一配置
       } = req.body;
       
       // 验证消息
@@ -70,11 +71,11 @@ export class OpenAIController {
       if (messages.length > 0) {
         // 使用提供的消息历史
         processedMessage = messages;
-        Logger.info('API', `收到聊天请求, 消息数量: ${messages.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}`);
+        Logger.info('API', `收到聊天请求, 消息数量: ${messages.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
       } else {
         // 使用单条消息
         processedMessage = message;
-        Logger.info('API', `收到聊天请求, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}`);
+        Logger.info('API', `收到聊天请求, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
       }
       
       // 调用OpenAI服务
@@ -84,7 +85,8 @@ export class OpenAIController {
         temperature,
         maxTokens,
         enableTools,
-        enableParamValidation  // 传递参数校验状态
+        enableParamValidation,  // 传递参数校验状态
+        enablePrompts  // 传递提示词状态
       );
       
       // 返回响应
@@ -124,7 +126,8 @@ export class OpenAIController {
         maxTokens, 
         vendor,
         enableTools = ToolsConfig.enableMCPTools,  // 使用统一配置
-        enableParamValidation = ToolsConfig.enableParamValidation  // 使用统一配置
+        enableParamValidation = ToolsConfig.enableParamValidation,  // 使用统一配置
+        enablePrompts = ToolsConfig.enablePrompts  // 使用统一配置
       } = req.body;
       
       // 验证消息
@@ -146,11 +149,11 @@ export class OpenAIController {
       if (messages.length > 0) {
         // 使用提供的消息历史
         processedMessage = messages;
-        Logger.info('API', `收到流式聊天请求, 消息数量: ${messages.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}`);
+        Logger.info('API', `收到流式聊天请求, 消息数量: ${messages.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
       } else {
         // 使用单条消息
         processedMessage = message;
-        Logger.info('API', `收到流式聊天请求, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}`);
+        Logger.info('API', `收到流式聊天请求, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
       }
       
       // 记录开始时间
@@ -172,7 +175,8 @@ export class OpenAIController {
         temperature,
         maxTokens,
         enableTools,
-        enableParamValidation  // 传递参数校验状态
+        enableParamValidation,  // 传递参数校验状态
+        enablePrompts  // 传递提示词状态
       ).then(result => {
         // 计算总耗时
         const elapsedTime = (Date.now() - startTime) / 1000; // 转换为秒

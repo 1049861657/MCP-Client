@@ -249,6 +249,18 @@
                                 </div>
                                 <div class="settings-description">验证工具调用中的参数是否符合预期(暂时无效)</div>
                             </div>
+                            <div class="settings-item">
+                                <label for="enable-prompts">提示词:</label>
+                                <div class="toggle-container">
+                                    <label class="toggle">
+                                        <input type="checkbox" id="enable-prompts">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                    <span class="toggle-label">启用提示词</span>
+                                    <button id="edit-prompts" class="action-button small" style="margin-left: 10px;">编辑</button>
+                                </div>
+                                <div class="settings-description">在AI对话中附带工具提示词</div>
+                            </div>
                         </div>
                     </div>
                     
@@ -361,6 +373,27 @@
                 <div class="modal-footer" style="margin-top: 15px; text-align: right;">
                     <button type="button" id="mcp-cancel" class="action-button">取消</button>
                     <button type="button" id="mcp-save" class="action-button primary">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 在页面底部添加提示词编辑模态框 -->
+    <div id="prompts-modal" class="modal">
+        <div class="modal-content" style="max-width: 1000px;">
+            <div class="modal-header">
+                <h2>编辑工具提示词</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="tool-prompt-content">提示词内容:</label>
+                    <textarea id="tool-prompt-content" class="form-control" rows="25" style="width: 100%; font-family: monospace;"></textarea>
+                    <div class="settings-description">设置与工具调用相关的系统提示词。只有在启用MCP工具和启用提示词时此设置才会生效。</div>
+                </div>
+                <div class="modal-footer" style="margin-top: 15px; text-align: right;">
+                    <button type="button" id="prompt-cancel" class="action-button">取消</button>
+                    <button type="button" id="prompt-save" class="action-button primary">保存</button>
                 </div>
             </div>
         </div>

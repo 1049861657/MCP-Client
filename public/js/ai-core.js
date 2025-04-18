@@ -18,6 +18,7 @@ window.AIChatApp = {
         showReasoning: true,
         enableMCPTools: true, // 默认启用 MCP 工具
         enableParamValidation: false, // 默认关闭参数校验
+        enablePrompts: true, // 默认开启提示词
         messageHistory: [], // 存储消息历史
         mcpTools: [], // 存储可用的MCP工具
         enableMessageHistory: false, // 是否启用历史消息
@@ -81,6 +82,7 @@ window.AIChatApp = {
             tokenUsage: document.getElementById('token-usage'),
             enableMCPTools: document.getElementById('enable-mcp-tools'),
             enableParamValidation: document.getElementById('enable-param-validation'),
+            enablePrompts: document.getElementById('enable-prompts'),
             enableMessageHistory: document.getElementById('enable-message-history'),
             messageHistoryCount: document.getElementById('message-history-count'),
             openSettings: document.getElementById('open-settings'),
@@ -252,7 +254,7 @@ window.AIChatApp = {
         }
         
         // 消息历史和参数校验
-        const { enableMCPTools, enableParamValidation, enableMessageHistory } = this.elements;
+        const { enableMCPTools, enableParamValidation, enablePrompts, enableMessageHistory } = this.elements;
         if (enableMCPTools) {
             enableMCPTools.addEventListener('change', (e) => {
                 this.state.enableMCPTools = e.target.checked;
@@ -263,15 +265,52 @@ window.AIChatApp = {
                 this.state.enableParamValidation = e.target.checked;
             });
         }
+        if (enablePrompts) {
+            enablePrompts.addEventListener('change', (e) => {
+                this.state.enablePrompts = e.target.checked;
+            });
+        }
         if (enableMessageHistory) {
             enableMessageHistory.addEventListener('change', (e) => {
                 this.state.enableMessageHistory = e.target.checked;
             });
         }
-        // 标记事件监听器已初始化
-        this.state.isEventsInitialized = true;
         
-        console.log('事件监听器设置完成');
+        // 提示词编辑按钮
+        const editPromptsButton = document.getElementById('edit-prompts');
+        if (editPromptsButton) {
+            editPromptsButton.addEventListener('click', () => {
+                this.openPromptEditor();
+            });
+            
+            // 提示词模态框关闭按钮
+            const promptsModal = document.getElementById('prompts-modal');
+            const promptsCloseButton = promptsModal?.querySelector('.close');
+            const promptCancelButton = document.getElementById('prompt-cancel');
+            
+            if (promptsCloseButton) {
+                promptsCloseButton.addEventListener('click', () => {
+                    promptsModal.style.display = 'none';
+                });
+            }
+            
+            if (promptCancelButton) {
+                promptCancelButton.addEventListener('click', () => {
+                    promptsModal.style.display = 'none';
+                });
+            }
+            
+            // 提示词保存按钮
+            const promptSaveButton = document.getElementById('prompt-save');
+            if (promptSaveButton) {
+                promptSaveButton.addEventListener('click', () => {
+                    this.saveToolPrompt();
+                });
+            }
+        }
+        
+        this.state.isEventsInitialized = true;
+        console.log('事件监听器初始化完成');
     },
     
     // 更新会话显示
@@ -338,6 +377,7 @@ window.AIChatApp = {
                 if (data.config.tools) {
                     this.state.enableMCPTools = data.config.tools.enableMCPTools;
                     this.state.enableParamValidation = data.config.tools.enableParamValidation;
+                    this.state.enablePrompts = data.config.tools.enablePrompts;
                     
                     // 更新UI
                     if (this.elements.enableMCPTools) {
@@ -346,10 +386,14 @@ window.AIChatApp = {
                     if (this.elements.enableParamValidation) {
                         this.elements.enableParamValidation.checked = this.state.enableParamValidation;
                     }
+                    if (this.elements.enablePrompts) {
+                        this.elements.enablePrompts.checked = this.state.enablePrompts;
+                    }
                     
                     console.log('已更新工具配置:', {
                         enableMCPTools: this.state.enableMCPTools,
-                        enableParamValidation: this.state.enableParamValidation
+                        enableParamValidation: this.state.enableParamValidation,
+                        enablePrompts: this.state.enablePrompts
                     });
                 }
                 
@@ -773,5 +817,101 @@ window.AIChatApp = {
     createNewSession() {
         console.log('创建新的会话');
         return window.AIChatData.createNewSession();
+    },
+    
+    /**
+     * 打开提示词编辑器
+     */
+    async openPromptEditor() {
+        try {
+            // 获取模态框和文本区域
+            const promptsModal = document.getElementById('prompts-modal');
+            const promptTextarea = document.getElementById('tool-prompt-content');
+            
+            if (!promptsModal || !promptTextarea) {
+                console.error('找不到提示词编辑器元素');
+                return;
+            }
+            
+            // 显示加载状态
+            promptTextarea.value = '加载中...';
+            promptTextarea.disabled = true;
+            
+            // 显示模态框
+            promptsModal.style.display = 'block';
+            
+            // 获取工具提示词
+            const response = await fetch('/api/settings/tool-prompt');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP错误: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            // 更新文本区域
+            promptTextarea.value = data.prompt || '';
+            promptTextarea.disabled = false;
+            
+        } catch (error) {
+            console.error('打开提示词编辑器失败:', error);
+            this.UI.showTooltip('加载提示词失败，请重试');
+        }
+    },
+    
+    /**
+     * 保存工具提示词
+     */
+    async saveToolPrompt() {
+        try {
+            // 获取文本区域
+            const promptTextarea = document.getElementById('tool-prompt-content');
+            
+            if (!promptTextarea) {
+                console.error('找不到提示词文本区域');
+                return;
+            }
+            
+            // 获取提示词内容
+            const promptContent = promptTextarea.value;
+            
+            // 禁用文本区域
+            promptTextarea.disabled = true;
+            
+            // 保存提示词
+            const response = await fetch('/api/settings/tool-prompt', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prompt: promptContent })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP错误: ${response.status}`);
+            }
+            
+            // 启用文本区域
+            promptTextarea.disabled = false;
+            
+            // 关闭模态框
+            const promptsModal = document.getElementById('prompts-modal');
+            if (promptsModal) {
+                promptsModal.style.display = 'none';
+            }
+            
+            // 显示成功提示
+            this.UI.showTooltip('提示词保存成功');
+            
+        } catch (error) {
+            console.error('保存提示词失败:', error);
+            this.UI.showTooltip('保存提示词失败，请重试');
+            
+            // 重新启用文本区域
+            const promptTextarea = document.getElementById('tool-prompt-content');
+            if (promptTextarea) {
+                promptTextarea.disabled = false;
+            }
+        }
     }
 }; 

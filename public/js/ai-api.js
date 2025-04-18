@@ -18,8 +18,9 @@ window.AIChatAPI = {
             return;
         }
         
-        // 获取参数校验状态
+        // 获取参数校验状态和提示词状态
         const enableParamValidation = app.state.enableParamValidation;
+        const enablePrompts = app.state.enablePrompts;
         
         const provider = app.elements.provider.value;
         if (!app.state.providers[provider]) {
@@ -45,7 +46,8 @@ window.AIChatAPI = {
                 maxTokens,
                 vendor: provider,
                 enableTools,
-                enableParamValidation
+                enableParamValidation,
+                enablePrompts
             };
             
             // 如果启用了消息历史，准备消息历史
@@ -108,8 +110,9 @@ window.AIChatAPI = {
             return;
         }
         
-        // 获取参数校验状态
+        // 获取参数校验状态和提示词状态
         const enableParamValidation = app.state.enableParamValidation;
+        const enablePrompts = app.state.enablePrompts;
         
         const provider = app.elements.provider.value;
         if (!app.state.providers[provider]) {
@@ -141,7 +144,8 @@ window.AIChatAPI = {
                 maxTokens,
                 vendor: provider,
                 enableTools,
-                enableParamValidation
+                enableParamValidation,
+                enablePrompts
             };
             
             // 如果启用了消息历史，准备消息历史

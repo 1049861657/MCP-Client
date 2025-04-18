@@ -11,7 +11,10 @@ export const ToolsConfig = {
   enableMCPTools: true,
   
   // 默认关闭参数校验
-  enableParamValidation: false
+  enableParamValidation: false,
+
+  // 默认启用提示词
+  enablePrompts: true
 };
 
 /**
