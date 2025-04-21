@@ -33,7 +33,6 @@ interface ChunkResponse {
   };
   tool_call_update?: {
     index: number;
-    name?: string;
     completeArguments?: string;
     tool_call_id?: string;
   };

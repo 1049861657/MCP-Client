@@ -365,6 +365,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
+        // 委托事件 - 切换默认模型
+        if (providersContainer) {
+            console.log('为提供商容器添加委托事件(切换默认模型)');
+            providersContainer.addEventListener('change', event => {
+                if (event.target.classList.contains('default-model-radio')) {
+                    collectFormData();
+                }
+            });
+        }
+        
         // 委托事件 - 切换密码显示
         if (providersContainer) {
             console.log('为提供商容器添加委托事件(切换密码显示)');
@@ -443,16 +453,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     /**
-     * 保存提供商配置
+     * 收集表单数据
+     * 从表单中提取数据并更新providersData对象
+     * @returns {boolean} 收集是否成功
      */
-    async function saveProvidersConfig() {
+    function collectFormData() {
         try {
             // 收集表单数据
-            const providers = [];
             const providerCards = providersContainer.querySelectorAll('.provider-card');
             
             providerCards.forEach(card => {
                 const index = card.dataset.index;
+                const provider = providersData.providers[index];
+                if (!provider) return;
+
+                // 获取基本信息
                 const name = document.getElementById(`provider-name-${index}`).value.trim();
                 const type = document.getElementById(`provider-type-${index}`).value.trim();
                 const apiUrl = document.getElementById(`provider-api-url-${index}`).value.trim();
@@ -462,10 +477,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const defaultModelRadio = card.querySelector('.default-model-radio:checked');
                 const defaultModel = defaultModelRadio ? defaultModelRadio.value : '';
                 
-                // 验证必填字段
-                if (!name || !apiUrl || !apiKey) {
-                    throw new Error('提供商名称、API URL和API Key不能为空');
-                }
+                // 更新基本信息
+                provider.name = name;
+                provider.type = type;
+                provider.apiUrl = apiUrl;
+                provider.apiKey = apiKey;
+                provider.defaultModel = defaultModel;
                 
                 // 收集模型数据
                 const models = [];
@@ -484,68 +501,57 @@ document.addEventListener('DOMContentLoaded', () => {
                             modelLabelInput = item.querySelector('.model-label input');
                         }
                         
-                        // 检查是否找到了输入元素
-                        if (!modelValueInput || !modelLabelInput) {
-                            console.warn(`无法找到模型输入元素(索引:${mIndex})，已跳过这个模型项`, item);
-                            return;
-                        }
-                        
-                        const modelValue = modelValueInput.value.trim();
-                        const modelLabel = modelLabelInput.value.trim();
-                        
-                        if (modelValue && modelLabel) {
-                            models.push({
-                                value: modelValue,
-                                label: modelLabel
-                            });
+                        if (modelValueInput && modelLabelInput) {
+                            const modelValue = modelValueInput.value.trim();
+                            const modelLabel = modelLabelInput.value.trim();
+                            
+                            if (modelValue) { // 只添加有值的模型
+                                models.push({
+                                    value: modelValue,
+                                    label: modelLabel || modelValue
+                                });
+                            }
                         }
                     } catch (modelError) {
-                        console.error('处理模型项时出错:', modelError, item);
+                        console.error('处理模型项时出错:', modelError);
                     }
                 });
                 
-                // 根据提供商类型设置API路径
-                let apiPath = '/api/openai'; // 默认路径
-                if (providerTypes && providerTypes.length > 0) {
-                    // 查找匹配的提供商类型
-                    const typeInfo = providerTypes.find(typeInfo => typeInfo.value === type);
-                    if (typeInfo) {
-                        apiPath = typeInfo.apiPath;
-                    }
-                }
-                
-                // 添加提供商数据
-                providers.push({
-                    name,
-                    type: type,
-                    apiPath,
-                    apiUrl,
-                    apiKey,
-                    defaultModel,
-                    models
-                });
+                // 更新模型数据
+                provider.models = models;
             });
             
-            // 获取默认提供商
-            const defaultProvider = defaultProviderSelect.value;
-            
-            // 验证至少有一个提供商
-            if (providers.length === 0) {
-                throw new Error('至少需要添加一个提供商');
+            return true;
+        } catch (error) {
+            console.error('收集表单数据时出错:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * 保存提供商配置
+     */
+    async function saveProvidersConfig() {
+        try {
+            // 收集表单数据
+            if (!collectFormData()) {
+                throw new Error('收集表单数据失败');
             }
             
-            // 构建数据对象
-            const data = {
-                providers,
-                defaultProvider
-            };
+            // 验证必填字段
+            providersData.providers.forEach(provider => {
+                if (!provider.name || !provider.apiUrl || !provider.apiKey) {
+                    throw new Error('提供商名称、API URL和API Key不能为空');
+                }
+            });
             
-            // 使用提取的函数保存并重载
-            await saveAndReloadProviders(data);
+            // 保存配置
+            await saveAndReloadProviders(providersData);
             
+            showNotification('配置保存成功');
         } catch (error) {
             console.error('保存配置失败:', error);
-            showNotification(error.message || '保存失败', true);
+            showNotification(error.message || '保存配置失败', true);
         }
     }
     
@@ -708,6 +714,9 @@ document.addEventListener('DOMContentLoaded', () => {
         providerIndex = parseInt(providerIndex);
         console.log(`添加模型到提供商[${providerIndex}]`);
         
+        // 先保存当前表单数据
+        collectFormData();
+        
         // 获取提供商
         const provider = providersData.providers[providerIndex];
         if (!provider) {
@@ -768,6 +777,9 @@ document.addEventListener('DOMContentLoaded', () => {
      * 删除模型
      */
     function deleteModel(event) {
+        // 先保存当前表单数据
+        collectFormData();
+        
         // 获取提供商和模型索引
         const card = event.target.closest('.provider-card');
         const providerIndex = parseInt(card.dataset.index);

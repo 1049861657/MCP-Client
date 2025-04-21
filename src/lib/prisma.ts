@@ -1,7 +1,3 @@
-/**
- * Prisma 客户端单例
- * 确保应用中只有一个 Prisma 连接实例
- */
 import { PrismaClient } from '../../prisma/generated/index.js';
 
 class PrismaInstance {

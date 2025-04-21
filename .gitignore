@@ -29,3 +29,6 @@ yarn-error.log*
 # 数据库
 prisma/generated/
 prisma/dev.db
+
+#demo
+public/tool-event-demo.html

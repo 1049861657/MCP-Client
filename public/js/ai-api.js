@@ -8,6 +8,9 @@ window.AIChatAPI = {
     // 用于累计工具调用的token消耗
     accumulatedToolTokens: 0,
     
+    // 用于存储工具调用的完整参数，键为tool_call_id，值为completeArguments
+    toolCallArgumentsMap: new Map(),
+    
     // 发送流式请求
     async sendStreamRequest(message, model, temperature, maxTokens, enableTools = false) {
         const app = window.AIChatApp;
@@ -265,13 +268,13 @@ window.AIChatAPI = {
      * @param {number} startTime - 请求开始时间
      */
     async processStreamResponse(response, aiMessageDiv, startTime) {
+        const app = window.AIChatApp;
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let fullText = '';  // 保存完整文本
         let eventName = '';
         let eventData = '';
         let tokenInfoUpdated = false;
-        const app = window.AIChatApp;
         
         // 用于处理跨chunks的数据
         let buffer = '';
@@ -437,17 +440,7 @@ window.AIChatAPI = {
                     // 如果存在对应索引的工具调用UI，更新它
                     if (toolCallElements && toolCallElements.length > index) {
                         const toolElement = toolCallElements[index];
-                        
-                        // 更新工具名称
-                        if (jsonData.tool_call_update.name) {
-                            const headerElement = toolElement.querySelector('.tool-call-header strong');
-                            if (headerElement) {
-                                headerElement.textContent = jsonData.tool_call_update.name;
-                            }
-                            // 同时更新dataset
-                            toolElement.dataset.toolName = jsonData.tool_call_update.name;
-                        }
-                        
+                                             
                         // 优先检查是否有完整参数
                         if (jsonData.tool_call_update.completeArguments) {
                             let argsStr = '';
@@ -457,6 +450,17 @@ window.AIChatAPI = {
                                 argsStr = JSON.stringify(parsed, null, 2);
                                 
                                 console.log('收到完整工具参数:', argsStr);
+
+                                // 存储完整参数到Map中，以便在工具调用结果时使用
+                                if (jsonData.tool_call_update.tool_call_id) {
+                                    this.toolCallArgumentsMap.set(
+                                        jsonData.tool_call_update.tool_call_id, 
+                                        {
+                                            arguments: jsonData.tool_call_update.completeArguments,
+                                        }
+                                    );
+                                    console.log(`已保存工具参数 ID: ${jsonData.tool_call_update.tool_call_id}`);
+                                }
                                 
                                 const argsElement = toolElement.querySelector('.tool-call-args');
                                 if (argsElement) {
@@ -500,6 +504,24 @@ window.AIChatAPI = {
                 // 处理工具调用结果
                 if (jsonData.tool_call_result) {
                     console.log('jsonData(工具调用结果):', jsonData);
+                    
+                    try {
+                        if (jsonData.tool_call_result.name === "executeApi") {
+                            const parsedArgs = JSON.parse(this.toolCallArgumentsMap.get(jsonData.tool_call_result.tool_call_id).arguments);
+                            console.log('执行工具调用:', parsedArgs);
+                             window.parent.postMessage({
+                                type: 'ai_tool_call_result',
+                                data: {
+                                    apiId: parsedArgs.apiId,
+                                    params: parsedArgs.params,
+                                    result: jsonData.tool_call_result.result,
+                                }
+                            }, '*');
+                            this.toolCallArgumentsMap.delete(jsonData.tool_call_result.tool_call_id);
+                        }
+                    } catch (error) {
+                        console.error('向父窗口发送工具调用结果失败:', error);
+                    }
                     
                     // 如果有token使用情况，累加到全局总消耗token变量中
                     if (jsonData.tool_call_result.token_usage && jsonData.tool_call_result.token_usage.totalTokens) {

@@ -935,12 +935,16 @@
                 
                 document.getElementById('server-command').textContent = data.server.connectionDetails.displayCommand;
                 
-                // 只在连接状态时显示工具信息
-                if (isConnected && data.tools && data.tools.length > 0) {
+                // 只在连接状态时显示当前选中服务器的工具信息
+                const currentServerTools = data.serverTools && data.currentServerId 
+                    ? data.serverTools[data.currentServerId] 
+                    : [];
+                
+                if (isConnected && currentServerTools && currentServerTools.length > 0) {
                     const toolsList = document.createElement('ul');
                     toolsList.className = 'tool-list';
                     
-                    data.tools.forEach(tool => {
+                    currentServerTools.forEach(tool => {
                         const toolItem = document.createElement('li');
                         toolItem.className = 'tool-item';
                         
