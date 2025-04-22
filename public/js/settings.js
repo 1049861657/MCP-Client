@@ -154,20 +154,9 @@ document.addEventListener('DOMContentLoaded', () => {
         card.dataset.index = index;
         
         // 生成提供商类型选项
-        let typeOptions = '';
-        if (providerTypes && providerTypes.length > 0) {
-            typeOptions = providerTypes.map(type => 
-                `<option value="${type.value}" ${provider.type === type.value ? 'selected' : ''}>${type.label}</option>`
-            ).join('');
-        } else {
-            // 如果未能加载提供商类型，使用默认选项
-            typeOptions = `
-                <option value="openai" ${provider.type === 'openai' ? 'selected' : ''}>OpenAI</option>
-                <option value="anthropic" ${provider.type === 'anthropic' ? 'selected' : ''}>Anthropic</option>
-                <option value="gemini" ${provider.type === 'gemini' ? 'selected' : ''}>Google Gemini</option>
-                <option value="custom" ${provider.type === 'custom' ? 'selected' : ''}>自定义</option>
-            `;
-        }
+        const typeOptions = providerTypes.map(type => 
+            `<option value="${type.value}" ${provider.type === type.value ? 'selected' : ''}>${type.label}</option>`
+        ).join('');;
         
         card.innerHTML = `
             <div class="provider-card-header">
@@ -562,24 +551,19 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             console.log('开始添加新提供商');
             
-            // 获取默认的提供商类型和API路径
+            // 获取默认的提供商类型
             let defaultType = 'openai';
-            let defaultApiPath = '/api/openai';
             
             // 如果已加载提供商类型列表，使用第一个作为默认
             if (providerTypes && providerTypes.length > 0) {
                 defaultType = providerTypes[0].value;
-                defaultApiPath = providerTypes[0].apiPath;
-                console.log(`使用提供商类型: ${defaultType}, API路径: ${defaultApiPath}`);
-            } else {
-                console.log('未找到提供商类型列表，使用默认值');
-            }
+                console.log(`使用提供商类型: ${defaultType}`);
+            } 
             
             // 创建新提供商对象
             const newProvider = {
                 name: '',
                 type: defaultType,
-                apiPath: defaultApiPath,
                 apiUrl: '',
                 apiKey: '',
                 defaultModel: '',

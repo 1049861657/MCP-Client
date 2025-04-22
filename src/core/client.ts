@@ -4,13 +4,14 @@ import { ClientInfo, MCPServerInfo, ServerInfo, ToolInfo } from "../interfaces/m
 import { ServerConnection } from "./server-connection.js";
 import { ConnectionType} from "../../prisma/generated/index.js";
 import { MCPServer } from "../types/config.types.js";
+import { OpenAINameCodec } from "../utils/openai-util.js";
 /**
  * MCP客户端管理器类
  * 负责管理多个MCP服务器连接
  */
 export class MCPClientManager {
   private connections: Map<string, ServerConnection> = new Map();
-  private toolServerMap: Map<string, string> = new Map(); // 工具名称到服务器ID的映射
+  private toolServerMap: Map<string, string> = new Map(); // 工具编码名称到服务器ID的映射
   private currentServerId?: string; // 当前选中的服务器ID
   private mcpConfig: any = null; // 存储MCP配置信息
 
@@ -90,8 +91,8 @@ export class MCPClientManager {
     try {
       const tools = await connection.getTools();
       for (const tool of tools) {
-        // 直接记录工具来源服务器，不检查重名
-        this.toolServerMap.set(tool.name, serverId);
+        // 使用codeName作为键，避免不同服务器同名工具冲突
+        this.toolServerMap.set(tool.codeName, serverId);
       }
     } catch (error) {
       Logger.error('MCP CLIENT', `更新工具服务器映射失败:`, error);
@@ -251,12 +252,12 @@ export class MCPClientManager {
   }
 
   /**
-   * 根据工具名称找到对应的服务器连接
-   * @param toolName 工具名称
+   * 根据工具编码名称找到对应的服务器连接
+   * @param codeName 工具编码名称
    * @returns 服务器连接对象
    */
-  private findServerForTool(toolName: string): ServerConnection | undefined {
-    const serverId = this.toolServerMap.get(toolName);
+  private findServerForTool(codeName: string): ServerConnection | undefined {
+    const serverId = this.toolServerMap.get(codeName);
     if (serverId) {
       return this.connections.get(serverId);
     }
@@ -267,8 +268,9 @@ export class MCPClientManager {
   /**
    * 调用工具
    */
-  async callTool<T>(toolName: string, args: any): Promise<T> {
-    const connection = this.findServerForTool(toolName);
+  async callTool<T>(codeName: string, args: any): Promise<T> {
+    const connection = this.findServerForTool(codeName);
+    const toolName = await OpenAINameCodec.decode(codeName);
     if (!connection) {
       throw new Error(`找不到工具 ${toolName} 所属的服务器或所有服务器都未连接`);
     }

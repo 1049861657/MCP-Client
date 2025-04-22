@@ -426,7 +426,7 @@ window.AIChatApp = {
     async fetchProviderConfig() {
         try {
             console.log('开始获取供应商配置');
-            const response = await fetch('/api/config/ai-providers');
+            const response = await fetch('/api/settings/providers');
             
             if (!response.ok) {
                 throw new Error(`HTTP错误: ${response.status}`);
@@ -438,9 +438,12 @@ window.AIChatApp = {
             // 转换为适合前端使用的格式
             this.state.providers = {};
             config.providers.forEach(provider => {
+                // 根据provider.type确定apiPath
+                let apiPath = '/api/openai'; // 默认路径
+                
                 this.state.providers[provider.name] = {
                     name: provider.name,
-                    apiPath: provider.apiPath,
+                    apiPath: apiPath,
                     models: provider.models
                 };
             });

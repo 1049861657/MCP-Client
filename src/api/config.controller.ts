@@ -6,27 +6,9 @@ import { ConfigService } from '../services/config.service.js';
 /**
  * 配置控制器类
  * 负责提供API配置相关的接口
+ * 
  */
 export class ConfigController {
-  /**
-   * 获取AI供应商配置
-   * @param req 请求对象
-   * @param res 响应对象
-   */
-  static async getAIProviders(req: Request, res: Response): Promise<void> {
-    try {
-      Logger.info('API', '请求AI供应商配置');
-      // 直接从数据库获取配置
-      const config = await ConfigService.getAIProvidersConfig();
-      res.json(config);
-    } catch (error) {
-      Logger.error('API', '获取AI供应商配置失败:', error);
-      res.status(500).json({
-        error: "获取配置失败",
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }
   
   /**
    * 获取特性配置
@@ -90,35 +72,6 @@ export class ConfigController {
       res.json({ success: true, message: '配置已保存' });
     } catch (error) {
       Logger.error('API', '保存快捷消息配置失败:', error);
-      res.status(500).json({
-        success: false,
-        error: "保存失败",
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }
-  
-  /**
-   * 保存AI供应商配置
-   * @param req 请求对象
-   * @param res 响应对象
-   */
-  static async saveAIProviders(req: Request, res: Response): Promise<void> {
-    try {
-      const data = req.body;
-      
-      // 基本验证
-      if (!data || !data.providers || !Array.isArray(data.providers)) {
-        throw new Error('数据格式无效');
-      }
-      
-      // 直接保存到数据库
-      await ConfigService.saveAIProvidersConfig(data);
-      
-      // 返回成功响应
-      res.json({ success: true, message: '配置已保存' });
-    } catch (error) {
-      Logger.error('API', '保存AI供应商配置失败:', error);
       res.status(500).json({
         success: false,
         error: "保存失败",

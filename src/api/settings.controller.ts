@@ -15,12 +15,10 @@ export class SettingsController {
    */
   static async getProviders(req: Request, res: Response): Promise<void> {
     try {
-      // 从数据库获取配置
       const config = await ConfigService.getAIProvidersConfig();
       if (config) {
         res.json(config);
       } else {
-        // 如果数据库中没有配置，返回空配置
         res.json({ providers: [], defaultProvider: '' });
       }
     } catch (error) {
@@ -84,9 +82,6 @@ export class SettingsController {
    */
   static async reloadProviders(req: Request, res: Response): Promise<void> {
     try {
-      // 从数据库获取最新配置
-      const config = await ConfigService.getAIProvidersConfig();
-      
       // 调用提供商服务的重载方法
       const result = await reloadProviders();
       

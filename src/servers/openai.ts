@@ -81,6 +81,7 @@ interface OpenAITool {
  */
 interface ToolCallInfo {
   id: string;
+  codeName: string;
   name: string;
   arguments: Record<string, any>;
   argumentsText?: string;
@@ -177,7 +178,7 @@ class ToolCallManager {
     // 创建工具调用对象
     const toolCall: ToolCallInfo = {
       id: toolCallId,
-      // 如果是元工具则不进行解码
+      codeName: name,
       name: metaTools.includes(name) ? name : await OpenAINameCodec.decode(name),
       arguments: {},
       meta: {
@@ -202,8 +203,6 @@ class ToolCallManager {
       }
     }, false);
     
-    Logger.info('OPENAI', `[${this.providerName}] 创建工具调用 [索引${globalIndex}], 回合${this.currentRound}, ID: ${toolCallId}`);
-    
     return globalIndex;
   }
   
@@ -214,10 +213,7 @@ class ToolCallManager {
    */
   updateToolArguments(globalIndex: number, argumentText: string): void {
     const toolCall = this.indexMap.get(globalIndex);
-    if (!toolCall) {
-      Logger.error('OPENAI', `[${this.providerName}] 尝试更新不存在的工具调用参数 [索引${globalIndex}]`);
-      return;
-    }
+    if (!toolCall) return;
 
     // 累积参数文本
     if (!toolCall.argumentsText) {
@@ -276,10 +272,7 @@ class ToolCallManager {
    */
   setToolResult(globalIndex: number, result: any, error: boolean = false, errorMessage?: string, tokenUsage?: any): void {
     const toolCall = this.indexMap.get(globalIndex);
-    if (!toolCall) {
-      Logger.error('OPENAI', `[${this.providerName}] 尝试设置不存在的工具调用结果 [索引${globalIndex}]`);
-      return;
-    }
+    if (!toolCall) return;
     
     // 保存结果
     toolCall.result = result;
@@ -294,13 +287,9 @@ class ToolCallManager {
       
       // 计算执行时间
       if (toolCall.meta.createdAt) {
-        try {
-          const startTime = new Date(toolCall.meta.createdAt).getTime();
-          const endTime = new Date(toolCall.meta.completedAt || new Date().toISOString()).getTime();
-          toolCall.meta.executionTime = endTime - startTime;
-        } catch (e) {
-          Logger.warn('OPENAI', `[${this.providerName}] 无法计算工具调用执行时间: ${e}`);
-        }
+        const startTime = new Date(toolCall.meta.createdAt).getTime();
+        const endTime = new Date(toolCall.meta.completedAt || new Date().toISOString()).getTime();
+        toolCall.meta.executionTime = endTime - startTime;
       }
       
       // 保存Token使用情况
@@ -321,10 +310,6 @@ class ToolCallManager {
         token_usage: tokenUsage || toolCall.meta?.tokenUsage
       }
     }, false);
-    
-    const statusText = error ? '失败' : '成功';
-    const timeInfo = `, 耗时: ${toolCall.meta?.executionTime}ms`;
-    Logger.info('OPENAI', `[${this.providerName}] 工具调用 [索引${globalIndex}] ${toolCall.name} 执行${statusText}${timeInfo}`);
   }
   
   /**
@@ -386,14 +371,10 @@ class ToolCallManager {
         // 计算执行时间
         let executionTime = undefined;
         if (tc.meta.createdAt) {
-          try {
-            const startTime = new Date(tc.meta.createdAt).getTime();
-            const endTime = new Date(tc.meta.completedAt).getTime();
-            executionTime = endTime - startTime;
-            tc.meta.executionTime = executionTime;
-          } catch (e) {
-            Logger.warn('OPENAI', `[${this.providerName}] 无法计算工具调用执行时间: ${e}`);
-          }
+          const startTime = new Date(tc.meta.createdAt).getTime();
+          const endTime = new Date(tc.meta.completedAt).getTime();
+          executionTime = endTime - startTime;
+          tc.meta.executionTime = executionTime;
         }
         
         // 通知前端 - 使用globalIndex而不是数组索引
@@ -421,30 +402,20 @@ class ToolCallManager {
             token_usage: tc.meta.tokenUsage
           }
         }, false);
-        
-        const timeInfo = executionTime !== undefined ? `, 耗时: ${executionTime}ms` : '';
-        const reasonInfo = this.reachedMaxRounds ? '[达到最大调用次数]' : '';
-        Logger.info('OPENAI', `[${this.providerName}] 标记中断的工具调用 [索引${globalIndex}]: ${tc.name}${reasonInfo}${timeInfo}`);
       }
     });
     
-    if (pendingFound) {
-      if (this.reachedMaxRounds) {
-        Logger.info('OPENAI', `[${this.providerName}] 已完成所有处理中的工具调用状态更新（因达到最大调用次数而中断）`);
-        
-        // 发送特殊通知到前端，突出显示达到工具调用上限的警告
-        this.onChunk({
-          content: "\n\n",
-          special_notice: {
-            type: "max_tool_calls_reached",
-            title: "🚫 工具调用次数已达上限",
-            message: `系统限制了最大连续工具调用次数为${this.currentRound}次，为保证系统稳定性，后续工具调用已被中断`,
-            level: "warning"
-          }
-        }, false);
-      } else {
-        Logger.info('OPENAI', `[${this.providerName}] 已完成所有处理中的工具调用状态更新（标记为中断）`);
-      }
+    if (pendingFound && this.reachedMaxRounds) {
+      // 发送特殊通知到前端，突出显示达到工具调用上限的警告
+      this.onChunk({
+        content: "\n\n",
+        special_notice: {
+          type: "max_tool_calls_reached",
+          title: "🚫 工具调用次数已达上限",
+          message: `系统限制了最大连续工具调用次数为${this.currentRound}次，为保证系统稳定性，后续工具调用已被中断`,
+          level: "warning"
+        }
+      }, false);
     }
   }
   
@@ -527,7 +498,6 @@ export class OpenAI {
       
       // 工具为空，返回空数组
       if (!mcpTools || mcpTools.length === 0) {
-        Logger.warn('OPENAI', '当前服务器没有可用的工具');
         return [];
       }
       
@@ -535,30 +505,29 @@ export class OpenAI {
       const mcpConfig = await ConfigService.getMCPConfig();
       const enabledServerIds = mcpConfig.enabledToolServerIds || [];
       
-      // 如果有指定的服务器ID列表且不为空，则过滤工具
-      let filteredTools = mcpTools;
-      if (enabledServerIds.length > 0) {
-        // 获取服务器工具映射
-        const serverToolsMap = serverInfo.serverTools || {};
-        
-        // 过滤只包含指定服务器的工具
-        filteredTools = mcpTools.filter(tool => {
-          // 查找工具所属的服务器
-          for (const serverId in serverToolsMap) {
-            if (enabledServerIds.includes(serverId) && 
-                serverToolsMap[serverId].some(t => t.name === tool.name)) {
-              return true;
-            }
-          }
-          return false;
-        });
-        Logger.info('OPENAI', `[${this.providerName}] 已过滤工具，原有 ${mcpTools.length} 个，过滤后 ${filteredTools.length} 个`);
-      }else{
-        Logger.info('OPENAI','未复选服务')
-        return []
+      // 如果没有启用的服务器，返回空数组
+      if (enabledServerIds.length === 0) {
+        return [];
       }
       
-      return await Promise.all(filteredTools.map(async tool => {
+      // 过滤只包含指定服务器的工具
+      const serverToolsMap = serverInfo.serverTools || {};
+      const filteredTools = mcpTools.filter(tool => {
+        // 查找工具所属的服务器
+        for (const serverId in serverToolsMap) {
+          if (enabledServerIds.includes(serverId) && serverToolsMap[serverId].some(t => t.codeName === tool.codeName)) {
+            return true;
+          }
+        }
+        return false;
+      });
+      
+      if (filteredTools.length > 0) {
+        Logger.info('OPENAI', `使用 ${filteredTools.length} 个MCP工具`);
+      }
+      
+      // 转换为OpenAI工具格式
+      return Promise.all(filteredTools.map(async tool => {
         // 构建参数Schema
         const properties: Record<string, any> = {};
         const required: string[] = [];
@@ -603,16 +572,10 @@ export class OpenAI {
    * @returns 格式化后的消息数组
    */
   private async formatMessages(message: string | ChatCompletionMessageParam[], enableTools: boolean = false, enablePrompts: boolean = false): Promise<ChatCompletionMessageParam[]> {
-    let messages: ChatCompletionMessageParam[];
-    
     // 将输入转换为标准消息数组格式
-    if (typeof message === 'string') {
-      Logger.info('OPENAI', `[${this.providerName}] 处理消息: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`);
-      messages = [{ role: 'user', content: message }];
-    } else {
-      Logger.info('OPENAI', `[${this.providerName}] 处理消息: ${message.length} 条消息`);
-      messages = [...message]; // 创建副本，避免修改原始数据
-    }
+    const messages: ChatCompletionMessageParam[] = typeof message === 'string'
+      ? [{ role: 'user', content: message } as ChatCompletionMessageParam]
+      : [...message]; // 创建副本，避免修改原始数据
     
     // 如果启用了工具调用和提示词，添加系统消息
     if (enableTools && enablePrompts) {
@@ -627,7 +590,7 @@ export class OpenAI {
         messages.unshift({
           role: 'system',
           content: String(toolPromp)
-        });
+        } as ChatCompletionMessageParam);
       }
     }
     
@@ -643,11 +606,7 @@ export class OpenAI {
     if (!enableTools) return [];
     
     try {
-      const tools = await this.convertMcpToolsToOpenAIFunctions();
-      if (tools.length > 0) {
-        Logger.info('OPENAI', `[${this.providerName}] 使用 ${tools.length} 个MCP工具`);
-      }
-      return tools;
+      return await this.convertMcpToolsToOpenAIFunctions();
     } catch (error) {
       Logger.warn('OPENAI', `[${this.providerName}] 获取MCP工具失败: ${error instanceof Error ? error.message : String(error)}`);
       return [];
@@ -758,8 +717,7 @@ export class OpenAI {
     // 以下情况跳过验证:
     // 1. 参数校验被禁用
     // 2. 非executeApi工具
-    if (!this.toolsConfig.enableParamValidation || 
-        toolName !== "executeApi") {
+    if (!this.toolsConfig.enableParamValidation || toolName !== "executeApi") {
       return {isValid: true, message: ''};
     }
     
@@ -825,31 +783,19 @@ export class OpenAI {
       }
       
       // 根据apiId选择使用的客户端和模型
-      let clientToUse: OpenAIClient;
-      let modelToUse: string;
-      
-      if (args.apiId === "doSqlQuery") {
-        // SQL验证使用火山引擎
-        const { client, model } = this.getClientForValidation("火山引擎");
-        clientToUse = client;
-        modelToUse = model;
-      } else {
-        // 参数验证使用Deepseek
-        const { client, model } = this.getClientForValidation("Deepseek");
-        clientToUse = client;
-        modelToUse = model;
-      }
+      const { client, model } = args.apiId === "doSqlQuery" 
+        ? this.getClientForValidation("火山引擎")
+        : this.getClientForValidation("Deepseek");
       
       // 发送请求
-      const response = await clientToUse.chat.completions.create({
-        model: modelToUse,
+      const response = await client.chat.completions.create({
+        model,
         messages,
         temperature: 0,  // 使用低温度，让回复更确定
         max_tokens: 100  // 简短回复即可
       }) as any;
       
       const result = response.choices[0].message.content.trim();
-      Logger.info('OPENAI', `参数验证结果: ${result}`);
       
       // 解析回复
       if (result.startsWith('是')) {
@@ -886,7 +832,7 @@ export class OpenAI {
     enablePrompts: boolean = this.toolsConfig.enablePrompts  // 使用统一配置
   ): Promise<ChatResponse> {
     try {
-      // 客户端实例临时覆盖
+      // 临时覆盖参数校验配置
       if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
         this.toolsConfig.enableParamValidation = enableParamValidation;
       }
@@ -894,7 +840,7 @@ export class OpenAI {
       // 格式化消息
       const messages = await this.formatMessages(message, enableTools, enablePrompts);
       
-      // 使用辅助函数获取工具定义
+      // 获取工具定义
       const openAITools = await this.getToolDefinitions(enableTools);
       
       // 创建请求参数
@@ -924,12 +870,10 @@ export class OpenAI {
         
         // 处理每个工具调用
         for (const toolCall of assistantMessage.tool_calls) {
+          const codeName = toolCall.function.name;
           const toolName = await OpenAINameCodec.decode(toolCall.function.name);
           const toolArgs = JSON.parse(toolCall.function.arguments);
           
-          Logger.info('OPENAI', `[${this.providerName}] 调用工具: ${toolName}, 参数: ${JSON.stringify(toolArgs)}`);
-          
-          let toolResult: any = null;
           let resultText = '';
           
           try {
@@ -951,6 +895,7 @@ export class OpenAI {
               // 收集工具调用及其结果
               toolCalls.push({
                 id: toolCall.id,
+                codeName: codeName,
                 name: toolName,
                 arguments: toolArgs,
                 result: errorMessage,
@@ -960,9 +905,9 @@ export class OpenAI {
             }
             
             // 参数验证通过，执行工具调用
-            toolResult = await mcpClient.callTool<any>(toolName, toolArgs);
+            const toolResult = await mcpClient.callTool<any>(toolName, toolArgs);
             
-            // 使用辅助函数格式化工具结果
+            // 格式化工具结果
             resultText = this.formatToolResult(toolResult);
             
             // 将工具执行结果添加到消息历史
@@ -971,8 +916,6 @@ export class OpenAI {
               content: resultText,
               tool_call_id: toolCall.id
             });
-            
-            Logger.info('OPENAI', `[${this.providerName}] 工具${toolName}执行成功, 结果长度: ${resultText.length}`);
           } catch (error) {
             const errorMessage = `工具${toolName}执行失败: ${error instanceof Error ? error.message : String(error)}`;
             Logger.error('OPENAI', errorMessage);
@@ -985,19 +928,12 @@ export class OpenAI {
             });
             
             resultText = errorMessage;
-            
-            // 收集工具调用及其结果
-            toolCalls.push({
-              id: toolCall.id,
-              name: toolName,
-              arguments: toolArgs,
-              result: errorMessage,
-            });
           }
           
           // 收集工具调用及其结果
           toolCalls.push({
             id: toolCall.id,
+            codeName: codeName,
             name: toolName,
             arguments: toolArgs,
             result: resultText,
@@ -1014,8 +950,6 @@ export class OpenAI {
         
         const finalContent = finalResponse.choices[0].message.content || '';
         
-        Logger.info('OPENAI', `[${this.providerName}] 收到最终回复，长度: ${finalContent.length}字符`);
-        
         // 返回带工具调用信息的结果
         return {
           content: finalContent,
@@ -1026,8 +960,6 @@ export class OpenAI {
       } else {
         // 不需要调用工具，直接返回大模型回复
         const aiResponse = assistantMessage.content || '';
-        
-        Logger.info('OPENAI', `[${this.providerName}] 收到回复，长度: ${aiResponse.length}字符`);
         
         return {
           content: aiResponse,
@@ -1050,7 +982,6 @@ export class OpenAI {
    * @param fullReasoningContent 累积的推理内容
    * @param usage 使用量统计
    * @param finishReasonResult 完成原因
-   * @param model 模型名称
    * @param onChunk 数据块回调函数
    * @returns 包含处理结果的对象
    * @private
@@ -1079,45 +1010,43 @@ private async processModelResponse(
   let updatedUsage = usage;
   let updatedFinishReason = finishReasonResult;
   
-  const roundDescription = round === 0 ? "初始" : `回合${round}`;
-  
   try {
-// 处理流式响应
-for await (const chunk of stream) {
-  // 提取delta信息
-  const delta = chunk.choices?.[0]?.delta as ExtendedDelta || {};
-  const content = delta.content || '';
-  const reasoningContent = delta.reasoning_content || '';
-  const deltaToolCalls = delta.tool_calls || [];
-  const finishReason = chunk.choices?.[0]?.finish_reason;
-  
-  // 处理内容
-  if (content) {
-    updatedContent += content;
-    onChunk({ content }, false);
-  }
-  
-  if (reasoningContent) {
-    updatedReasoningContent += reasoningContent;
-    onChunk({ reasoning_content: reasoningContent }, false);
-  }
-  
-  // 处理工具调用
-  if (deltaToolCalls.length > 0) {
-    hasNewToolCalls = true;
-    
-    for (const deltaToolCall of deltaToolCalls) {
-      if (deltaToolCall.index !== undefined) {
-        const localIndex = deltaToolCall.index;
-        let globalIndex: number;
+    // 处理流式响应
+    for await (const chunk of stream) {
+      // 提取delta信息
+      const delta = chunk.choices?.[0]?.delta as ExtendedDelta || {};
+      const content = delta.content || '';
+      const reasoningContent = delta.reasoning_content || '';
+      const deltaToolCalls = delta.tool_calls || [];
+      const finishReason = chunk.choices?.[0]?.finish_reason;
+      
+      // 处理内容
+      if (content) {
+        updatedContent += content;
+        onChunk({ content }, false);
+      }
+      
+      if (reasoningContent) {
+        updatedReasoningContent += reasoningContent;
+        onChunk({ reasoning_content: reasoningContent }, false);
+      }
+      
+      // 处理工具调用
+      if (deltaToolCalls.length > 0) {
+        hasNewToolCalls = true;
         
-        // 处理现有或新工具调用
-        if (round === 0) {
-          // 初始回合 - 检查工具调用是否已创建
-          const existingToolCalls = toolManager.getAllToolCalls();
-          const existingCall = existingToolCalls.find(tc => 
-            tc.meta?.round === 0 && tc.meta?.localIndex === localIndex);
+        for (const deltaToolCall of deltaToolCalls) {
+          if (deltaToolCall.index !== undefined) {
+            const localIndex = deltaToolCall.index;
+            let globalIndex: number;
             
+            // 处理现有或新工具调用
+            if (round === 0) {
+              // 初始回合 - 检查工具调用是否已创建
+              const existingToolCalls = toolManager.getAllToolCalls();
+              const existingCall = existingToolCalls.find(tc => 
+                tc.meta?.round === 0 && tc.meta?.localIndex === localIndex);
+                
               if (!existingCall) {
                 // 创建新工具调用
                 globalIndex = await toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name);
@@ -1136,25 +1065,23 @@ for await (const chunk of stream) {
                 globalIndex = newToolCalls[localIndex].meta?.globalIndex as number;
               }
             }
-          
-          // 更新工具参数流式信息
-          if (deltaToolCall.function?.arguments) {
-            toolManager.updateToolArguments(globalIndex, deltaToolCall.function.arguments);
+            
+            // 更新工具参数流式信息
+            if (deltaToolCall.function?.arguments) {
+              toolManager.updateToolArguments(globalIndex, deltaToolCall.function.arguments);
+            }
           }
         }
       }
-    }
-
-       // 检查是否完成
-       if (chunk.usage || finishReason === 'stop') {
+      
+      // 检查是否完成
+      if (chunk.usage || finishReason === 'stop') {
         if (chunk.usage) {
           updatedUsage = this.formatUsage(chunk.usage);
-          Logger.info('OPENAI', `[${this.providerName}] ${roundDescription}: 模型回复完成,token使用信息: ${JSON.stringify(updatedUsage)}`);
         }
         
         if (finishReason === 'stop') {
           updatedFinishReason = finishReason;
-          Logger.info('OPENAI', `[${this.providerName}] ${roundDescription}: 模型回复完成,完成原因: ${finishReason}`);
         }
       }
     }
@@ -1168,7 +1095,7 @@ for await (const chunk of stream) {
       newToolCalls: newToolCalls.filter(tc => tc && tc.name)
     };
   } catch (error) {
-    Logger.error('OPENAI', `[${this.providerName}] ${roundDescription}: 处理模型响应失败: ${error instanceof Error ? error.message : String(error)}`);
+    Logger.error('OPENAI', `[${this.providerName}] : 处理模型响应失败: ${error instanceof Error ? error.message : String(error)}`);
     onChunk({ error: `处理模型响应失败: ${error instanceof Error ? error.message : String(error)}` }, false);
     
     return {
@@ -1204,7 +1131,7 @@ for await (const chunk of stream) {
     enablePrompts: boolean = this.toolsConfig.enablePrompts  // 使用统一配置
   ): Promise<ChatResponse> {
     try {
-      // 客户端实例临时覆盖
+      // 临时覆盖参数校验配置
       if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
         this.toolsConfig.enableParamValidation = enableParamValidation;
       }
@@ -1212,7 +1139,7 @@ for await (const chunk of stream) {
       // 格式化消息
       const messages = await this.formatMessages(message, enableTools, enablePrompts);
       
-      // 使用辅助函数获取工具定义
+      // 获取工具定义
       const openAITools = await this.getToolDefinitions(enableTools);
       
       // 创建请求参数
@@ -1242,7 +1169,7 @@ for await (const chunk of stream) {
         if (toolCalls.length === 0) return false;
         
         const round = toolManager.getCurrentRound();
-        Logger.info('OPENAI', `[${this.providerName}] 回合${round}: 处理 ${toolCalls.length} 个工具调用`);
+        Logger.info('OPENAI', `回合${round}: 处理 ${toolCalls.length} 个工具调用`);
         
         // 将大模型的回复添加到消息历史
         messages.push({
@@ -1250,7 +1177,7 @@ for await (const chunk of stream) {
           tool_calls: toolCalls.map(t => ({
             id: t.id,
             function: {
-              name: t.name,
+              name: t.codeName,
               arguments: JSON.stringify(t.arguments)
             },
             type: "function"
@@ -1284,8 +1211,8 @@ for await (const chunk of stream) {
             }
             
             // 参数验证通过，执行工具调用
-            const toolResult = await mcpClient.callTool<any>(toolCall.name, toolCall.arguments);
-            // 使用辅助函数格式化工具结果
+            const toolResult = await mcpClient.callTool<any>(toolCall.codeName, toolCall.arguments);
+            // 格式化工具结果
             const resultText = this.formatToolResult(toolResult);
             // 将工具执行结果添加到消息历史
             messages.push({
@@ -1313,8 +1240,6 @@ for await (const chunk of stream) {
         
         // 发送下一轮请求，获取模型继续回复
         try {
-          Logger.info('OPENAI', `[${this.providerName}] 回合${round}: 工具调用完成，获取模型回复`);
-          
           // 创建下一次请求参数 - 保留工具定义以支持后续工具调用
           const nextRequestParams = this.createRequestParams(
             messages as ChatCompletionMessageParam[],
@@ -1381,7 +1306,6 @@ for await (const chunk of stream) {
       // 处理工具调用循环
       if (toolManager.hasValidToolCalls()) {
         toolManager.setCurrentRound(1); // 设置为第1回合
-        Logger.info('OPENAI', `[${this.providerName}] 开始工具调用处理循环`);
         
         let initialToolCalls = toolManager.getToolCallsByRound(0);
         let hasMore = await processToolCalls(initialToolCalls);
@@ -1394,7 +1318,7 @@ for await (const chunk of stream) {
           
           // 检查是否达到最大回合数
           if (round >= MAX_TOOL_CALL_ROUNDS) {
-            Logger.warn('OPENAI', `[${this.providerName}] 已达到最大工具调用回合数 ${MAX_TOOL_CALL_ROUNDS}，停止后续调用`);
+            Logger.warn('OPENAI', `已达到最大工具调用回合数 ${MAX_TOOL_CALL_ROUNDS}，停止后续调用`);
             onChunk({ content: "\n\n[系统: 已达到最大工具调用次数限制，后续工具调用已被中断]" }, false);
             // 设置达到最大回合数标志
             toolManager.setReachedMaxRounds(true);
@@ -1410,8 +1334,7 @@ for await (const chunk of stream) {
         toolManager.finalizeAllToolCalls();
       }
       
-      Logger.info('OPENAI', `[${this.providerName}] 发送流式完成标志`);
-      onChunk({}, true);
+      onChunk({}, true); // 发送完成标志
       
       // 返回最终结果
       return {
@@ -1461,7 +1384,6 @@ export async function initializeProviders(): Promise<void> {
     // 创建所有服务提供商的实例
     for (const provider of config.providers) {
       providerServices[provider.name] = new OpenAI(provider);
-      Logger.info('OPENAI', `已初始化提供商实例: ${provider.name}`);
     }
     
     // 设置默认服务实例
@@ -1538,7 +1460,6 @@ export async function reloadProviders(): Promise<{providers: string[], default: 
     
     // 处理没有提供商的情况
     if (!config || !config.providers || config.providers.length === 0) {
-      Logger.info('OPENAI', '数据库中没有提供商配置，返回空结果');
       // 清空当前提供商服务
       Object.keys(providerServices).forEach(key => {
         delete providerServices[key];
@@ -1559,24 +1480,21 @@ export async function reloadProviders(): Promise<{providers: string[], default: 
     // 重新创建提供商实例
     for (const provider of config.providers) {
       providerServices[provider.name] = new OpenAI(provider);
-      Logger.info('OPENAI', `已重新加载提供商实例: ${provider.name}`);
     }
     
     // 更新默认服务实例
-    if (config.defaultProvider && providerServices[config.defaultProvider]) {
-      openaiService = providerServices[config.defaultProvider];
-      Logger.info('OPENAI', `已将默认提供商更新为: ${config.defaultProvider}`);
-    } else if (config.providers.length > 0) {
-      openaiService = providerServices[config.providers[0].name];
-      Logger.info('OPENAI', `默认提供商未指定或无效，使用第一个提供商: ${config.providers[0].name}`);
+    const defaultProvider = config.defaultProvider || (config.providers.length > 0 ? config.providers[0].name : '');
+    
+    if (defaultProvider && providerServices[defaultProvider]) {
+      openaiService = providerServices[defaultProvider];
+      Logger.info('OPENAI', `已将默认提供商更新为: ${defaultProvider}`);
     } else {
       openaiService = undefined;
-      Logger.info('OPENAI', '没有可用的提供商，默认服务实例被设置为undefined');
     }
     
     return {
       providers: Object.keys(providerServices),
-      default: config.defaultProvider || (config.providers.length > 0 ? config.providers[0].name : '')
+      default: defaultProvider
     };
   } catch (error) {
     Logger.error('OPENAI', '重新加载AI提供商配置失败:', error);

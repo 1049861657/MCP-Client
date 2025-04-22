@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { ServerConfig, AppConfig } from './config/app.config.js';
+import { ServerConfig } from './config/app.config.js';
 import apiRoutes from './api/routes.js';
 import { Logger } from './utils/logger.js';
 import { ConfigService } from './services/config.service.js';
@@ -28,12 +28,11 @@ app.use('/api', apiRoutes);
 async function startServer() {
   try {
     // 获取服务器配置
-    const appInfo = await ConfigService.getSetting('appInfo') || AppConfig;
     const serverConfig = await ConfigService.getSetting('serverConfig') || ServerConfig;
     
     // 启动服务器
     app.listen(serverConfig.port, () => {
-      Logger.info('APP', `${appInfo.name} v${appInfo.version} 已启动`);
+      Logger.info('APP', `应用已启动`);
       Logger.info('APP', `Web服务器运行在 http://${serverConfig.host}:${serverConfig.port}`);
     });
   } catch (error) {

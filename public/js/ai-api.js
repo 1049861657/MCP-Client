@@ -126,7 +126,6 @@ window.AIChatAPI = {
         // 重置工具token累计
         this.accumulatedToolTokens = 0;
         
-        const apiPath = app.state.providers[provider].apiPath;
         const startTime = Date.now();
         
         // 清空上次结果
@@ -274,7 +273,6 @@ window.AIChatAPI = {
         let fullText = '';  // 保存完整文本
         let eventName = '';
         let eventData = '';
-        let tokenInfoUpdated = false;
         
         // 用于处理跨chunks的数据
         let buffer = '';
@@ -342,11 +340,6 @@ window.AIChatAPI = {
                             
                             // 在这里处理事件数据
                             fullText = await this.handleEventData(eventName, eventData, aiMessageDiv, fullText, startTime);
-                            
-                            // 更新token信息状态
-                            if (eventName === 'usage') {
-                                tokenInfoUpdated = true;
-                            }
                         } else if (line.trim() === '') {
                             // 空行，重置事件数据
                             eventName = '';
@@ -505,22 +498,18 @@ window.AIChatAPI = {
                 if (jsonData.tool_call_result) {
                     console.log('jsonData(工具调用结果):', jsonData);
                     
-                    try {
-                        if (jsonData.tool_call_result.name === "executeApi") {
-                            const parsedArgs = JSON.parse(this.toolCallArgumentsMap.get(jsonData.tool_call_result.tool_call_id).arguments);
-                            console.log('执行工具调用:', parsedArgs);
-                             window.parent.postMessage({
-                                type: 'ai_tool_call_result',
-                                data: {
-                                    apiId: parsedArgs.apiId,
-                                    params: parsedArgs.params,
-                                    result: jsonData.tool_call_result.result,
-                                }
-                            }, '*');
-                            this.toolCallArgumentsMap.delete(jsonData.tool_call_result.tool_call_id);
-                        }
-                    } catch (error) {
-                        console.error('向父窗口发送工具调用结果失败:', error);
+                    // 向父窗口发送工具调用结果
+                    if (jsonData.tool_call_result.name === "executeApi") {
+                        const parsedArgs = JSON.parse(this.toolCallArgumentsMap.get(jsonData.tool_call_result.tool_call_id).arguments);
+                         window.parent.postMessage({
+                            type: 'ai_tool_call_result',
+                            data: {
+                                apiId: parsedArgs.apiId,
+                                params: parsedArgs.params,
+                                result: jsonData.tool_call_result.result,
+                            }
+                        }, '*');
+                        this.toolCallArgumentsMap.delete(jsonData.tool_call_result.tool_call_id);
                     }
                     
                     // 如果有token使用情况，累加到全局总消耗token变量中

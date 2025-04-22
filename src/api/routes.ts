@@ -14,7 +14,6 @@ router.post('/chat', OpenAIController.chat);
 router.post('/chat/stream', OpenAIController.chatStream);
 
 // 配置路由
-router.get('/config/ai-providers', ConfigController.getAIProviders);
 router.get('/config/features', ConfigController.getFeatureConfig);
 router.get('/config/quick-messages', ConfigController.getQuickMessages);
 router.post('/config/quick-messages/save', ConfigController.saveQuickMessages);

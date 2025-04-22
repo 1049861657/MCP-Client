@@ -1,14 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { AppConfig } from "../config/app.config.js";
 
 /**
  * 创建并配置MCP服务器
  */
 const server = new McpServer({
   name: "Echo",
-  version: AppConfig.version
+  version: '1.0.0'
 });
 
 // 配置echo工具

@@ -7,7 +7,6 @@ import { ProviderType, ConnectionType } from '../../prisma/generated/index.js'
 export interface ProviderTypeInfo {
   value: ProviderType;
   label: string;
-  apiPath: string;
 }
 
 // 模型接口
@@ -20,7 +19,6 @@ export interface AIModel {
 export interface AIProvider {
   name: string;
   type: ProviderType;
-  apiPath: string;
   apiUrl: string;
   apiKey: string;
   defaultModel: string;

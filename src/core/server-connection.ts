@@ -1,7 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { AppConfig } from "../config/app.config.js";
 import { Logger } from "../utils/logger.js";
 import { ConnectionType} from "../../prisma/generated/index.js";
 import { ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
@@ -43,8 +42,8 @@ export class ServerConnection {
     this.transport = transport;
     this.client = new Client(
       {
-        name: AppConfig.name,
-        version: AppConfig.version
+        name: '',
+        version: ''
       },
       {
         capabilities: { tools: {} }

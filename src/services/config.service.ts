@@ -46,91 +46,6 @@ export class ConfigService {
   }
 
   /**
-   * 获取默认提供商名称
-   * @returns 默认提供商名称，如果没有提供商则返回空字符串
-   */
-  static async getDefaultProviderName(): Promise<string> {
-    try {
-      // 获取默认提供商设置
-      const defaultProviderSetting = await prisma.setting.findUnique({
-        where: { key: 'defaultProvider' }
-      });
-      
-      // 如果找到有效的默认提供商设置，直接返回
-      if (defaultProviderSetting?.value) {
-        return defaultProviderSetting.value as string;
-      }
-      
-      // 如果没有设置默认提供商，尝试获取第一个提供商作为默认值
-      const firstProvider = await prisma.aIProvider.findFirst({
-        orderBy: { id: 'asc' }
-      });
-      
-      // 如果找到了提供商，返回其名称
-      if (firstProvider) {
-        return firstProvider.name;
-      }
-      
-      // 没有找到任何提供商，返回空字符串
-      Logger.info('ConfigService', '数据库中没有任何AI提供商配置，返回空默认提供商名称');
-      return '';
-    } catch (error) {
-      Logger.error('ConfigService', '获取默认提供商名称失败:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 获取指定名称的提供商
-   * @param name 提供商名称
-   * @returns 提供商配置
-   * @throws 如果找不到指定名称的提供商，则抛出异常
-   */
-  static async getProviderByName(name: string): Promise<AIProvider> {
-    try {
-      const provider = await prisma.aIProvider.findUnique({
-        where: { name },
-        include: { models: true }
-      });
-      
-      if (!provider) {
-        throw new Error(`找不到名称为 ${name} 的提供商`);
-      }
-      
-      return {
-        name: provider.name,
-        type: provider.type as ProviderType,
-        apiUrl: provider.apiUrl,
-        apiKey: provider.apiKey,
-        defaultModel: provider.defaultModelValue,
-        apiPath: '/api/openai', // 根据provider.type设置
-        models: provider.models.map(model => ({
-          value: model.value,
-          label: model.label
-        }))
-      };
-    } catch (error) {
-      Logger.error('ConfigService', `获取提供商 [${name}] 失败:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * 获取默认提供商
-   * @returns 默认提供商配置
-   * @throws 如果找不到默认提供商，则抛出异常
-   */
-  static async getDefaultProvider(): Promise<AIProvider> {
-    try {
-      const defaultProviderName = await this.getDefaultProviderName();
-      return await this.getProviderByName(defaultProviderName);
-    } catch (error) {
-      Logger.error('ConfigService', '获取默认提供商失败:', error);
-      throw error;
-    }
-  }
-
-  /**
    * 获取所有AI提供商
    * @returns 所有提供商配置
    */
@@ -152,7 +67,6 @@ export class ConfigService {
         apiUrl: provider.apiUrl,
         apiKey: provider.apiKey,
         defaultModel: provider.defaultModelValue,
-        apiPath: '/api/openai', // 根据provider.type设置
         models: provider.models.map(model => ({
           value: model.value,
           label: model.label
@@ -171,14 +85,7 @@ export class ConfigService {
   static async getAIProvidersConfig(): Promise<AIProvidersConfigType> {
     try {
       const providers = await this.getAllProviders();
-      // 尝试获取默认提供商名称，如果没有则使用空字符串
-      let defaultProviderName = '';
-      try {
-        defaultProviderName = await this.getDefaultProviderName();
-      } catch (error) {
-        Logger.info('ConfigService', '没有找到默认提供商名称，使用空字符串');
-      }
-      
+      const defaultProviderName = await this.getSetting('defaultProvider');
       return {
         providers,
         defaultProvider: defaultProviderName
