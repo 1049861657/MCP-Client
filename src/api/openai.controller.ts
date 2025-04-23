@@ -116,7 +116,8 @@ export class OpenAIController {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      
+      //通知父窗口开始
+      res.write(`event: begin\n`);
       // 从请求体中获取参数
       const { 
         message, 
@@ -195,9 +196,6 @@ export class OpenAIController {
         res.write(`data: ${JSON.stringify({
           finish_reason: result.finish_reason
         })}\n\n`);
-        
-        // 最后发送DONE信号并关闭连接
-        res.write(`data: [DONE]\n\n`);
         res.end();
       }).catch(error => {
         // 错误处理

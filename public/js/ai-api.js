@@ -361,7 +361,10 @@ window.AIChatAPI = {
         const timeManager = window.AIChatApp.timeManager;
 
         // 处理使用情况数据
-        if (eventName === 'usage' && eventData) {
+        if(eventName === 'begin'){
+            window.parent.postMessage({type: 'ai_tool_call_begin'}, '*');
+        }
+        else if (eventName === 'usage' && eventData) {
             try {
                 const usageData = JSON.parse(eventData);
                 console.log('Usage数据:', usageData); // 调试用
@@ -395,7 +398,8 @@ window.AIChatAPI = {
             }
         } 
         // 处理完成事件
-        else if (eventName === 'done' || (eventData && eventData === '[DONE]')) {
+        else if (eventName === 'done') {
+            window.parent.postMessage({type: 'ai_tool_call_done'}, '*');
             // 确保思考状态被移除
             UI.hideThinking(aiMessageDiv);
             // 不更新时间的情况下完成消息处理
