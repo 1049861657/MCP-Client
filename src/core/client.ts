@@ -14,12 +14,41 @@ export class MCPClientManager {
   private toolServerMap: Map<string, string> = new Map(); // 工具编码名称到服务器ID的映射
   private currentServerId?: string; // 当前选中的服务器ID
   private mcpConfig: any = null; // 存储MCP配置信息
+  private reconnectTimer?: NodeJS.Timeout; // 存储定时重连的计时器ID
+  private static readonly RECONNECT_INTERVAL = 8 * 60 * 60 * 1000; // 8小时，毫秒单位
 
   constructor() {
     // 在构造函数中调用异步方法，但不等待
     this.initializeConnections().catch(error => {
       Logger.error('MCP CLIENT', '初始化连接失败:', error);
     });
+    
+    // 启动定时重连功能
+    this.startAutoReconnect();
+  }
+
+  /**
+   * 启动定时重连功能
+   * 每隔8小时自动重连所有服务器以更新cookie
+   */
+  private startAutoReconnect(): void {
+    // 清除可能存在的旧定时器
+    this.stopAutoReconnect();
+    
+    // 设置新的定时器，每隔RECONNECT_INTERVAL执行重连
+    this.reconnectTimer = setInterval(async () => {
+      await this.restartAll();
+    }, MCPClientManager.RECONNECT_INTERVAL);
+  }
+  
+  /**
+   * 停止定时重连功能
+   */
+  private stopAutoReconnect(): void {
+    if (this.reconnectTimer) {
+      clearInterval(this.reconnectTimer);
+      this.reconnectTimer = undefined;
+    }
   }
 
   /**
@@ -27,6 +56,7 @@ export class MCPClientManager {
    */
   private async initializeConnections(): Promise<void> {
     // 清空工具服务器映射
+    this.connections.clear();
     this.toolServerMap.clear();
     
     try {
@@ -51,7 +81,6 @@ export class MCPClientManager {
           if (!connection) continue;
           
           try {
-            Logger.info('MCP CLIENT', `尝试连接激活的服务器: ${serverConfig.name} (${serverConfig.serverId})`);
             const connected = await connection.connect();
             
             // 连接成功后获取工具列表并更新工具服务器映射
@@ -307,19 +336,21 @@ export class MCPClientManager {
    * 重启所有服务器连接
    */
   async restartAll(): Promise<void> {
+    // 记录当前是否存在定时器
+    const hasTimer = !!this.reconnectTimer;
+    
     // 先获取最新配置
     try {
       this.mcpConfig = await ConfigService.getMCPConfig();
       
-      // 断开现有的所有连接
+      // 断开现有的所有连接并重新初始化
       await this.disconnectAll();
-      
-      // 清空现有的连接和工具映射
-      this.connections.clear();
-      this.toolServerMap.clear();
-      
-      // 重新初始化连接
       await this.initializeConnections();
+      
+      // 如果之前存在定时器，重新启动定时重连功能
+      if (hasTimer) {
+        this.startAutoReconnect();
+      }
     } catch (error) {
       Logger.error('MCP CLIENT', '重启所有服务器连接失败:', error);
       throw error;

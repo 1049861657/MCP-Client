@@ -152,8 +152,6 @@ export class ServerConnection {
         
         this.transportClosed = false;
       }
-
-      Logger.info('SERVER CONNECTION', `正在连接到MCP服务器 ${this.name}...`);
       
       await this.client.connect(this.transport);
       
