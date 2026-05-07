@@ -1,8 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { ClientCapabilities } from "@modelcontextprotocol/sdk/types.js";
 import { Logger } from "../utils/logger.js";
-import { ConnectionType} from "../../prisma/generated/index.js";
+import { ConnectionType } from '../generated/prisma/client.js';
 import { ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
 import { ConfigService } from "../services/config.service.js";
 import { MCPConfigType, MCPServer } from "../types/config.types.js";
@@ -14,7 +15,7 @@ import { OpenAINameCodec } from "../utils/openai-util.js";
  */
 export class ServerConnection {
   private client: Client;
-  private transport: StdioClientTransport | SSEClientTransport;
+  private transport: StdioClientTransport | StreamableHTTPClientTransport;
   private connected: boolean = false;
   private transportClosed: boolean = false;
   private id: string;
@@ -46,7 +47,7 @@ export class ServerConnection {
         version: ''
       },
       {
-        capabilities: { tools: {} }
+        capabilities: {} satisfies ClientCapabilities
       }
     );
     
@@ -68,9 +69,9 @@ export class ServerConnection {
   }
 
   /**
-   * 创建客户端传输层
+   * 创建客户端传输层（远程 HTTP(S) 仅 Streamable HTTP，与当前 @modelcontextprotocol/sdk 一致）
    */
-  private createClientTransport(serverConfig: MCPServer): StdioClientTransport | SSEClientTransport | null {
+  private createClientTransport(serverConfig: MCPServer): StdioClientTransport | StreamableHTTPClientTransport | null {
     const connectionType = serverConfig.connectionType;
     
     if (connectionType === ConnectionType.STDIO) {
@@ -84,15 +85,16 @@ export class ServerConnection {
       });
     } 
     
-    if (connectionType === ConnectionType.SSE) {
-      if (!serverConfig.sseUrl) {
-        Logger.error('SERVER CONNECTION', `无法创建sse连接: 缺少sseUrl配置`);
+    if (connectionType === ConnectionType.HTTP) {
+      if (!serverConfig.mcpUrl) {
+        Logger.error('SERVER CONNECTION', `无法创建 HTTP 连接: 缺少 mcpUrl 配置`);
         return null;
       }
       try {
-        return new SSEClientTransport(new URL(serverConfig.sseUrl));
+        const url = new URL(serverConfig.mcpUrl);
+        return new StreamableHTTPClientTransport(url);
       } catch (error) {
-        Logger.error('SERVER CONNECTION', `创建SSE连接失败: ${error instanceof Error ? error.message : String(error)}`);
+        Logger.error('SERVER CONNECTION', `创建远程 MCP 传输失败: ${error instanceof Error ? error.message : String(error)}`);
         return null;
       }
     }
@@ -108,8 +110,8 @@ export class ServerConnection {
     if (!serverConfig) return '';
     if (this.connectionType === ConnectionType.STDIO && serverConfig.command) {
       return `${serverConfig.command} ${serverConfig.args?.join(' ') || ''}`;
-    } else if (this.connectionType === ConnectionType.SSE && serverConfig.sseUrl) {
-      return serverConfig.sseUrl;
+    } else if (this.connectionType === ConnectionType.HTTP && serverConfig.mcpUrl) {
+      return serverConfig.mcpUrl;
     }
     return '';
   }
@@ -146,7 +148,7 @@ export class ServerConnection {
             version: this.mcpConfig.client.version
           },
           {
-            capabilities: this.mcpConfig.client.capabilities
+            capabilities: this.mcpConfig.client.capabilities as unknown as ClientCapabilities
           }
         );
         
@@ -241,7 +243,7 @@ export class ServerConnection {
         connectionType: this.connectionType,
         command: serverConfig?.command || undefined,
         args: serverConfig?.args ? serverConfig.args.join(' ') : undefined,
-        sseUrl: serverConfig?.sseUrl || undefined,
+        mcpUrl: serverConfig?.mcpUrl || undefined,
         displayCommand
       }
     };

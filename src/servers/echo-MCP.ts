@@ -11,14 +11,16 @@ const server = new McpServer({
 });
 
 // 配置echo工具
-server.tool(
+server.registerTool(
   "echo",
-  "输出一个复读机",
   {
-    message: z.string().describe("字符串")
+    description: "输出一个复读机",
+    inputSchema: {
+      message: z.string().describe("字符串"),
+    },
   },
-  async (params: { message: string }) => ({
-    content: [{ type: "text", text: `Tool echo: ${params.message}` }]
+  async (params) => ({
+    content: [{ type: "text", text: `Tool echo: ${params.message}` }],
   })
 );
 

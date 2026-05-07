@@ -67,6 +67,22 @@ document.addEventListener('DOMContentLoaded', () => {
         renderProvidersUI();
     }
     
+    /** 保存/渲染后：用下拉选中项对应条目的名称写回 defaultProvider，否则 POST 里 defaultProvider 仍为 null，库不会更新 */
+    function syncDefaultProviderFromSelectedProvider() {
+        if (!providersData || !defaultProviderSelect || providersData.providers.length === 0) {
+            return;
+        }
+        const i = defaultProviderSelect.selectedIndex;
+        if (i >= 0 && i < providersData.providers.length) {
+            const name = (providersData.providers[i].name || '').trim();
+            if (name !== '') {
+                providersData.defaultProvider = name;
+                return;
+            }
+        }
+        providersData.defaultProvider = defaultProviderSelect.value || '';
+    }
+
     /**
      * 渲染提供商UI
      */
@@ -95,10 +111,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // 设置默认选中的提供商
         if (providersData.defaultProvider) {
             defaultProviderSelect.value = providersData.defaultProvider;
         }
+        syncDefaultProviderFromSelectedProvider();
     }
     
     /**
@@ -533,7 +549,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error('提供商名称、API URL和API Key不能为空');
                 }
             });
-            
+
+            syncDefaultProviderFromSelectedProvider();
+
             // 保存配置
             await saveAndReloadProviders(providersData);
             

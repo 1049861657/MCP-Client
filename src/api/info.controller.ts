@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { mcpClient, reloadMCPConfig } from '../core/client.js';
 import { ErrorResponse } from '../interfaces/mcp.interfaces.js';
 import { ConfigService } from '../services/config.service.js';
-import { ConnectionType} from '../../prisma/generated/index.js';
+import { ConnectionType } from '../generated/prisma/client.js';
 import { MCPServer } from '../types/config.types.js';
 /**
  * MCP信息控制器类
@@ -22,6 +22,16 @@ export class InfoController {
   private static sendErrorResponse(res: Response, status: number, error: string, details: string): void {
     const errorResponse: ErrorResponse = { error, details };
     res.status(status).json(errorResponse);
+  }
+
+  /**
+   * Express 5 中路由参数类型为 string | string[]
+   */
+  private static routeParamToString(value: string | string[] | undefined): string | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    return Array.isArray(value) ? value[0] : value;
   }
 
   /**
@@ -57,7 +67,7 @@ export class InfoController {
    */
   static async connectServer(req: Request, res: Response): Promise<void> {
     try {
-      const { serverId } = req.params;
+      const serverId = InfoController.routeParamToString(req.params.serverId);
       
       if (!serverId) {
         res.status(400).json({ error: '缺少服务器ID参数' });
@@ -86,7 +96,7 @@ export class InfoController {
    */
   static async disconnectServer(req: Request, res: Response): Promise<void> {
     try {
-      const { serverId } = req.params;
+      const serverId = InfoController.routeParamToString(req.params.serverId);
       
       if (!serverId) {
         InfoController.sendErrorResponse(
@@ -151,16 +161,16 @@ export class InfoController {
           );
           return;
         }
-      } else if (serverData.connectionType === ConnectionType.SSE) {
-        if (!serverData.sseUrl) {
+      } else if (serverData.connectionType === ConnectionType.HTTP) {
+        if (!serverData.mcpUrl) {
           InfoController.sendErrorResponse(
-            res, 400, "服务器数据无效", "sse连接类型必须提供sseUrl"
+            res, 400, "服务器数据无效", "HTTP 连接类型必须提供 mcpUrl（MCP 端点）"
           );
           return;
         }
       } else {
         InfoController.sendErrorResponse(
-          res, 400, "服务器数据无效", "connectionType必须是stdio或sse"
+          res, 400, "服务器数据无效", "connectionType 必须是 STDIO 或 HTTP"
         );
         return;
       }
@@ -200,7 +210,7 @@ export class InfoController {
    */
   static async updateServer(req: Request, res: Response): Promise<void> {
     try {
-      const serverId = req.params.serverId;
+      const serverId = InfoController.routeParamToString(req.params.serverId);
       const serverData: Partial<MCPServer> = req.body;
       
       if (!serverId) {
@@ -251,7 +261,7 @@ export class InfoController {
    */
   static async deleteServer(req: Request, res: Response): Promise<void> {
     try {
-      const serverId = req.params.serverId;
+      const serverId = InfoController.routeParamToString(req.params.serverId);
       
       if (!serverId) {
         InfoController.sendErrorResponse(res, 400, "删除服务器失败", "服务器ID不能为空");
@@ -315,7 +325,7 @@ export class InfoController {
    */
   static async switchServer(req: Request, res: Response): Promise<void> {
     try {
-      const serverId = req.params.serverId;
+      const serverId = InfoController.routeParamToString(req.params.serverId);
       
       if (!serverId) {
         InfoController.sendErrorResponse(res, 400, "查看服务器失败", "服务器ID不能为空");

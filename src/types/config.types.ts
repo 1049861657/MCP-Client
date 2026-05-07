@@ -1,4 +1,4 @@
-import { ProviderType, ConnectionType } from '../../prisma/generated/index.js'
+import { ProviderType, ConnectionType } from '../generated/prisma/client.js';
 /**
  * 配置相关的类型定义
  */
@@ -49,7 +49,7 @@ export interface MCPServer {
   connectionType: ConnectionType;
   command?: string;
   args?: string[];
-  sseUrl?: string;
+  mcpUrl?: string;
 }
 
 // MCP配置接口

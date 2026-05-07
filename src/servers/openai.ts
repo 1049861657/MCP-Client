@@ -2,10 +2,11 @@ import { OpenAI as OpenAIClient } from 'openai';
 import { Logger } from '../utils/logger.js';
 import { ChatConfig, ToolsConfig } from '../config/feature-config.js';
 import { mcpClient } from '../core/client.js';
-import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
 import { AIProvider } from '../types/config.types.js';
 import { OpenAINameCodec } from '../utils/openai-util.js';
 import { ConfigService } from '../services/config.service.js';
+
+type ChatCompletionMessageParam = OpenAIClient.ChatCompletionMessageParam;
 
 // 扩展Delta接口以支持reasoning_content属性
 interface ExtendedDelta {
@@ -1482,19 +1483,31 @@ export async function reloadProviders(): Promise<{providers: string[], default: 
       providerServices[provider.name] = new OpenAI(provider);
     }
     
-    // 更新默认服务实例
-    const defaultProvider = config.defaultProvider || (config.providers.length > 0 ? config.providers[0].name : '');
-    
-    if (defaultProvider && providerServices[defaultProvider]) {
-      openaiService = providerServices[defaultProvider];
-      Logger.info('OPENAI', `已将默认提供商更新为: ${defaultProvider}`);
+    // 更新默认服务实例（与 initializeProviders 一致：库里有 defaultProvider 才视为「已配置」）
+    const fromDb =
+      config.defaultProvider != null && String(config.defaultProvider).trim() !== ''
+        ? String(config.defaultProvider).trim()
+        : '';
+    const runtimeDefault =
+      fromDb || (config.providers.length > 0 ? config.providers[0].name : '');
+
+    if (runtimeDefault && providerServices[runtimeDefault]) {
+      openaiService = providerServices[runtimeDefault];
+      if (fromDb) {
+        Logger.info('OPENAI', `重新加载：默认提供商（来自数据库 Setting.defaultProvider）: ${runtimeDefault}`);
+      } else {
+        Logger.info(
+          'OPENAI',
+          `重新加载：数据库未写入 defaultProvider，进程内暂用第一个提供商: ${runtimeDefault}（保存配置时须把下拉选中项写入请求体 defaultProvider 才会落库）`
+        );
+      }
     } else {
       openaiService = undefined;
     }
     
     return {
       providers: Object.keys(providerServices),
-      default: defaultProvider
+      default: runtimeDefault
     };
   } catch (error) {
     Logger.error('OPENAI', '重新加载AI提供商配置失败:', error);

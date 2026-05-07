@@ -1,4 +1,4 @@
-import { ConnectionType } from "../../prisma/generated/index.js";
+import { ConnectionType } from '../generated/prisma/client.js';
 
 /**
  * Deepseek聊天请求接口
@@ -75,7 +75,7 @@ export interface ServerInfo {
     connectionType: ConnectionType;
     command?: string;
     args?: string;
-    sseUrl?: string;
+    mcpUrl?: string;
     displayCommand?: string; // 用于UI显示的连接命令
   };
 }

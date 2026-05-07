@@ -2,8 +2,8 @@ import { ConfigService } from "../services/config.service.js";
 import { Logger } from "../utils/logger.js";
 import { ClientInfo, MCPServerInfo, ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
 import { ServerConnection } from "./server-connection.js";
-import { ConnectionType} from "../../prisma/generated/index.js";
-import { MCPServer } from "../types/config.types.js";
+import { ConnectionType } from '../generated/prisma/client.js';
+import { MCPConfigType, MCPServer } from "../types/config.types.js";
 import { OpenAINameCodec } from "../utils/openai-util.js";
 /**
  * MCP客户端管理器类
@@ -13,7 +13,7 @@ export class MCPClientManager {
   private connections: Map<string, ServerConnection> = new Map();
   private toolServerMap: Map<string, string> = new Map(); // 工具编码名称到服务器ID的映射
   private currentServerId?: string; // 当前选中的服务器ID
-  private mcpConfig: any = null; // 存储MCP配置信息
+  private mcpConfig: MCPConfigType | null = null;
   private reconnectTimer?: NodeJS.Timeout; // 存储定时重连的计时器ID
   private static readonly RECONNECT_INTERVAL = 8 * 60 * 60 * 1000; // 8小时，毫秒单位
 

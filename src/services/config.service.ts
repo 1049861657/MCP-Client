@@ -2,7 +2,7 @@
  * 配置服务
  * 负责从数据库实时读取和写入配置信息
  */
-import { ProviderType} from '../../prisma/generated/index.js';
+import { ProviderType } from '../generated/prisma/client.js';
 import { prisma } from '../lib/prisma.js';
 import { AIProvidersConfigType, MCPConfigType, AIProvider, QuickMessage } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';
@@ -176,7 +176,7 @@ export class ConfigService {
           connectionType: server.connectionType, 
           command: server.command || undefined,
           args: server.args as string[] || undefined,
-          sseUrl: server.sseUrl || undefined
+          mcpUrl: server.mcpUrl || undefined
         })),
         toolPrompt: toolPromptValue,
         enabledToolServerIds: enabledToolServerIds
@@ -214,7 +214,7 @@ export class ConfigService {
             connectionType: server.connectionType, 
             command: server.command,
             args: server.args as any, // JSON类型
-            sseUrl: server.sseUrl
+            mcpUrl: server.mcpUrl
           }
         });
       }

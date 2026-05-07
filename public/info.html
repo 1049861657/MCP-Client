@@ -585,8 +585,8 @@
                             标准输入/输出 (stdio)
                         </label>
                         <label class="form-radio-label">
-                            <input type="radio" name="connection-type" value="SSE" class="form-radio"> 
-                            服务器发送事件 (sse)
+                            <input type="radio" name="connection-type" value="HTTP" class="form-radio"> 
+                            远程 HTTP（MCP Streamable HTTP）
                         </label>
                     </div>
                 </div>
@@ -603,11 +603,11 @@
                     </div>
                 </div>
                 
-                <!-- sse 连接配置 -->
-                <div id="sse-fields" class="connection-fields" style="display: none;">
+                <!-- 远程 HTTP：connectionType=HTTP，mcpUrl -->
+                <div id="http-fields" class="connection-fields" style="display: none;">
                     <div class="form-group">
-                        <label for="sse-url" class="form-label">SSE URL*</label>
-                        <input type="text" id="sse-url" class="form-input" placeholder="例如: http://localhost:3000/sse">
+                        <label for="mcp-url" class="form-label">MCP 端点 URL*</label>
+                        <input type="text" id="mcp-url" class="form-input" placeholder="例如: http://localhost:3000/mcp">
                     </div>
                 </div>
                 
@@ -677,10 +677,10 @@
                 radio.addEventListener('change', function() {
                     if (this.value === 'STDIO') {
                         document.getElementById('stdio-fields').style.display = 'block';
-                        document.getElementById('sse-fields').style.display = 'none';
+                        document.getElementById('http-fields').style.display = 'none';
                     } else {
                         document.getElementById('stdio-fields').style.display = 'none';
-                        document.getElementById('sse-fields').style.display = 'block';
+                        document.getElementById('http-fields').style.display = 'block';
                     }
                 });
             });
@@ -698,7 +698,7 @@
                 serverForm.reset();
                 document.querySelector('input[name="connection-type"][value="STDIO"]').checked = true;
                 document.getElementById('stdio-fields').style.display = 'block';
-                document.getElementById('sse-fields').style.display = 'none';
+                document.getElementById('http-fields').style.display = 'none';
                 
                 showServerForm();
             });
@@ -724,8 +724,8 @@
                     
                     serverData.command = command;
                     serverData.args = args;
-                } else if (connectionType === 'SSE') {
-                    serverData.sseUrl = document.getElementById('sse-url').value.trim();
+                } else if (connectionType === 'HTTP') {
+                    serverData.mcpUrl = document.getElementById('mcp-url').value.trim();
                 }
                 
                 try {
@@ -816,15 +816,15 @@
                 
                 if (connectionType === 'STDIO') {
                     document.getElementById('stdio-fields').style.display = 'block';
-                    document.getElementById('sse-fields').style.display = 'none';
+                    document.getElementById('http-fields').style.display = 'none';
                     
                     document.getElementById('command').value = server.connectionDetails.command || '';
                     document.getElementById('args').value = server.connectionDetails.args || '';
                 } else {
                     document.getElementById('stdio-fields').style.display = 'none';
-                    document.getElementById('sse-fields').style.display = 'block';
+                    document.getElementById('http-fields').style.display = 'block';
                     
-                    document.getElementById('sse-url').value = server.connectionDetails.sseUrl || '';
+                    document.getElementById('mcp-url').value = server.connectionDetails.mcpUrl || '';
                 }
                 
                 showServerForm();
@@ -926,8 +926,8 @@
                 let connectionTypeName = '';
                 if (connectionType === 'STDIO') {
                     connectionTypeName = 'Stdio (标准输入输出)';
-                } else if (connectionType === 'SSE') {
-                    connectionTypeName = 'SSE (服务器发送事件)';
+                } else if (connectionType === 'HTTP') {
+                    connectionTypeName = '远程 HTTP（MCP Streamable HTTP）';
                 } else {
                     connectionTypeName = connectionType || '未知';
                 }

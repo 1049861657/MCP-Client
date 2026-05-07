@@ -5,13 +5,12 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "generated"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 // 提供商类型枚举
@@ -19,10 +18,10 @@ enum ProviderType {
   OPENAI
 }
 
-// 连接类型枚举
+// 连接类型枚举（远程 MCP 使用 Streamable HTTP，不再使用 SSE 命名）
 enum ConnectionType {
   STDIO
-  SSE
+  HTTP
 }
 
 // 通用设置模型
@@ -62,7 +61,7 @@ model MCPServer {
   connectionType ConnectionType // 使用枚举类型
   command        String?        // stdio 类型可选
   args           Json?          // stdio 类型可选，存储 ["arg1", "arg2"]
-  sseUrl         String?        // sse 类型可选
+  mcpUrl         String?        // HTTP 类型：MCP Streamable HTTP 端点
 }
 
 // 快捷消息模型

@@ -27,7 +27,7 @@ yarn-error.log*
 .cursor/
 
 # 数据库
-prisma/generated/
+src/generated/
 prisma/dev.db
 
 #demo
