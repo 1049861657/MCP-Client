@@ -51,10 +51,17 @@ export class OpenAINameCodec {
    */
   private static generateUniqueCode(inputString: string): string {
     const seed = this.hash(inputString);
-    // 初始编码使用哈希的前4位 + 随机生成的4位
-    let code = seed.substring(0, 4) + this.generateRandomString(seed, this.OUTPUT_LENGTH - 4);
-    
-    return code;
+    const raw = seed.substring(0, 4) + this.generateRandomString(seed, this.OUTPUT_LENGTH - 4);
+
+    // Gemini API 要求函数名首字符必须是字母或下划线（不能是数字）
+    // 若首字符恰好是数字，替换为字母集中对应的字符
+    const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const first = raw[0];
+    const safeFirst = /^[0-9]$/.test(first)
+      ? LETTERS[parseInt(first, 10) % LETTERS.length]
+      : first;
+
+    return safeFirst + raw.slice(1);
   }
 
   /**

@@ -3,6 +3,7 @@ import { Logger } from "../utils/logger.js";
 import { ClientInfo, MCPServerInfo, ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
 import { ServerConnection } from "./server-connection.js";
 import { ConnectionType } from '../generated/prisma/client.js';
+import { MCPClientIdentity } from "../config/app.config.js";
 import { MCPConfigType, MCPServer } from "../types/config.types.js";
 import { OpenAINameCodec } from "../utils/openai-util.js";
 /**
@@ -258,26 +259,13 @@ export class MCPClientManager {
 
   /**
    * 获取客户端信息
-   * @returns MCP客户端信息
+   * 客户端身份来自代码常量 MCPClientIdentity（不再依赖数据库）
    */
   async getClientInfo(): Promise<ClientInfo> {
-    try {
-      // 确保mcpConfig已加载
-      if (!this.mcpConfig) {
-        this.mcpConfig = await ConfigService.getMCPConfig();
-      }
-      
-      return {
-        name: this.mcpConfig.client.name,
-        version: this.mcpConfig.client.version
-      };
-    } catch (error) {
-      Logger.error('MCP CLIENT', '获取客户端信息失败:', error);
-      return {
-        name: 'MCP Client',
-        version: '1.0.0'
-      };
-    }
+    return {
+      name: MCPClientIdentity.name,
+      version: MCPClientIdentity.version
+    };
   }
 
   /**

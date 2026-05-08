@@ -413,7 +413,7 @@ window.AIChatUI = {
         const chatBubble = messageDiv.querySelector('.chat-bubble');
         if (!chatBubble) return;
         
-        const messageInfo = chatBubble.querySelector('.message-info');
+        const messageInfo = chatBubble.querySelector(':scope > .message-info');
         let messageTimeContent = '';
         let tokenInfoContent = '';
         
@@ -475,7 +475,7 @@ window.AIChatUI = {
             
             chatBubble.appendChild(newMessageInfo);
         } else if (!thinkingIndicator) {
-            const markdownDiv = chatBubble.querySelector('.markdown-content:not(.reasoning-content)');
+            const markdownDiv = chatBubble.querySelector(':scope > .markdown-content:not(.reasoning-content)');
             if (markdownDiv) {
                 markdownDiv.innerHTML = this.parseMarkdown(text);
                 this.processCodeBlocks(markdownDiv);
@@ -681,12 +681,12 @@ window.AIChatUI = {
             }
         }
         
-        const messageInfo = messageDiv.querySelector('.message-info');
+        const messageInfo = messageDiv.querySelector('.chat-bubble > .message-info');
         if (messageInfo) {
             messageInfo.classList.remove('hidden');
         }
         
-        const markdownDiv = messageDiv.querySelector('.markdown-content');
+        const markdownDiv = messageDiv.querySelector('.chat-bubble > .markdown-content:not(.reasoning-content)');
         if (markdownDiv) {
             this.processCodeBlocks(markdownDiv);
         }
@@ -704,12 +704,12 @@ window.AIChatUI = {
             thinkingDiv.className = 'ai-thinking';
             thinkingDiv.innerHTML = '<div class="thinking-spinner"></div>AI正在思考中...';
             
-            const markdownContent = chatBubble.querySelector('.markdown-content');
+            const markdownContent = chatBubble.querySelector(':scope > .markdown-content:not(.reasoning-content)');
             if (markdownContent) {
                 markdownContent.remove();
             }
             
-            const messageInfo = chatBubble.querySelector('.message-info');
+            const messageInfo = chatBubble.querySelector(':scope > .message-info');
             if (messageInfo) {
                 chatBubble.insertBefore(thinkingDiv, messageInfo);
             } else {
@@ -841,8 +841,8 @@ window.AIChatUI = {
         resultDiv.innerHTML = '<div class="thinking-spinner"></div>执行中...';
         contentContainer.appendChild(resultDiv);
         
-        const markdownContent = chatBubble.querySelector('.markdown-content');
-        const messageInfo = chatBubble.querySelector('.message-info');
+        const markdownContent = chatBubble.querySelector(':scope > .markdown-content:not(.reasoning-content)');
+        const messageInfo = chatBubble.querySelector(':scope > .message-info');
         
         if (markdownContent) {
             chatBubble.insertBefore(toolCall, markdownContent);
@@ -977,14 +977,14 @@ window.AIChatUI = {
             this.hideThinking(messageDiv);
         }
         
-        let markdownDiv = chatBubble.querySelector('.markdown-content:not(.reasoning-content)');
+        let markdownDiv = chatBubble.querySelector(':scope > .markdown-content:not(.reasoning-content)');
         if (!markdownDiv) {
             markdownDiv = document.createElement('div');
             markdownDiv.className = 'markdown-content';
             
-            const messageInfo = chatBubble.querySelector('.message-info');
-            if (messageInfo) {
-                chatBubble.insertBefore(markdownDiv, messageInfo);
+            const footerInfo = chatBubble.querySelector(':scope > .message-info');
+            if (footerInfo) {
+                chatBubble.insertBefore(markdownDiv, footerInfo);
             } else {
                 chatBubble.appendChild(markdownDiv);
             }
@@ -994,11 +994,16 @@ window.AIChatUI = {
         
         this.processCodeBlocks(markdownDiv);
         
-        let cursor = chatBubble.querySelector('.cursor');
+        let cursor = chatBubble.querySelector(':scope > .cursor');
         if (!cursor) {
             cursor = document.createElement('span');
             cursor.className = 'cursor';
-            chatBubble.insertBefore(cursor, chatBubble.querySelector('.message-info'));
+            const footerInfo = chatBubble.querySelector(':scope > .message-info');
+            if (footerInfo && footerInfo.parentNode === chatBubble) {
+                chatBubble.insertBefore(cursor, footerInfo);
+            } else {
+                chatBubble.appendChild(cursor);
+            }
         }
         
         if (window.AIChatApp.elements.chatMessages) {

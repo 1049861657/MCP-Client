@@ -2,11 +2,10 @@ import { OpenAI as OpenAIClient } from 'openai';
 import { Logger } from '../utils/logger.js';
 import { ChatConfig, ToolsConfig } from '../config/feature-config.js';
 import { mcpClient } from '../core/client.js';
+import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
 import { AIProvider } from '../types/config.types.js';
 import { OpenAINameCodec } from '../utils/openai-util.js';
 import { ConfigService } from '../services/config.service.js';
-
-type ChatCompletionMessageParam = OpenAIClient.ChatCompletionMessageParam;
 
 // 扩展Delta接口以支持reasoning_content属性
 interface ExtendedDelta {
@@ -547,14 +546,13 @@ export class OpenAI {
         
         return {
           type: "function" as const,
-          name: tool.name,
           function: {
             name: tool.codeName,
             description: tool.description,
             parameters: {
               type: "object",
               properties: properties,
-              required: required.length > 0 ? required : undefined
+              required: required
             }
           }
         };
@@ -646,13 +644,13 @@ export class OpenAI {
         stream_options: {
           include_usage: true
         },
-        ...(tools.length > 0 ? { tools } : {})
+        ...(tools.length > 0 ? { tools, tool_choice: 'auto' as const } : {})
       };
     }
     
     return {
       ...params,
-      ...(tools.length > 0 ? { tools } : {})
+      ...(tools.length > 0 ? { tools, tool_choice: 'auto' as const } : {})
     };
   }
   

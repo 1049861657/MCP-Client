@@ -146,13 +146,9 @@ export class ConfigService {
       // 从MCPServer表获取服务器数据
       const servers = await prisma.mCPServer.findMany();
 
-      // 获取客户端和工具提示设置
-      const clientSetting = await this.getSetting('mcpClient');
+      // 获取工具提示与启用的工具服务器ID设置
       const toolPromptSetting = await this.getSetting('mcpToolPrompt');
       const enabledToolServerIdsSetting = await this.getSetting('mcpEnabledToolServerIds');
-
-      // 处理客户端配置，确保类型安全
-      const clientConfig = clientSetting;
 
       // 处理工具提示，确保是字符串
       let toolPromptValue: string = '';
@@ -168,7 +164,6 @@ export class ConfigService {
 
       // 构建返回结果
       const result: MCPConfigType = {
-        client: clientConfig,
         servers: servers.map((server) => ({
           serverId: server.serverId,
           name: server.name,
@@ -196,8 +191,7 @@ export class ConfigService {
    */
   static async saveMCPConfig(config: MCPConfigType): Promise<boolean> {
     try {
-      // 保存客户端和工具提示设置
-      await this.saveSetting('mcpClient', config.client);
+      // 保存工具提示与启用的工具服务器ID设置
       await this.saveSetting('mcpToolPrompt', config.toolPrompt);
       await this.saveSetting('mcpEnabledToolServerIds', config.enabledToolServerIds || []);
 

@@ -33,15 +33,6 @@ export interface AIProvidersConfigType {
   defaultProvider: string;
 }
 
-// MCP客户端配置接口
-export interface MCPClient {
-  name: string;
-  version: string;
-  capabilities: {
-    tools: Record<string, any>;
-  };
-}
-
 export interface MCPServer {
   serverId: string;
   name: string;
@@ -54,7 +45,6 @@ export interface MCPServer {
 
 // MCP配置接口
 export interface MCPConfigType {
-  client: MCPClient;
   servers: MCPServer[];
   toolPrompt: string;
   enabledToolServerIds?: string[]; // 用于存储启用工具的服务器ID列表

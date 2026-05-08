@@ -11,6 +11,165 @@ window.AIChatAPI = {
     // 用于存储工具调用的完整参数，键为tool_call_id，值为completeArguments
     toolCallArgumentsMap: new Map(),
     
+    /**
+     * 解析 SSE data 字段：单行单 JSON，或多段 JSON 粘连（如 }{ 中间无换行）
+     */
+    parseSseDataPayload(raw) {
+        const trimmed = String(raw).trim();
+        if (!trimmed) {
+            return [];
+        }
+        if (!/\}\s*\{/.test(trimmed)) {
+            try {
+                return [JSON.parse(trimmed)];
+            } catch {
+                return null;
+            }
+        }
+        const parts = trimmed.split(/\}\s*\{/);
+        const out = [];
+        try {
+            out.push(JSON.parse(parts[0] + '}'));
+            for (let k = 1; k < parts.length - 1; k++) {
+                out.push(JSON.parse('{' + parts[k] + '}'));
+            }
+            out.push(JSON.parse('{' + parts[parts.length - 1]));
+        } catch {
+            return null;
+        }
+        return out;
+    },
+
+    /**
+     * 处理单个流式 JSON 对象（content / reasoning / 工具协议）
+     * @returns {string} 更新后的正文累积 fullText
+     */
+    applyStreamDataObject(jsonData, aiMessageDiv, fullText) {
+        const UI = window.AIChatUI;
+
+        if (jsonData.reasoning_content) {
+            console.log('jsonData(思考):', jsonData);
+            UI.updateReasoningContent(aiMessageDiv, jsonData.reasoning_content);
+        }
+        if (jsonData.tool_call) {
+            console.log('jsonData(工具调用):', jsonData);
+            const toolInfo = {
+                name: jsonData.tool_call.name || '未命名工具',
+                id: jsonData.tool_call.id,
+                args: jsonData.tool_call.arguments || {}
+            };
+            UI.addToolCall(aiMessageDiv, toolInfo);
+        }
+
+        if (jsonData.tool_call_update) {
+            console.log('jsonData(工具调用更新):', jsonData);
+            const toolCallElements = aiMessageDiv.querySelectorAll('.tool-call');
+            const index = jsonData.tool_call_update.index || 0;
+
+            if (toolCallElements && toolCallElements.length > index) {
+                const toolElement = toolCallElements[index];
+
+                if (jsonData.tool_call_update.completeArguments) {
+                    let argsStr = '';
+                    try {
+                        const parsed = JSON.parse(jsonData.tool_call_update.completeArguments);
+                        argsStr = JSON.stringify(parsed, null, 2);
+
+                        console.log('收到完整工具参数:', argsStr);
+
+                        if (jsonData.tool_call_update.tool_call_id) {
+                            this.toolCallArgumentsMap.set(
+                                jsonData.tool_call_update.tool_call_id,
+                                {
+                                    arguments: jsonData.tool_call_update.completeArguments,
+                                }
+                            );
+                            console.log(`已保存工具参数 ID: ${jsonData.tool_call_update.tool_call_id}`);
+                        }
+
+                        const argsElement = toolElement.querySelector('.tool-call-args');
+                        if (argsElement) {
+                            argsElement.dataset.complete = 'true';
+                            argsElement.textContent = argsStr;
+                        }
+                    } catch (error) {
+                        console.error('解析完整参数失败:', error);
+                    }
+                } else if (jsonData.tool_call_update.arguments) {
+                    const argsElement = toolElement.querySelector('.tool-call-args');
+
+                    if (argsElement && argsElement.dataset.complete !== 'true') {
+                        let argsStr = '';
+                        try {
+                            const parsed = JSON.parse(jsonData.tool_call_update.arguments);
+                            argsStr = JSON.stringify(parsed, null, 2);
+                        } catch {
+                            argsStr = jsonData.tool_call_update.arguments;
+                        }
+
+                        argsElement.textContent = argsStr;
+
+                        if (!argsElement.dataset.receivingFragments) {
+                            argsElement.dataset.receivingFragments = 'true';
+                        }
+                    }
+                }
+            }
+        }
+
+        if (jsonData.tool_call_result) {
+            console.log('jsonData(工具调用结果):', jsonData);
+
+            if (jsonData.tool_call_result.name === 'executeApi') {
+                const entry = this.toolCallArgumentsMap.get(jsonData.tool_call_result.tool_call_id);
+                if (entry) {
+                    const parsedArgs = JSON.parse(entry.arguments);
+                    window.parent.postMessage({
+                        type: 'ai_tool_call_result',
+                        data: {
+                            apiId: parsedArgs.apiId,
+                            params: parsedArgs.params,
+                            result: jsonData.tool_call_result.result,
+                        }
+                    }, '*');
+                    this.toolCallArgumentsMap.delete(jsonData.tool_call_result.tool_call_id);
+                }
+            }
+
+            if (jsonData.tool_call_result.token_usage && jsonData.tool_call_result.token_usage.totalTokens) {
+                this.accumulatedToolTokens += jsonData.tool_call_result.token_usage.totalTokens;
+            }
+
+            UI.updateToolCallResult(
+                aiMessageDiv,
+                jsonData.tool_call_result.name,
+                jsonData.tool_call_result.result,
+                jsonData.tool_call_result.error === true,
+                jsonData.tool_call_result.index,
+                jsonData.tool_call_result.tool_call_id,
+                jsonData.tool_call_result.execution_time,
+                jsonData.tool_call_result.token_usage
+            );
+        }
+
+        if (jsonData.content) {
+            if (aiMessageDiv.querySelector('.ai-thinking')) {
+                UI.hideThinking(aiMessageDiv);
+            }
+            const newFullText = fullText + jsonData.content;
+            UI.updateMainContent(aiMessageDiv, newFullText);
+            return newFullText;
+        }
+
+        if (jsonData.error) {
+            UI.hideThinking(aiMessageDiv);
+            UI.updateAIMessage(aiMessageDiv, `错误: ${jsonData.error}`);
+            UI.finalizeAIMessage(aiMessageDiv, false);
+        }
+
+        return fullText;
+    },
+    
     // 发送流式请求
     async sendStreamRequest(message, model, temperature, maxTokens, enableTools = false) {
         const app = window.AIChatApp;
@@ -297,6 +456,23 @@ window.AIChatAPI = {
                 const { done, value } = await reader.read();
                 
                 if (done) {
+                    // 流结束前缓冲区可能缺少末尾换行，补一行再按 SSE 行处理，避免最后一段 data 丢失
+                    if (buffer.length > 0) {
+                        const flushChunk = buffer + '\n';
+                        const flushLines = flushChunk.split('\n');
+                        buffer = '';
+                        for (const line of flushLines) {
+                            if (line.startsWith('event:')) {
+                                eventName = line.substring(6).trim();
+                            } else if (line.startsWith('data:')) {
+                                eventData = line.substring(5).trim();
+                                fullText = await this.handleEventData(eventName, eventData, aiMessageDiv, fullText, startTime);
+                            } else if (line.trim() === '') {
+                                eventName = '';
+                                eventData = '';
+                            }
+                        }
+                    }
                     // 确保思考状态被移除
                     window.AIChatUI.hideThinking(aiMessageDiv);
                     window.AIChatUI.finalizeAIMessage(aiMessageDiv);
@@ -405,164 +581,27 @@ window.AIChatAPI = {
             // 不更新时间的情况下完成消息处理
             UI.finalizeAIMessage(aiMessageDiv, false);
         }
-        // 处理内容事件
+        // 处理内容事件（含工具协议 JSON；支持单行多段粘连 JSON）
         else if (eventData) {
-            try {
-                const jsonData = JSON.parse(eventData);
-                
-                // 处理思考内容
-                if (jsonData.reasoning_content) {
-                    console.log('jsonData(思考):', jsonData);
-                    UI.updateReasoningContent(aiMessageDiv, jsonData.reasoning_content);
+            const payloads = this.parseSseDataPayload(eventData);
+            if (!payloads) {
+                const looksLikeToolProtocol = /"tool_call"/.test(eventData) && eventData.trim().startsWith('{');
+                if (looksLikeToolProtocol) {
+                    console.warn('工具协议 data 行解析失败，已忽略以避免污染正文:', eventData.slice(0, 240));
+                    return fullText;
                 }
-                // 处理工具调用事件
-                if (jsonData.tool_call) {
-                    console.log('jsonData(工具调用):', jsonData);
-                    // 创建工具调用框，但暂时没有完整参数
-                    const toolInfo = {
-                        name: jsonData.tool_call.name || '未命名工具',
-                        id: jsonData.tool_call.id,
-                        args: jsonData.tool_call.arguments || {}
-                    };
-                    UI.addToolCall(aiMessageDiv, toolInfo);
-                }
-                
-                // 处理工具调用更新事件
-                if (jsonData.tool_call_update) {
-                    console.log('jsonData(工具调用更新):', jsonData);
-                    // 工具调用已存在，需要更新名称或参数
-                    const toolCallElements = aiMessageDiv.querySelectorAll('.tool-call');
-                    const index = jsonData.tool_call_update.index || 0;
-                    
-                    // 如果存在对应索引的工具调用UI，更新它
-                    if (toolCallElements && toolCallElements.length > index) {
-                        const toolElement = toolCallElements[index];
-                                             
-                        // 优先检查是否有完整参数
-                        if (jsonData.tool_call_update.completeArguments) {
-                            let argsStr = '';
-                            try {
-                                // 尝试格式化完整JSON字符串
-                                const parsed = JSON.parse(jsonData.tool_call_update.completeArguments);
-                                argsStr = JSON.stringify(parsed, null, 2);
-                                
-                                console.log('收到完整工具参数:', argsStr);
-
-                                // 存储完整参数到Map中，以便在工具调用结果时使用
-                                if (jsonData.tool_call_update.tool_call_id) {
-                                    this.toolCallArgumentsMap.set(
-                                        jsonData.tool_call_update.tool_call_id, 
-                                        {
-                                            arguments: jsonData.tool_call_update.completeArguments,
-                                        }
-                                    );
-                                    console.log(`已保存工具参数 ID: ${jsonData.tool_call_update.tool_call_id}`);
-                                }
-                                
-                                const argsElement = toolElement.querySelector('.tool-call-args');
-                                if (argsElement) {
-                                    // 添加一个标记，表示这是完整参数
-                                    argsElement.dataset.complete = 'true';
-                                    argsElement.textContent = argsStr;
-                                }
-                            } catch (error) {
-                                console.error('解析完整参数失败:', error);
-                            }
-                        }
-                        // 只有在没有完整参数且未标记为完整时才更新参数片段
-                        else if (jsonData.tool_call_update.arguments) {
-                            const argsElement = toolElement.querySelector('.tool-call-args');
-                            
-                            // 如果已经标记为完整参数，不再更新片段
-                            if (argsElement && argsElement.dataset.complete !== 'true') {
-                                let argsStr = '';
-                                try {
-                                    // 尝试格式化JSON字符串
-                                    const parsed = JSON.parse(jsonData.tool_call_update.arguments);
-                                    argsStr = JSON.stringify(parsed, null, 2);
-                                } catch {
-                                    // 如果解析失败，直接显示
-                                    argsStr = jsonData.tool_call_update.arguments;
-                                }
-                                
-                                // 更新显示，但添加提示这是部分参数
-                                argsElement.textContent = argsStr;
-                                
-                                // 如果是第一个参数片段，添加"正在接收参数..."的提示
-                                if (!argsElement.dataset.receivingFragments) {
-                                    argsElement.dataset.receivingFragments = 'true';
-                                    // 不直接显示提示，因为会影响显示效果
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // 处理工具调用结果
-                if (jsonData.tool_call_result) {
-                    console.log('jsonData(工具调用结果):', jsonData);
-                    
-                    // 向父窗口发送工具调用结果
-                    if (jsonData.tool_call_result.name === "executeApi") {
-                        const parsedArgs = JSON.parse(this.toolCallArgumentsMap.get(jsonData.tool_call_result.tool_call_id).arguments);
-                         window.parent.postMessage({
-                            type: 'ai_tool_call_result',
-                            data: {
-                                apiId: parsedArgs.apiId,
-                                params: parsedArgs.params,
-                                result: jsonData.tool_call_result.result,
-                            }
-                        }, '*');
-                        this.toolCallArgumentsMap.delete(jsonData.tool_call_result.tool_call_id);
-                    }
-                    
-                    // 如果有token使用情况，累加到全局总消耗token变量中
-                    if (jsonData.tool_call_result.token_usage && jsonData.tool_call_result.token_usage.totalTokens) {
-                        this.accumulatedToolTokens += jsonData.tool_call_result.token_usage.totalTokens;
-                    }
-                    
-                    UI.updateToolCallResult(
-                        aiMessageDiv, 
-                        jsonData.tool_call_result.name, 
-                        jsonData.tool_call_result.result,
-                        jsonData.tool_call_result.error === true,
-                        jsonData.tool_call_result.index,
-                        jsonData.tool_call_result.tool_call_id,
-                        jsonData.tool_call_result.execution_time, // 执行时间
-                        jsonData.tool_call_result.token_usage    // Token使用情况
-                    );
-                }
-                
-                // 处理普通内容
-                if (jsonData.content) {
-                    // 确保先移除思考状态，再更新内容
-                    if (aiMessageDiv.querySelector('.ai-thinking')) {
-                        UI.hideThinking(aiMessageDiv);
-                    }
-                    
-                    const newFullText = fullText + jsonData.content;
-                    UI.updateMainContent(aiMessageDiv, newFullText);
-                    return newFullText;
-                }
-                
-                // 处理错误
-                if (jsonData.error) {
-                    // 确保先移除思考状态
-                    UI.hideThinking(aiMessageDiv);
-                    
-                    UI.updateAIMessage(aiMessageDiv, `错误: ${jsonData.error}`);
-                    UI.finalizeAIMessage(aiMessageDiv, false);
-                }
-            } catch (e) {
-                // 非JSON数据作为普通文本处理
-                // 确保先移除思考状态
                 if (aiMessageDiv.querySelector('.ai-thinking')) {
                     UI.hideThinking(aiMessageDiv);
                 }
                 const newFullText = fullText + eventData;
-                UI.updateAIMessage(aiMessageDiv, newFullText);
+                UI.updateMainContent(aiMessageDiv, newFullText);
                 return newFullText;
             }
+            let nextText = fullText;
+            for (let i = 0; i < payloads.length; i++) {
+                nextText = this.applyStreamDataObject(payloads[i], aiMessageDiv, nextText);
+            }
+            return nextText;
         }
         
         return fullText;

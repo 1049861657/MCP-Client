@@ -116,8 +116,9 @@ export class OpenAIController {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      //通知父窗口开始
-      res.write(`event: begin\n`);
+      // 通知客户端流已建立（独立的 SSE 帧：event + data + 结束空行）
+      // 必须带 data 行和 \n\n，否则后续第一个 chunk 会被 SSE 解析器并入此 begin 帧
+      res.write(`event: begin\ndata: {}\n\n`);
       // 从请求体中获取参数
       const { 
         message, 

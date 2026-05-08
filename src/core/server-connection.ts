@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { ClientCapabilities } from "@modelcontextprotocol/sdk/types.js";
+import { MCPClientIdentity } from "../config/app.config.js";
 import { Logger } from "../utils/logger.js";
 import { ConnectionType } from '../generated/prisma/client.js';
 import { ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
@@ -41,20 +42,28 @@ export class ServerConnection {
     }
     
     this.transport = transport;
-    this.client = new Client(
-      {
-        name: '',
-        version: ''
-      },
-      {
-        capabilities: {} satisfies ClientCapabilities
-      }
-    );
+    this.client = ServerConnection.createClient();
     
     // 在构造函数中异步初始化配置
     this.initConfig().catch(error => {
       Logger.error('SERVER CONNECTION', '初始化配置失败:', error);
     });
+  }
+
+  /**
+   * 创建 MCP SDK Client 实例
+   * 客户端身份（name / version / capabilities）来自代码常量 MCPClientIdentity
+   */
+  private static createClient(): Client {
+    return new Client(
+      {
+        name: MCPClientIdentity.name,
+        version: MCPClientIdentity.version
+      },
+      {
+        capabilities: MCPClientIdentity.capabilities as ClientCapabilities
+      }
+    );
   }
 
   /**
@@ -142,15 +151,7 @@ export class ServerConnection {
         }
         
         this.transport = newTransport;
-        this.client = new Client(
-          {
-            name: this.mcpConfig.client.name,
-            version: this.mcpConfig.client.version
-          },
-          {
-            capabilities: this.mcpConfig.client.capabilities as unknown as ClientCapabilities
-          }
-        );
+        this.client = ServerConnection.createClient();
         
         this.transportClosed = false;
       }
