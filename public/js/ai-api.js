@@ -117,6 +117,17 @@ window.AIChatAPI = {
             }
         }
 
+        if (jsonData.tool_progress) {
+            console.log('jsonData(工具进度):', jsonData);
+            UI.updateToolCallProgress(
+                aiMessageDiv,
+                jsonData.tool_progress.index,
+                jsonData.tool_progress.progress,
+                jsonData.tool_progress.total,
+                jsonData.tool_progress.message
+            );
+        }
+
         if (jsonData.tool_call_result) {
             console.log('jsonData(工具调用结果):', jsonData);
 

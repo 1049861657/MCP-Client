@@ -41,6 +41,7 @@ export interface MCPServer {
   command?: string;
   args?: string[];
   mcpUrl?: string;
+  headers?: Record<string, string>;
 }
 
 // MCP配置接口

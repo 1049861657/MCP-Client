@@ -1,6 +1,6 @@
 import { ConfigService } from "../services/config.service.js";
 import { Logger } from "../utils/logger.js";
-import { ClientInfo, MCPServerInfo, ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
+import { CallToolOptions, ClientInfo, MCPServerInfo, ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
 import { ServerConnection } from "./server-connection.js";
 import { ConnectionType } from '../generated/prisma/client.js';
 import { MCPClientIdentity } from "../config/app.config.js";
@@ -13,6 +13,7 @@ import { OpenAINameCodec } from "../utils/openai-util.js";
 export class MCPClientManager {
   private connections: Map<string, ServerConnection> = new Map();
   private toolServerMap: Map<string, string> = new Map(); // 工具编码名称到服务器ID的映射
+  private toolOptionsMap: Map<string, CallToolOptions> = new Map(); // 工具编码名称到调用选项的映射
   private currentServerId?: string; // 当前选中的服务器ID
   private mcpConfig: MCPConfigType | null = null;
   private reconnectTimer?: NodeJS.Timeout; // 存储定时重连的计时器ID
@@ -59,6 +60,7 @@ export class MCPClientManager {
     // 清空工具服务器映射
     this.connections.clear();
     this.toolServerMap.clear();
+    this.toolOptionsMap.clear();
     
     try {
       // 从ConfigService获取最新MCP配置
@@ -121,8 +123,10 @@ export class MCPClientManager {
     try {
       const tools = await connection.getTools();
       for (const tool of tools) {
-        // 使用codeName作为键，避免不同服务器同名工具冲突
         this.toolServerMap.set(tool.codeName, serverId);
+        if (tool.callOptions) {
+          this.toolOptionsMap.set(tool.codeName, tool.callOptions);
+        }
       }
     } catch (error) {
       Logger.error('MCP CLIENT', `更新工具服务器映射失败:`, error);
@@ -284,15 +288,22 @@ export class MCPClientManager {
 
   /**
    * 调用工具
+   * 优先级：调用方显式传入的 options > 服务端 x-mcp-call-options 声明的选项 > SDK 默认值
    */
-  async callTool<T>(codeName: string, args: any): Promise<T> {
+  async callTool<T>(codeName: string, args: any, options?: CallToolOptions): Promise<T> {
     const connection = this.findServerForTool(codeName);
     const toolName = await OpenAINameCodec.decode(codeName);
     if (!connection) {
       throw new Error(`找不到工具 ${toolName} 所属的服务器或所有服务器都未连接`);
     }
-    
-    return await connection.callTool<T>(toolName, args);
+
+    const serverDeclaredOptions = this.toolOptionsMap.get(codeName);
+    const mergedOptions: CallToolOptions | undefined =
+      serverDeclaredOptions || options
+        ? { ...serverDeclaredOptions, ...options }
+        : undefined;
+
+    return await connection.callTool<T>(toolName, args, mergedOptions);
   }
 
   /**

@@ -835,4 +835,284 @@ pre {
 @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }
+}
+
+/* ===== 子 Agent 进度步骤 ===== */
+/* ── Sub-Agent Trace Panel ─────────────────────────────────────────── */
+.tool-progress-container {
+    margin: 8px 0 10px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    box-shadow: 0 2px 12px rgba(0,0,0,.15);
+    font-size: 12px;
+}
+
+/* Header */
+.tpc-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, #1e1b4b 0%, #1e293b 100%);
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid #2d3748;
+    position: relative;
+    overflow: hidden;
+}
+
+.tpc-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(99,102,241,.06), transparent);
+    animation: tpc-scan 2.5s ease-in-out infinite;
+}
+
+.tool-progress-container.done .tpc-header::before { animation: none; }
+.tool-progress-container.done .tpc-header {
+    background: linear-gradient(135deg, #052e16 0%, #0f2d1a 100%);
+    border-bottom-color: #166534;
+}
+
+@keyframes tpc-scan {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* Icon */
+.tpc-icon-wrap {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+}
+
+.tpc-icon {
+    width: 30px;
+    height: 30px;
+    color: #818cf8;
+    position: relative;
+    z-index: 1;
+}
+
+.tool-progress-container.done .tpc-icon { color: #4ade80; }
+
+.tpc-icon-ring {
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 1.5px solid #4f46e5;
+    animation: tpc-ring-spin 2s linear infinite;
+    border-top-color: transparent;
+    border-right-color: transparent;
+}
+
+.tool-progress-container.done .tpc-icon-ring {
+    border-color: #16a34a;
+    border-top-color: transparent;
+    border-right-color: transparent;
+    animation: none;
+}
+
+@keyframes tpc-ring-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Header text */
+.tpc-header-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.tpc-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: #c7d2fe;
+    letter-spacing: .3px;
+}
+
+.tool-progress-container.done .tpc-title { color: #86efac; }
+
+.tpc-subtitle {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.tool-progress-container.done .tpc-subtitle { color: #4ade80; }
+
+/* Step badge */
+.tpc-step-badge {
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(99,102,241,.2);
+    color: #a5b4fc;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .3px;
+    white-space: nowrap;
+    border: 1px solid rgba(99,102,241,.3);
+}
+
+.tool-progress-container.done .tpc-step-badge {
+    background: rgba(34,197,94,.15);
+    color: #4ade80;
+    border-color: rgba(34,197,94,.3);
+}
+
+/* Toggle btn */
+.tpc-toggle {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    transition: transform .2s, color .2s;
+    flex-shrink: 0;
+    pointer-events: none;
+}
+
+.tpc-toggle:hover { color: #94a3b8; }
+.tool-progress-container.collapsed .tpc-toggle { transform: rotate(-90deg); }
+
+/* Body / Timeline */
+.tpc-body {
+    background: #0f172a;
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #1e293b transparent;
+}
+
+.tool-progress-container.collapsed .tpc-body { display: none; }
+
+.tpc-timeline {
+    padding: 10px 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* Step row */
+.tpc-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    position: relative;
+    padding-bottom: 12px;
+    animation: tpc-fade-in .25s ease;
+}
+
+.tpc-step:last-child { padding-bottom: 0; }
+
+@keyframes tpc-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Step connector line */
+.tpc-step-line {
+    position: absolute;
+    left: 12px;
+    top: 26px;
+    bottom: 0;
+    width: 1px;
+    background: #1e293b;
+}
+
+.tpc-step:last-child .tpc-step-line { display: none; }
+
+/* Step node */
+.tpc-step-node {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+    transition: all .3s ease;
+}
+
+.tpc-step.running .tpc-step-node {
+    background: #312e81;
+    border: 2px solid #6366f1;
+    color: #a5b4fc;
+    box-shadow: 0 0 0 3px rgba(99,102,241,.2);
+    animation: tpc-node-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes tpc-node-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(99,102,241,.2); }
+    50%       { box-shadow: 0 0 0 6px rgba(99,102,241,.05); }
+}
+
+.tpc-step.done .tpc-step-node {
+    background: #1e293b;
+    border: 2px solid #334155;
+    color: #475569;
+}
+
+.tpc-step.complete .tpc-step-node {
+    background: #052e16;
+    border: 2px solid #16a34a;
+    color: #4ade80;
+}
+
+/* Step body */
+.tpc-step-body {
+    flex: 1;
+    padding-top: 3px;
+    min-width: 0;
+}
+
+.tpc-step-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.tpc-tool-chip {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-weight: 500;
+    background: #1e293b;
+    color: #93c5fd;
+    border: 1px solid #2d3f5a;
+    letter-spacing: .2px;
+}
+
+.tpc-step.done .tpc-tool-chip {
+    color: #475569;
+    background: #0f172a;
+    border-color: #1e293b;
+}
+
+.tpc-step-label {
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.complete-label {
+    color: #4ade80;
+    font-weight: 500;
+}
+
+@keyframes step-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(0.75); }
 } 

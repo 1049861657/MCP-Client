@@ -961,7 +961,144 @@ window.AIChatUI = {
             window.AIChatApp.elements.chatMessages.scrollTop = window.AIChatApp.elements.chatMessages.scrollHeight;
         }
     },
-    
+
+    /**
+     * 更新工具调用进度（子 Agent 步骤列表）
+     * @param {HTMLElement} messageDiv  - 消息容器
+     * @param {number}      index       - 工具调用全局索引
+     * @param {number}      progress    - 当前步骤数
+     * @param {number|undefined} total  - 总步骤数
+     * @param {string|undefined} message - 本步描述
+     */
+    updateToolCallProgress(messageDiv, index, progress, total, message) {
+        if (!messageDiv) return;
+
+        const toolCallElements = messageDiv.querySelectorAll('.tool-call');
+        const targetToolCall = (index >= 0 && toolCallElements.length > index)
+            ? toolCallElements[index]
+            : toolCallElements[toolCallElements.length - 1];
+        if (!targetToolCall) return;
+
+        const contentContainer = targetToolCall.querySelector('.tool-call-content');
+        if (!contentContainer) return;
+
+        const isDone = total !== undefined && progress >= total;
+
+        // ── 创建或获取进度容器 ──
+        let progressContainer = targetToolCall.querySelector('.tool-progress-container');
+        if (!progressContainer) {
+            progressContainer = document.createElement('div');
+            progressContainer.className = 'tool-progress-container';
+            progressContainer.dataset.realSteps = '0';
+            progressContainer.innerHTML = `
+                <div class="tpc-header">
+                    <div class="tpc-icon-wrap">
+                        <svg viewBox="0 0 20 20" fill="none" class="tpc-icon"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M7 10h6M10 7v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <div class="tpc-icon-ring"></div>
+                    </div>
+                    <div class="tpc-header-text">
+                        <span class="tpc-title">子 Agent 运行中</span>
+                        <span class="tpc-subtitle">正在执行...</span>
+                    </div>
+                    <div class="tpc-step-badge"><span class="tpc-step-num">0</span> 步</div>
+                    <button class="tpc-toggle" aria-label="展开/折叠">
+                        <svg viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                </div>
+                <div class="tpc-body">
+                    <div class="tpc-timeline"></div>
+                </div>
+            `;
+            progressContainer.querySelector('.tpc-header').addEventListener('click', () => {
+                progressContainer.classList.toggle('collapsed');
+            });
+            const resultDiv = contentContainer.querySelector('.tool-call-result');
+            resultDiv
+                ? contentContainer.insertBefore(progressContainer, resultDiv)
+                : contentContainer.appendChild(progressContainer);
+        }
+
+        // ── 实际步骤计数（不依赖服务端 progress/total）──
+        const realSteps = parseInt(progressContainer.dataset.realSteps || '0') + 1;
+        progressContainer.dataset.realSteps = String(realSteps);
+
+        // ── 将上一个 running 步骤标记为 done ──
+        const timeline = progressContainer.querySelector('.tpc-timeline');
+        const prevRunning = timeline.querySelector('.tpc-step.running');
+        if (prevRunning) prevRunning.classList.replace('running', 'done');
+
+        // ── 解析工具名列表 ──
+        // 消息格式："Step N/M: tool1, tool2"  或  "完成：..."
+        const toolMatch = message && message.match(/:\s*(.+)$/);
+        const toolsRaw = toolMatch ? toolMatch[1] : (message || '');
+        const isCompletionMsg = isDone || (message && (message.includes('完成') || message.includes('答案')));
+
+        let toolChips = '';
+        if (!isCompletionMsg && toolsRaw) {
+            toolChips = toolsRaw.split(/[,，]\s*/).map(t => t.trim()).filter(Boolean)
+                .map(t => `<span class="tpc-tool-chip">${t}</span>`).join('');
+        }
+
+        // ── 第一个进度通知到来时，隐藏默认的"执行中..."loading ──
+        if (realSteps === 1) {
+            const resultDiv = contentContainer.querySelector('.tool-call-result');
+            if (resultDiv) resultDiv.style.display = 'none';
+        }
+
+        // ── 更新 header ──
+        const stepNumEl = progressContainer.querySelector('.tpc-step-num');
+        const titleEl   = progressContainer.querySelector('.tpc-title');
+        const subtitleEl = progressContainer.querySelector('.tpc-subtitle');
+        const iconWrap   = progressContainer.querySelector('.tpc-icon-wrap');
+
+        if (isDone) {
+            progressContainer.classList.add('done');
+            iconWrap && iconWrap.classList.add('done');
+            if (titleEl) titleEl.textContent = '子 Agent 完成';
+            if (subtitleEl) subtitleEl.textContent = '已返回结果';
+            if (stepNumEl) stepNumEl.textContent = String(realSteps);
+        } else {
+            if (titleEl) titleEl.textContent = '子 Agent 运行中';
+            if (subtitleEl) subtitleEl.textContent = `第 ${realSteps} 步执行中...`;
+            if (stepNumEl) stepNumEl.textContent = String(realSteps);
+        }
+
+        // ── 添加新步骤行 ──
+        const stepEl = document.createElement('div');
+        stepEl.className = `tpc-step ${isDone ? 'complete' : 'running'}`;
+        stepEl.innerHTML = `
+            <div class="tpc-step-node">${isDone ? `<svg viewBox="0 0 14 14" fill="none"><path d="M3 7l3 3 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>` : `<span>${realSteps}</span>`}</div>
+            <div class="tpc-step-line"></div>
+            <div class="tpc-step-body">
+                ${isDone
+                    ? `<span class="tpc-step-label complete-label">${message || '已得到答案'}</span>`
+                    : `<div class="tpc-step-tools">${toolChips || `<span class="tpc-step-label">${toolsRaw}</span>`}</div>`
+                }
+            </div>
+        `;
+        timeline.appendChild(stepEl);
+        timeline.scrollTop = timeline.scrollHeight;
+
+        // ── 同步更新工具卡片状态栏 ──
+        const statusDiv = targetToolCall.querySelector('.tool-call-status');
+        if (statusDiv && !isDone) {
+            statusDiv.innerHTML = `
+                <div class="status-indicator" style="background:#6366f1;animation:step-pulse 1s ease-in-out infinite"></div>
+                <span style="color:#4338ca">步骤 ${realSteps} · ${toolsRaw || '处理中'}</span>
+            `;
+        }
+
+        // 完成时恢复 result 区域显示（之前被隐藏）
+        if (isDone) {
+            const resultDiv = contentContainer.querySelector('.tool-call-result');
+            if (resultDiv) resultDiv.style.display = '';
+        }
+
+        if (window.AIChatApp.elements.chatMessages) {
+            window.AIChatApp.elements.chatMessages.scrollTop = window.AIChatApp.elements.chatMessages.scrollHeight;
+        }
+    },
+
     /**
      * 更新主要内容区域
      * 工具调用信息将保留，仅更新markdown内容部分

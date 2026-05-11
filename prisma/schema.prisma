@@ -62,6 +62,7 @@ model MCPServer {
   command        String?        // stdio 类型可选
   args           Json?          // stdio 类型可选，存储 ["arg1", "arg2"]
   mcpUrl         String?        // HTTP 类型：MCP Streamable HTTP 端点
+  headers        Json?          // HTTP 类型可选：自定义请求头，存储 {"key": "value"}
 }
 
 // 快捷消息模型

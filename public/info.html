@@ -525,6 +525,117 @@
             background-color: #e0e0e0;
         }
         
+        .headers-table {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 0;
+        }
+        /* key 列宽：表头与输入行共用同一变量，保证像素级对齐 */
+        .headers-table {
+            --hdr-key-w: 28%;
+            --hdr-del-w: 37px;
+        }
+        .header-rows-header {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+        .header-rows-header .hh-key {
+            width: var(--hdr-key-w);
+            flex: 0 0 var(--hdr-key-w);
+            padding: 6px 10px;
+            border-right: 1px solid var(--border-color);
+            box-sizing: border-box;
+        }
+        .header-rows-header .hh-val {
+            flex: 1;
+            padding: 6px 10px;
+        }
+        .header-rows-header .hh-del {
+            width: var(--hdr-del-w);
+            flex: 0 0 var(--hdr-del-w);
+            border-left: 1px solid var(--border-color);
+        }
+        .header-row {
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .header-row:last-child {
+            border-bottom: none;
+        }
+        .header-row .form-input {
+            flex: 1;
+            width: auto;
+            border: none;
+            border-radius: 0;
+            padding: 9px 10px;
+            font-size: 13px;
+            background: transparent;
+            box-shadow: none;
+        }
+        .header-row .form-input:focus {
+            background: #fafcff;
+            outline: none;
+            border-color: transparent;
+            box-shadow: inset 0 0 0 1px var(--primary-color);
+        }
+        /* 权重须 >= .header-row .form-input（0-2-0），确保覆盖 flex:1 */
+        .header-row .header-row-key {
+            width: var(--hdr-key-w);
+            flex: 0 0 var(--hdr-key-w);
+            border-right: 1px solid var(--border-color);
+            box-sizing: border-box;
+        }
+        .header-row-divider {
+            width: 1px;
+            background: var(--border-color);
+            align-self: stretch;
+        }
+        .btn-remove-row {
+            background: none;
+            border: none;
+            border-left: 1px solid var(--border-color);
+            color: #bbb;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            width: var(--hdr-del-w);
+            flex: 0 0 var(--hdr-del-w);
+            align-self: stretch;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s, background 0.15s;
+        }
+        .btn-remove-row:hover {
+            color: var(--error-color);
+            background: #fff5f5;
+        }
+        .btn-add-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            background: #f8f9fa;
+            border: 1px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            color: var(--primary-color);
+            cursor: pointer;
+            font-size: 13px;
+            padding: 8px 0;
+            width: 100%;
+            transition: background 0.15s;
+        }
+        .btn-add-row:hover {
+            background: #eef4fd;
+        }
+
         @media (max-width: 768px) {
             .info-row {
                 flex-direction: column;
@@ -609,6 +720,18 @@
                         <label for="mcp-url" class="form-label">MCP 端点 URL*</label>
                         <input type="text" id="mcp-url" class="form-input" placeholder="例如: http://localhost:3000/mcp">
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">自定义请求头（可选）</label>
+                        <div class="headers-table">
+                            <div class="header-rows-header">
+                                <div class="hh-key">Header 名称</div>
+                                <div class="hh-val">Header 值</div>
+                                <div class="hh-del"></div>
+                            </div>
+                            <div id="headers-rows"></div>
+                            <button type="button" id="headers-add-row" class="btn-add-row">＋ 添加请求头</button>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="form-actions">
@@ -685,6 +808,56 @@
                 });
             });
             
+            // ── Headers 表单行辅助函数 ──────────────────────────────────────
+            function addHeaderRow(key = '', value = '') {
+                const row = document.createElement('div');
+                row.className = 'header-row';
+                const keyInput = document.createElement('input');
+                keyInput.type = 'text';
+                keyInput.className = 'form-input header-row-key';
+                keyInput.placeholder = '例如: Authorization';
+                keyInput.value = key;
+                const valInput = document.createElement('input');
+                valInput.type = 'text';
+                valInput.className = 'form-input header-row-value';
+                valInput.placeholder = '例如: Bearer token';
+                valInput.value = value;
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'btn-remove-row';
+                removeBtn.title = '删除';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.addEventListener('click', () => row.remove());
+                row.appendChild(keyInput);
+                row.appendChild(valInput);
+                row.appendChild(removeBtn);
+                document.getElementById('headers-rows').appendChild(row);
+            }
+
+            function getHeadersFromRows() {
+                const result = {};
+                document.querySelectorAll('#headers-rows .header-row').forEach(row => {
+                    const key = row.querySelector('.header-row-key').value.trim();
+                    const val = row.querySelector('.header-row-value').value.trim();
+                    if (key) result[key] = val;
+                });
+                return Object.keys(result).length > 0 ? result : undefined;
+            }
+
+            function setHeadersToRows(headers) {
+                document.getElementById('headers-rows').innerHTML = '';
+                if (headers) {
+                    Object.entries(headers).forEach(([k, v]) => addHeaderRow(k, v));
+                }
+            }
+
+            function resetHeaders() {
+                document.getElementById('headers-rows').innerHTML = '';
+            }
+
+            document.getElementById('headers-add-row').addEventListener('click', () => addHeaderRow());
+            // ─────────────────────────────────────────────────────────────────
+
             // 取消表单
             cancelFormBtn.addEventListener('click', function() {
                 hideServerForm();
@@ -696,6 +869,7 @@
                 formMode.value = 'add';
                 serverIdInput.value = '';
                 serverForm.reset();
+                resetHeaders();
                 document.querySelector('input[name="connection-type"][value="STDIO"]').checked = true;
                 document.getElementById('stdio-fields').style.display = 'block';
                 document.getElementById('http-fields').style.display = 'none';
@@ -726,6 +900,8 @@
                     serverData.args = args;
                 } else if (connectionType === 'HTTP') {
                     serverData.mcpUrl = document.getElementById('mcp-url').value.trim();
+                    const headers = getHeadersFromRows();
+                    if (headers) serverData.headers = headers;
                 }
                 
                 try {
@@ -807,6 +983,7 @@
                 formTitle.textContent = `编辑服务器: ${server.name}`;
                 formMode.value = 'edit';
                 serverIdInput.value = server.id;
+                resetHeaders();
                 
                 // 填充表单字段
                 document.getElementById('server-name').value = server.name;
@@ -825,6 +1002,7 @@
                     document.getElementById('http-fields').style.display = 'block';
                     
                     document.getElementById('mcp-url').value = server.connectionDetails.mcpUrl || '';
+                    setHeadersToRows(server.connectionDetails.headers || null);
                 }
                 
                 showServerForm();
@@ -1111,6 +1289,10 @@
             
             // 切换服务器
             async function switchServer(serverId) {
+                // 若正在编辑/新增表单，切换服务器时自动取消，丢弃未保存的修改
+                if (serverFormContainer.style.display !== 'none') {
+                    serverFormContainer.style.display = 'none';
+                }
                 try {
                     loadingDiv.style.display = 'block';
                     serverInfoDiv.style.display = 'none';

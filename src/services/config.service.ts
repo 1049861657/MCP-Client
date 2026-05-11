@@ -171,7 +171,8 @@ export class ConfigService {
           connectionType: server.connectionType, 
           command: server.command || undefined,
           args: server.args as string[] || undefined,
-          mcpUrl: server.mcpUrl || undefined
+          mcpUrl: server.mcpUrl || undefined,
+          headers: (server.headers as Record<string, string>) || undefined
         })),
         toolPrompt: toolPromptValue,
         enabledToolServerIds: enabledToolServerIds
@@ -208,7 +209,8 @@ export class ConfigService {
             connectionType: server.connectionType, 
             command: server.command,
             args: server.args as any, // JSON类型
-            mcpUrl: server.mcpUrl
+            mcpUrl: server.mcpUrl,
+            headers: server.headers as any
           }
         });
       }

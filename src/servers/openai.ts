@@ -45,6 +45,12 @@ interface ChunkResponse {
     execution_time?: number;
     token_usage?: any;
   };
+  tool_progress?: {
+    index: number;
+    progress: number;
+    total?: number;
+    message?: string;
+  };
   special_notice?: {
     type: string;
     title: string;
@@ -308,6 +314,20 @@ class ToolCallManager {
         tool_call_id: toolCall.id,
         execution_time: toolCall.meta?.executionTime,
         token_usage: tokenUsage || toolCall.meta?.tokenUsage
+      }
+    }, false);
+  }
+
+  /**
+   * 推送工具执行进度给前端
+   */
+  setToolProgress(globalIndex: number, progress: number, total: number | undefined, message: string | undefined): void {
+    this.onChunk({
+      tool_progress: {
+        index: globalIndex,
+        progress,
+        total,
+        message
       }
     }, false);
   }
@@ -710,6 +730,7 @@ export class OpenAI {
    * 验证工具调用参数是否满足要求
    * @param toolName 工具名称
    * @param args 参数对象
+  /**
    * @returns 验证结果，包含是否有效和错误消息
    */
   private async verifyToolArguments(toolName: string, args: any): Promise<{isValid: boolean, message: string}> {
@@ -1154,6 +1175,10 @@ private async processModelResponse(
       // 创建工具调用管理器
       const toolManager = new ToolCallManager(this.providerName, onChunk);
       
+      // 缓存 getApiDetails 返回的 supportsProgress 标志，key 为 apiId
+      // 供后续 executeApi 调用时判断是否携带 progressToken
+      const apiProgressMap = new Map<string, boolean>();
+      
       // 最大工具调用次数限制，防止无限循环
       const MAX_TOOL_CALL_ROUNDS = 10;
       
@@ -1210,7 +1235,36 @@ private async processModelResponse(
             }
             
             // 参数验证通过，执行工具调用
-            const toolResult = await mcpClient.callTool<any>(toolCall.codeName, toolCall.arguments);
+            // executeApi：若该 API 声明了 supportsProgress（来自 getApiDetails 缓存），注入进度回调
+            const isExecuteApi = toolCall.name === 'executeApi';
+            const apiId = isExecuteApi ? toolCall.arguments?.apiId : undefined;
+            const needsProgress = isExecuteApi && !!apiId && apiProgressMap.get(apiId) === true;
+            const toolResult = await mcpClient.callTool<any>(
+              toolCall.codeName,
+              toolCall.arguments,
+              needsProgress ? {
+                supportsProgress: true,
+                onProgress: (progress, total, message) => {
+                  toolManager.setToolProgress(globalIndex, progress, total, message);
+                }
+              } : undefined
+            );
+
+            // getApiDetails：解析结果并缓存 supportsProgress，供后续 executeApi 使用
+            if (toolCall.name === 'getApiDetails') {
+              try {
+                const text: string = toolResult?.content?.[0]?.text ?? '';
+                const match = text.match(/\{[\s\S]*\}/);
+                if (match) {
+                  const info = JSON.parse(match[0]);
+                  if (info.id && info.supportsProgress === true) {
+                    apiProgressMap.set(info.id, true);
+                    Logger.debug('OPENAI', `API [${info.id}] supportsProgress=true，已缓存`);
+                  }
+                }
+              } catch { /* 解析失败不影响正常流程 */ }
+            }
+
             // 格式化工具结果
             const resultText = this.formatToolResult(toolResult);
             // 将工具执行结果添加到消息历史
