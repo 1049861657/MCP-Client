@@ -50,6 +50,7 @@ interface ChunkResponse {
     progress: number;
     total?: number;
     message?: string;
+    elapsed_ms?: number;
   };
   special_notice?: {
     type: string;
@@ -178,14 +179,11 @@ class ToolCallManager {
     // 计算全局索引
     const globalIndex = this.toolCalls.length;
     
-    // 定义元工具列表
-    const metaTools = ['listAllApis', 'getApiDetails', 'executeApi'];
-    
     // 创建工具调用对象
     const toolCall: ToolCallInfo = {
       id: toolCallId,
       codeName: name,
-      name: metaTools.includes(name) ? name : await OpenAINameCodec.decode(name),
+      name: name.startsWith('mcp__') ? OpenAINameCodec.decode(name) : name,
       arguments: {},
       meta: {
         round: this.currentRound,
@@ -321,13 +319,14 @@ class ToolCallManager {
   /**
    * 推送工具执行进度给前端
    */
-  setToolProgress(globalIndex: number, progress: number, total: number | undefined, message: string | undefined): void {
+  setToolProgress(globalIndex: number, progress: number, total: number | undefined, message: string | undefined, elapsed_ms?: number): void {
     this.onChunk({
       tool_progress: {
         index: globalIndex,
         progress,
         total,
-        message
+        message,
+        elapsed_ms
       }
     }, false);
   }
@@ -742,8 +741,12 @@ export class OpenAI {
     }
     
     try {
-      // 获取工具参数模式
-      const toolResult = await mcpClient.callTool<any>('getApiDetails', { apiId: args.apiId });
+      // 获取工具参数模式（使用 codeName 路由，避免原始名在 toolServerMap 中查不到）
+      const getApiDetailsCode = mcpClient.findCodeNameByToolName('getApiDetails');
+      if (!getApiDetailsCode) {
+        return { isValid: true, message: '' };
+      }
+      const toolResult = await mcpClient.callTool<any>(getApiDetailsCode, { apiId: args.apiId });
       
       // 提取API详情中的parameters部分
       let apiParameters = [];
@@ -891,7 +894,7 @@ export class OpenAI {
         // 处理每个工具调用
         for (const toolCall of assistantMessage.tool_calls) {
           const codeName = toolCall.function.name;
-          const toolName = await OpenAINameCodec.decode(toolCall.function.name);
+          const toolName = OpenAINameCodec.decode(toolCall.function.name);
           const toolArgs = JSON.parse(toolCall.function.arguments);
           
           let resultText = '';
@@ -1244,8 +1247,8 @@ private async processModelResponse(
               toolCall.arguments,
               needsProgress ? {
                 supportsProgress: true,
-                onProgress: (progress, total, message) => {
-                  toolManager.setToolProgress(globalIndex, progress, total, message);
+                onProgress: (progress, total, message, elapsed_ms) => {
+                  toolManager.setToolProgress(globalIndex, progress, total, message, elapsed_ms);
                 }
               } : undefined
             );

@@ -34,24 +34,25 @@ export interface ErrorResponse {
 }
 
 /**
- * 调用工具时可传入的选项
+ * 调用工具时可传入的运行时选项。
+ * 由调用方按需在 callTool 时显式传入，不再从工具 schema 中提取。
  */
 export interface CallToolOptions {
   /**
-   * 请求超时时间（毫秒）。不传则使用 ServerConnection.CALL_TOOL_TIMEOUT 默认值。
+   * 请求超时时间（毫秒）。不传则使用 SDK 默认值 60s。
+   * supportsProgress=true 时为单步空闲超时（每次进度通知都会重置）。
    */
   timeout?: number;
   /**
-   * 服务端通过 x-mcp-call-options.supportsProgress 声明该工具支持进度推送。
-   * 客户端在 listTools 时读取并缓存，callTool 时若 onProgress 存在则自动附加 progressToken。
-   * supportsProgress=true 时自动启用 resetTimeoutOnProgress（每步超时语义）。
+   * 调用方声明该工具本次调用会持续推送进度通知。
+   * 启用后客户端自动开启 SDK 的 resetTimeoutOnProgress，并需配合 onProgress 回调使用。
    */
   supportsProgress?: boolean;
   /**
-   * 进度回调。仅当工具声明了 supportsProgress: true 时生效。
-   * 参数：progress（当前步骤）、total（总步骤，可选）、message（本步描述，可选）。
+   * 进度回调。仅当 supportsProgress=true 时生效。
+   * 参数：progress（当前步骤）、total（总步骤，可选）、message（本步描述，可选）、elapsed_ms（上一步耗时毫秒，可选）。
    */
-  onProgress?: (progress: number, total: number | undefined, message: string | undefined) => void;
+  onProgress?: (progress: number, total: number | undefined, message: string | undefined, elapsed_ms?: number) => void;
 }
 
 /**
@@ -77,11 +78,6 @@ export interface ToolInfo {
   serverId: string;
   //工具来源服务器名称
   serverName: string;
-  /**
-   * 服务端通过 inputSchema["x-mcp-call-options"] 声明的调用选项。
-   * 客户端在 listTools 时读取并缓存，callTool 时自动应用。
-   */
-  callOptions?: CallToolOptions;
 }
 
 

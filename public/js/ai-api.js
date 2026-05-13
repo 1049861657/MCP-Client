@@ -124,7 +124,8 @@ window.AIChatAPI = {
                 jsonData.tool_progress.index,
                 jsonData.tool_progress.progress,
                 jsonData.tool_progress.total,
-                jsonData.tool_progress.message
+                jsonData.tool_progress.message,
+                jsonData.tool_progress.elapsed_ms
             );
         }
 

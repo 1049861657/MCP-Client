@@ -1,146 +1,87 @@
-import { Logger } from './logger.js';
-import { prisma } from '../lib/prisma.js';
-
 /**
- * OpenAI工具名称编解码工具类 - 提供静态方法用于工具名称和函数名之间的转换
- * 使用更短、更随机但可逆的编码方式，并通过数据库持久化存储
+ * OpenAI 工具名称编解码工具类
+ *
+ * ## 编码格式
+ *   `mcp__h{serverHash6}__{toolName}`
+ *
+ *   - `mcp__`        固定前缀（5 字符）
+ *   - `h{serverHash6}` 服务器标识：FNV-1a 32-bit 哈希取低 24 位转 6 位 hex，
+ *                     `h` 前缀保证字母开头；纯函数，无副作用
+ *   - `__{toolName}` 工具名**原样**嵌入，decode 无需任何存储
+ *
+ * ## 设计约束
+ *   - toolName 必须符合 OpenAI function name 规范：`[a-zA-Z_][a-zA-Z0-9_]*`，≤50 字符
+ *   - 违反约束时直接抛出错误，由 MCP 服务端负责修正命名，客户端不做静默兜底
+ *
+ * ## 性能
+ *   encode / decode 均为纯同步函数，O(1)，零 DB 依赖，零 I/O
  */
 export class OpenAINameCodec {
-  // Base62字符集：0-9, a-z, A-Z
-  private static readonly CHARSET = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  // 输出的编码名称长度
-  private static readonly OUTPUT_LENGTH = 8;
+  private static readonly PREFIX = 'mcp';
+  // 64（OpenAI 上限） - len('mcp__h000000__') = 64 - 14 = 50
+  private static readonly TOOL_MAX_LEN = 50;
 
   /**
-   * 将字符串转换为32位哈希值
-   * @param str 输入字符串
-   * @returns 哈希字符串
+   * FNV-1a 32-bit 哈希，分布均匀，雪崩性好
    */
-  private static hash(str: string): string {
-    let h = 0;
+  private static fnv32a(str: string): number {
+    let h = 0x811c9dc5;
     for (let i = 0; i < str.length; i++) {
-      h = ((h << 5) - h) + str.charCodeAt(i);
-      h |= 0; // 转换为32位整数
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
     }
-    return Math.abs(h).toString(16);
+    return h >>> 0;
   }
 
   /**
-   * 基于种子生成特定长度的随机字符串
-   * @param seed 种子字符串
-   * @param length 输出长度
-   * @returns 随机字符串
+   * 服务器标识符：`h` + FNV-1a 低 24 位的 6 位 hex
+   * 相同 serverId 永远得到相同结果（对 ≤1000 台服务器碰撞概率 < 0.13%）
    */
-  private static generateRandomString(seed: string, length: number): string {
-    const seedHash = this.hash(seed);
-    let result = '';
-    
-    for (let i = 0; i < length; i++) {
-      // 使用种子哈希的不同部分来选择字符
-      const index = parseInt(seedHash.charAt(i % seedHash.length) + seedHash.charAt((i + 1) % seedHash.length), 16) % this.CHARSET.length;
-      result += this.CHARSET[index];
-    }
-    
-    return result;
+  private static serverIdent(serverId: string): string {
+    const hash = this.fnv32a(serverId) & 0xffffff;
+    return 'h' + hash.toString(16).padStart(6, '0');
   }
 
   /**
-   * 生成唯一的短编码
-   * @param inputString 输入字符串
-   * @returns 唯一短编码
+   * 将工具名编码为 OpenAI function name
+   *
+   * @param toolName MCP 工具名，必须符合 `[a-zA-Z_][a-zA-Z0-9_]*` 且 ≤50 字符
+   * @param serverId 服务器 ID，用于区分跨服务器同名工具
+   * @returns `mcp__h{serverHash6}__{toolName}`
+   * @throws 工具名不合规时抛出错误
    */
-  private static generateUniqueCode(inputString: string): string {
-    const seed = this.hash(inputString);
-    const raw = seed.substring(0, 4) + this.generateRandomString(seed, this.OUTPUT_LENGTH - 4);
-    const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const safeFirst = raw[0].replace(/[0-9]/, d => LETTERS[parseInt(d, 10) % LETTERS.length]);
-    return safeFirst + raw.slice(1);
+  public static encode(toolName: string, serverId?: string): string {
+    if (toolName.length > this.TOOL_MAX_LEN) {
+      throw new Error(
+        `工具名 "${toolName}" 超过最大长度 ${this.TOOL_MAX_LEN}，请在 MCP 服务端修正命名`
+      );
+    }
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(toolName)) {
+      throw new Error(
+        `工具名 "${toolName}" 含非法字符，OpenAI function name 仅允许 [a-zA-Z0-9_] 且首字符为字母或下划线，请在 MCP 服务端修正命名`
+      );
+    }
+
+    const sIdent = serverId ? this.serverIdent(serverId) : 'hunknown';
+    return `${this.PREFIX}__${sIdent}__${toolName}`;
   }
 
   /**
-   * 将工具名编码为函数名
-   * @param toolName 工具名称
-   * @param serverId 可选的服务器ID，如果提供则与工具名一起编码以避免冲突
-   * @returns 编码后的函数名
+   * 将 function name 解码为原始 MCP 工具名
+   * 纯字符串解析，无 DB 查询，O(1)
+   *
+   * @param codeName 编码后的 function name
+   * @returns 原始工具名
+   * @throws codeName 格式不合法时抛出错误
    */
-  public static async encode(toolName: string, serverId?: string): Promise<string> {
-    try {
-      // 如果提供了serverId，将其与toolName合并
-      const inputString = serverId ? `${serverId}:${toolName}` : toolName;
-      
-      // 1. 首先检查数据库中是否已经有此映射
-      const existingMapping = await prisma.toolCodeMapping.findFirst({
-        where: { originalString: inputString }
-      });
-      
-      // 如果找到了已存在的映射，直接返回编码
-      if (existingMapping) {
-        return existingMapping.code;
-      }
-      
-      // 2. 生成新的唯一编码
-      let code = this.generateUniqueCode(inputString);
-      
-      // 3. 检查此编码是否已被使用（确保唯一性）
-      let codeExists = await prisma.toolCodeMapping.findUnique({
-        where: { code }
-      });
-      
-      // 如果编码已存在，尝试生成新的
-      while (codeExists) {
-        const extraSeed = this.hash(code + Date.now());
-        code = this.hash(inputString).substring(0, 4) + this.generateRandomString(extraSeed, this.OUTPUT_LENGTH - 4);
-        codeExists = await prisma.toolCodeMapping.findUnique({
-          where: { code }
-        });
-      }
-      
-      // 4. 将新的映射保存到数据库
-      await prisma.toolCodeMapping.create({
-        data: {
-          code,
-          originalString: inputString
-        }
-      });
-      
-      return code;
-    } catch (error) {
-      Logger.warn('NAMECODEC', `名称编码失败: ${error}`);
-      // 生成一个基于哈希的简短回退编码
-      const fallbackHash = this.hash(toolName).substring(0, this.OUTPUT_LENGTH);
-      return fallbackHash;
-    }
-  }
+  public static decode(codeName: string): string {
+    const firstSep = codeName.indexOf('__');
+    const secondSep = firstSep !== -1 ? codeName.indexOf('__', firstSep + 2) : -1;
 
-  /**
-   * 将函数名解码为工具名
-   * @param functionName 函数名
-   * @returns 解码后的工具名（不包含服务器ID）
-   */
-  public static async decode(codeName: string): Promise<string> {
-    try {
-      // 从数据库查找映射关系
-      const mapping = await prisma.toolCodeMapping.findUnique({
-        where: { code: codeName }
-      });
-      
-      // 如果找到了映射关系，解析原始字符串
-      if (mapping) {
-        // 原始字符串格式为 "serverId:toolName"
-        const originalString = mapping.originalString;
-        
-        const colonIndex = originalString.indexOf(':');
-
-        return colonIndex !== -1 
-          ? originalString.substring(colonIndex + 1) 
-          : originalString;
-      }
-      
-      // 如果没有找到，返回原始编码值
-      return codeName;
-    } catch (error) {
-      Logger.warn('NAMECODEC', `名称解码失败: ${error}`);
-      return codeName;
+    if (secondSep === -1) {
+      throw new Error(`codeName "${codeName}" 格式不合法，无法解码`);
     }
+
+    return codeName.substring(secondSep + 2);
   }
 }

@@ -970,7 +970,7 @@ window.AIChatUI = {
      * @param {number|undefined} total  - 总步骤数
      * @param {string|undefined} message - 本步描述
      */
-    updateToolCallProgress(messageDiv, index, progress, total, message) {
+    updateToolCallProgress(messageDiv, index, progress, total, message, elapsed_ms) {
         if (!messageDiv) return;
 
         const toolCallElements = messageDiv.querySelectorAll('.tool-call');
@@ -1022,10 +1022,44 @@ window.AIChatUI = {
         const realSteps = parseInt(progressContainer.dataset.realSteps || '0') + 1;
         progressContainer.dataset.realSteps = String(realSteps);
 
-        // ── 将上一个 running 步骤标记为 done ──
+        // ── 公共 SVG 图标字符串（复用） ──
+        const _DURATION_SVG = `<svg class="tpc-duration-icon" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="6" cy="6.5" r="3.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 5v2l1 .8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.8 1.5h2.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+
+        // ── 将上一个 running 步骤标记为 done，并显示该步骤自身耗时 ──
+        // elapsed_ms 是「本次通知对应步骤的耗时」，在步骤创建时已存入 dataset.ownElapsed，
+        // 完成时读取自身保存的值，确保每步显示正确耗时。
         const timeline = progressContainer.querySelector('.tpc-timeline');
         const prevRunning = timeline.querySelector('.tpc-step.running');
-        if (prevRunning) prevRunning.classList.replace('running', 'done');
+        if (prevRunning) {
+            // 停止实时计时器
+            const prevTimerId = prevRunning.dataset.timerId;
+            if (prevTimerId) {
+                clearInterval(parseInt(prevTimerId));
+                delete prevRunning.dataset.timerId;
+            }
+            // 移除实时计时元素
+            const liveEl = prevRunning.querySelector('.tpc-step-duration--live');
+            if (liveEl) liveEl.remove();
+
+            prevRunning.classList.replace('running', 'done');
+
+            // 显示该步骤自身耗时
+            const ownElapsed = prevRunning.dataset.ownElapsed !== undefined
+                ? parseInt(prevRunning.dataset.ownElapsed)
+                : undefined;
+            if (ownElapsed !== undefined && ownElapsed >= 0) {
+                const stepBody = prevRunning.querySelector('.tpc-step-body');
+                if (stepBody && !stepBody.querySelector('.tpc-step-duration')) {
+                    const durationEl = document.createElement('span');
+                    durationEl.className = 'tpc-step-duration';
+                    const timeText = ownElapsed >= 1000
+                        ? `${(ownElapsed / 1000).toFixed(1)}s`
+                        : `${ownElapsed}ms`;
+                    durationEl.innerHTML = `${_DURATION_SVG}${timeText}`;
+                    stepBody.appendChild(durationEl);
+                }
+            }
+        }
 
         // ── 解析工具名列表 ──
         // 消息格式："Step N/M: tool1, tool2"  或  "完成：..."
@@ -1066,16 +1100,49 @@ window.AIChatUI = {
         // ── 添加新步骤行 ──
         const stepEl = document.createElement('div');
         stepEl.className = `tpc-step ${isDone ? 'complete' : 'running'}`;
-        stepEl.innerHTML = `
-            <div class="tpc-step-node">${isDone ? `<svg viewBox="0 0 14 14" fill="none"><path d="M3 7l3 3 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>` : `<span>${realSteps}</span>`}</div>
-            <div class="tpc-step-line"></div>
-            <div class="tpc-step-body">
-                ${isDone
-                    ? `<span class="tpc-step-label complete-label">${message || '已得到答案'}</span>`
-                    : `<div class="tpc-step-tools">${toolChips || `<span class="tpc-step-label">${toolsRaw}</span>`}</div>`
+        // 将本步骤自身耗时存入 dataset，等步骤完成时（下一条通知到来）再读取显示
+        if (elapsed_ms !== undefined && elapsed_ms >= 0) {
+            stepEl.dataset.ownElapsed = String(elapsed_ms);
+        }
+
+        if (isDone) {
+            // 完成行：耗时右对齐，与其他步骤一致
+            const doneTimeText = elapsed_ms !== undefined && elapsed_ms >= 0
+                ? (elapsed_ms >= 1000 ? `${(elapsed_ms / 1000).toFixed(1)}s` : `${elapsed_ms}ms`)
+                : '';
+            const doneDurationHtml = doneTimeText
+                ? `<span class="tpc-step-duration">${_DURATION_SVG}${doneTimeText}</span>`
+                : '';
+            stepEl.innerHTML = `
+                <div class="tpc-step-node"><svg viewBox="0 0 14 14" fill="none"><path d="M3 7l3 3 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div class="tpc-step-line"></div>
+                <div class="tpc-step-body">
+                    <span class="tpc-step-label complete-label">${message || '已得到答案'}</span>
+                    ${doneDurationHtml}
+                </div>
+            `;
+        } else {
+            // 运行行：显示工具 chip + 实时计时器
+            stepEl.innerHTML = `
+                <div class="tpc-step-node"><span>${realSteps}</span></div>
+                <div class="tpc-step-line"></div>
+                <div class="tpc-step-body">
+                    <div class="tpc-step-tools">${toolChips || `<span class="tpc-step-label">${toolsRaw}</span>`}</div>
+                    <span class="tpc-step-duration tpc-step-duration--live">${_DURATION_SVG}<span class="tpc-live-timer">0.0s</span></span>
+                </div>
+            `;
+            // 启动实时计时，每 100ms 更新一次
+            const timerStart = Date.now();
+            const timerTextEl = stepEl.querySelector('.tpc-live-timer');
+            const timerId = setInterval(() => {
+                if (timerTextEl) {
+                    const e = Date.now() - timerStart;
+                    timerTextEl.textContent = e >= 1000 ? `${(e / 1000).toFixed(1)}s` : `${e}ms`;
                 }
-            </div>
-        `;
+            }, 100);
+            stepEl.dataset.timerId = String(timerId);
+        }
+
         timeline.appendChild(stepEl);
         timeline.scrollTop = timeline.scrollHeight;
 

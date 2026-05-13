@@ -1073,8 +1073,13 @@ pre {
 /* Step body */
 .tpc-step-body {
     flex: 1;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
     padding-top: 3px;
     min-width: 0;
+    row-gap: 5px;
 }
 
 .tpc-step-tools {
@@ -1110,6 +1115,42 @@ pre {
 .complete-label {
     color: #4ade80;
     font-weight: 500;
+}
+
+.tpc-step-duration {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: auto;
+    padding-left: 10px;
+    font-size: 10px;
+    color: #475569;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.tpc-duration-icon {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    color: #334155;
+}
+
+/* 实时计时器（running 状态） */
+.tpc-step-duration--live {
+    color: #6366f1;
+}
+
+.tpc-step-duration--live .tpc-duration-icon {
+    color: #6366f1;
+    animation: tpc-timer-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes tpc-timer-blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.35; }
 }
 
 @keyframes step-pulse {

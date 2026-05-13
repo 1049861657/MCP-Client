@@ -2,7 +2,6 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { ClientCapabilities } from "@modelcontextprotocol/sdk/types.js";
-import { ProgressNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { MCPClientIdentity } from "../config/app.config.js";
 import { Logger } from "../utils/logger.js";
 import { ConnectionType } from '../generated/prisma/client.js';
@@ -27,9 +26,6 @@ export class ServerConnection {
   private static readonly PING_TIMEOUT = 10000;
   // 存储当前配置的引用
   private mcpConfig: MCPConfigType | null = null;
-  // progressToken → onProgress 回调映射，用于多并发调用时路由进度通知
-  private progressHandlers: Map<string | number, (progress: number, total: number | undefined, message: string | undefined) => void> = new Map();
-  private progressTokenCounter: number = 0;
 
   /**
    * 构造函数
@@ -164,7 +160,6 @@ export class ServerConnection {
       }
       
       await this.client.connect(this.transport);
-      this.setupProgressHandler();
       
       const serverVersion = this.client.getServerVersion();
       if (serverVersion) {
@@ -271,15 +266,13 @@ export class ServerConnection {
         return [];
       }
       
-      // Process all tools in parallel with a single map operation
       return await Promise.all(toolsResponse.tools
         .filter((tool: any) => tool !== null && tool !== undefined)
         .map(async (tool: any) => {
           const toolName = tool?.name || "未命名工具";
           const toolDesc = tool?.description || `${toolName}工具`;
-          const codeName = await OpenAINameCodec.encode(toolName, this.id);
+          const codeName = OpenAINameCodec.encode(toolName, this.id);
           const parameters = this.extractParameters(tool);
-          const callOptions = this.extractCallOptions(tool);
           
           return {
             name: toolName,
@@ -287,8 +280,7 @@ export class ServerConnection {
             description: toolDesc,
             parameters,
             serverId: this.id,
-            serverName: this.name,
-            ...(callOptions && { callOptions })
+            serverName: this.name
           };
         }));
         
@@ -298,25 +290,6 @@ export class ServerConnection {
     }
   }
 
-  /**
-   * 从工具的 inputSchema["x-mcp-call-options"] 提取调用选项。
-   * 服务端通过此扩展字段声明超时、进度重置等客户端调用行为。
-   */
-  private extractCallOptions(tool: any): CallToolOptions | undefined {
-    const raw = tool?.inputSchema?.['x-mcp-call-options'];
-    if (!raw || typeof raw !== 'object') {
-      return undefined;
-    }
-    const opts: CallToolOptions = {};
-    if (typeof raw.timeout === 'number') {
-      opts.timeout = raw.timeout;
-    }
-    if (typeof raw.supportsProgress === 'boolean') {
-      opts.supportsProgress = raw.supportsProgress;
-    }
-    return Object.keys(opts).length > 0 ? opts : undefined;
-  }
-  
   private extractParameters(tool: any): any[] {
     const parameters = [];
     
@@ -344,23 +317,6 @@ export class ServerConnection {
   }
 
   /**
-   * 注册全局 progress 通知 handler。
-   * Client 实例每次重建后需重新注册，通过 progressHandlers Map 路由到具体回调。
-   */
-  private setupProgressHandler(): void {
-    this.client.setNotificationHandler(ProgressNotificationSchema, (notification) => {
-      const { progressToken, progress, total, message } = notification.params;
-      Logger.debug('SERVER CONNECTION', `收到 progress 通知 token=${progressToken} [${progress}/${total}] ${message ?? ''}`);
-      const handler = this.progressHandlers.get(progressToken);
-      if (handler) {
-        handler(progress, total, message);
-      } else {
-        Logger.warn('SERVER CONNECTION', `收到 progress 通知但没有对应 handler，token=${progressToken}`);
-      }
-    });
-  }
-
-  /**
    * 调用工具
    */
   async callTool<T>(toolName: string, args: any, options?: CallToolOptions): Promise<T> {
@@ -368,38 +324,36 @@ export class ServerConnection {
       throw new Error('服务器未连接');
     }
 
-    // 若工具支持进度推送且调用方提供了回调，生成 progressToken 并注册 handler
     const useProgress = options?.supportsProgress === true && typeof options?.onProgress === 'function';
     Logger.debug('SERVER CONNECTION', `callTool [${toolName}] supportsProgress=${options?.supportsProgress} hasOnProgress=${typeof options?.onProgress === 'function'} useProgress=${useProgress}`);
-    const progressToken: string | undefined = useProgress
-      ? `${this.id}-${toolName}-${++this.progressTokenCounter}`
-      : undefined;
 
-    if (progressToken && options!.onProgress) {
-      this.progressHandlers.set(progressToken, options!.onProgress);
-    }
+    // 使用 SDK 原生 onprogress 机制，确保 resetTimeoutOnProgress 正常生效。
+    // 注意：不再自定义 _meta.progressToken，由 SDK 内部以 messageId（数字）管理，
+    // 这样 _onprogress 能正确匹配 handler 并重置超时计时器。
+    let stepStartTime = Date.now();
 
     try {
       const result = await this.client.callTool(
-        {
-          name: toolName,
-          arguments: args,
-          ...(progressToken ? { _meta: { progressToken } } : {})
-        },
+        { name: toolName, arguments: args },
         undefined,
         {
           timeout: options?.timeout ?? 60000,
-          resetTimeoutOnProgress: options?.supportsProgress === true
+          resetTimeoutOnProgress: useProgress,
+          ...(useProgress ? {
+            onprogress: (progressData: { progress: number; total?: number; message?: string }) => {
+              const now = Date.now();
+              const elapsed_ms = now - stepStartTime;
+              stepStartTime = now;
+              Logger.debug('SERVER CONNECTION', `收到 progress 通知 [${progressData.progress}/${progressData.total}] ${progressData.message ?? ''}`);
+              options!.onProgress!(progressData.progress, progressData.total, progressData.message, elapsed_ms);
+            }
+          } : {})
         }
       ) as T;
       return result;
     } catch (error) {
       Logger.error('SERVER CONNECTION', `调用工具 ${toolName} 失败: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
-    } finally {
-      if (progressToken) {
-        this.progressHandlers.delete(progressToken);
-      }
     }
   }
 
