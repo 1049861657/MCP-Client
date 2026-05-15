@@ -7,9 +7,12 @@
 window.AIChatAPI = {
     // 用于累计工具调用的token消耗
     accumulatedToolTokens: 0,
-    
+
     // 用于存储工具调用的完整参数，键为tool_call_id，值为completeArguments
     toolCallArgumentsMap: new Map(),
+
+    // 当前轮次数据收集器（每次 sendStreamRequest 重置）
+    _turnCollector: null,
     
     /**
      * 解析 SSE data 字段：单行单 JSON，或多段 JSON 粘连（如 }{ 中间无换行）
@@ -46,11 +49,14 @@ window.AIChatAPI = {
      */
     applyStreamDataObject(jsonData, aiMessageDiv, fullText) {
         const UI = window.AIChatUI;
+        const collector = this._turnCollector;
 
         if (jsonData.reasoning_content) {
             console.log('jsonData(思考):', jsonData);
             UI.updateReasoningContent(aiMessageDiv, jsonData.reasoning_content);
+            collector?.onReasoning(jsonData.reasoning_content);
         }
+
         if (jsonData.tool_call) {
             console.log('jsonData(工具调用):', jsonData);
             const toolInfo = {
@@ -59,6 +65,7 @@ window.AIChatAPI = {
                 args: jsonData.tool_call.arguments || {}
             };
             UI.addToolCall(aiMessageDiv, toolInfo);
+            collector?.onToolCall(toolInfo);
         }
 
         if (jsonData.tool_call_update) {
@@ -80,11 +87,13 @@ window.AIChatAPI = {
                         if (jsonData.tool_call_update.tool_call_id) {
                             this.toolCallArgumentsMap.set(
                                 jsonData.tool_call_update.tool_call_id,
-                                {
-                                    arguments: jsonData.tool_call_update.completeArguments,
-                                }
+                                { arguments: jsonData.tool_call_update.completeArguments }
                             );
                             console.log(`已保存工具参数 ID: ${jsonData.tool_call_update.tool_call_id}`);
+                            collector?.onToolCallUpdate(
+                                jsonData.tool_call_update.tool_call_id,
+                                jsonData.tool_call_update.completeArguments
+                            );
                         }
 
                         const argsElement = toolElement.querySelector('.tool-call-args');
@@ -127,6 +136,7 @@ window.AIChatAPI = {
                 jsonData.tool_progress.message,
                 jsonData.tool_progress.elapsed_ms
             );
+            collector?.onToolProgress(jsonData.tool_progress);
         }
 
         if (jsonData.tool_call_result) {
@@ -151,6 +161,8 @@ window.AIChatAPI = {
             if (jsonData.tool_call_result.token_usage && jsonData.tool_call_result.token_usage.totalTokens) {
                 this.accumulatedToolTokens += jsonData.tool_call_result.token_usage.totalTokens;
             }
+
+            collector?.onToolCallResult(jsonData.tool_call_result);
 
             UI.updateToolCallResult(
                 aiMessageDiv,
@@ -205,8 +217,11 @@ window.AIChatAPI = {
         // 重置工具token累计
         this.accumulatedToolTokens = 0;
         
+        // 重置轮次收集器，为本次请求收集工具调用 / 推理内容
+        this._turnCollector = new window.AIChatTurnCollector();
+
         const startTime = Date.now();
-        
+
         // 添加用户和AI消息
         UI.addUserMessage(message);
         const aiMessageDiv = UI.addAIMessage();
@@ -408,6 +423,19 @@ window.AIChatAPI = {
             
             // 添加到消息历史
             if (content) {
+                const storedToolCalls = data.tool_calls?.length > 0
+                    ? data.tool_calls.map((tc, i) => ({
+                        id: tc.id ?? `tc-${Date.now()}-${i}`,
+                        name: tc.name,
+                        args: tc.arguments ?? {},
+                        result: tc.result,
+                        isError: false,
+                        executionTime: undefined,
+                        tokenUsage: undefined,
+                        progressSteps: []
+                    }))
+                    : undefined;
+
                 app.state.messageHistory.push({
                     role: 'user',
                     content: message
@@ -415,7 +443,9 @@ window.AIChatAPI = {
                 
                 app.state.messageHistory.push({
                     role: 'assistant',
-                    content: content
+                    content: content,
+                    turnId: crypto.randomUUID(),
+                    toolCalls: storedToolCalls
                 });
                 
                 // 保存历史
@@ -491,10 +521,12 @@ window.AIChatAPI = {
                     
                     // 如果有内容，将AI回复保存到历史记录中
                     if (fullText) {
-                        // 添加AI回复到消息历史
+                        // 收集本轮完整数据（工具调用、推理内容等）并存入历史
+                        const turnData = this._turnCollector?.collect() ?? {};
                         app.state.messageHistory.push({
                             role: 'assistant',
-                            content: fullText
+                            content: fullText,
+                            ...turnData
                         });
                         
                         // 重新保存历史

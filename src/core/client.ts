@@ -13,6 +13,7 @@ import { OpenAINameCodec } from "../utils/openai-util.js";
 export class MCPClientManager {
   private connections: Map<string, ServerConnection> = new Map();
   private toolServerMap: Map<string, string> = new Map(); // 工具编码名称到服务器ID的映射
+  private toolsCache: Map<string, ToolInfo[]> = new Map(); // 服务器ID到工具列表的缓存，连接/重连时更新
   private currentServerId?: string; // 当前选中的服务器ID
   private mcpConfig: MCPConfigType | null = null;
   private reconnectTimer?: NodeJS.Timeout; // 存储定时重连的计时器ID
@@ -58,6 +59,7 @@ export class MCPClientManager {
   private async initializeConnections(): Promise<void> {
     this.connections.clear();
     this.toolServerMap.clear();
+    this.toolsCache.clear();
     
     try {
       // 从ConfigService获取最新MCP配置
@@ -119,9 +121,12 @@ export class MCPClientManager {
     
     try {
       const tools = await connection.getTools();
+      // 更新 codeName → serverId 映射
       for (const tool of tools) {
         this.toolServerMap.set(tool.codeName, serverId);
       }
+      // 缓存工具列表，避免每次聊天重复调用 listTools()
+      this.toolsCache.set(serverId, tools);
     } catch (error) {
       Logger.error('MCP CLIENT', `更新工具服务器映射失败:`, error);
     }
@@ -225,20 +230,27 @@ export class MCPClientManager {
     const serverTools: Record<string, ToolInfo[]> = {};
     const connectedServers: ServerInfo[] = [];
     
-    // 汇总所有已连接服务器的工具
+    // 汇总所有已连接服务器的工具（优先使用缓存，避免每次发起 listTools 网络请求）
     for (const connection of this.connections.values()) {
       if (connection.isConnected()) {
         const serverInfo = await connection.getServerInfo();
         connectedServers.push(serverInfo);
         
-        try {
-          const tools = await connection.getTools();
-          
-          // 直接使用工具原始名称，不进行重名处理
-          serverTools[connection.getId()] = tools;
-          allTools.push(...tools);
-        } catch (error) {
-          Logger.error('MCP CLIENT', `获取服务器 ${connection.getName()} 的工具列表失败:`, error);
+        const serverId = connection.getId();
+        const cachedTools = this.toolsCache.get(serverId);
+        if (cachedTools) {
+          serverTools[serverId] = cachedTools;
+          allTools.push(...cachedTools);
+        } else {
+          // 缓存未命中（理论上仅首次连接前短暂发生），回退到网络请求并填充缓存
+          try {
+            const tools = await connection.getTools();
+            this.toolsCache.set(serverId, tools);
+            serverTools[serverId] = tools;
+            allTools.push(...tools);
+          } catch (error) {
+            Logger.error('MCP CLIENT', `获取服务器 ${connection.getName()} 的工具列表失败:`, error);
+          }
         }
       }
     }
@@ -297,7 +309,7 @@ export class MCPClientManager {
 
   /**
    * 调用工具
-   * options 由调用方在运行时显式传入（如 openai.ts 根据 getApiDetails 的 supportsProgress 标志注入）。
+   * options 由调用方在运行时显式传入（如 openai.ts 对 executeApi 统一注入 supportsProgress）。
    */
   async callTool<T>(codeName: string, args: any, options?: CallToolOptions): Promise<T> {
     const connection = this.findServerForTool(codeName);

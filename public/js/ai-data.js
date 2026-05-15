@@ -615,10 +615,13 @@ window.AIChatData = {
                         this.app.elements.chatMessages.innerHTML = '';
                     }
                     
-                    // 更新消息历史
+                    // 更新消息历史（保留所有字段，供 context 传递和历史回放使用）
                     this.app.state.messageHistory = messages.map(msg => ({
                         role: msg.role,
-                        content: msg.content
+                        content: msg.content,
+                        turnId: msg.turnId,
+                        reasoning: msg.reasoning,
+                        toolCalls: msg.toolCalls
                     }));
                     
                     // 重建聊天界面
@@ -631,7 +634,15 @@ window.AIChatData = {
                                 this.app.UI.addUserMessage(message.content);
                             } else if (message.role === 'assistant' && previousUserMessage) {
                                 const aiMessageDiv = this.app.UI.addAIMessage(message.content);
-                                this.app.UI.finalizeAIMessage(aiMessageDiv);
+                                // 历史回放：还原推理过程
+                                if (message.reasoning) {
+                                    window.AIChatRenderers.render('reasoning', message.reasoning, aiMessageDiv);
+                                }
+                                // 历史回放：还原工具调用
+                                if (message.toolCalls?.length > 0) {
+                                    window.AIChatRenderers.render('tool-call-group', message.toolCalls, aiMessageDiv);
+                                }
+                                this.app.UI.finalizeAIMessage(aiMessageDiv, false);
                             }
                         }
                         
@@ -694,12 +705,15 @@ window.AIChatData = {
         this.loadChatHistory(50)
             .then(messages => {
                 if (messages && messages.length > 0) {
-                    // 过滤出有效的消息结构
+                    // 过滤出有效的消息结构，保留所有字段（含 toolCalls / reasoning / turnId）
                     this.app.state.messageHistory = messages
                         .filter(msg => msg.role && msg.content)
                         .map(msg => ({
                             role: msg.role,
-                            content: msg.content
+                            content: msg.content,
+                            turnId: msg.turnId,
+                            reasoning: msg.reasoning,
+                            toolCalls: msg.toolCalls
                         }));
                     
                     console.log(`已从IndexedDB加载 ${this.app.state.messageHistory.length} 条消息历史 [会话: ${this.app.state.sessionId}]`);

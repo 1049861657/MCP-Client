@@ -7,12 +7,14 @@
 
 // 定义要加载的模块（按照依赖顺序）
 const modules = [
-    'ai-utils.js',  // 先加载工具模块，提供基础工具和时间管理功能
-    'ai-data.js',   // 再加载数据模块，提供数据库和会话管理功能
-    'ai-core.js',   // 然后加载核心模块，依赖工具和数据模块
-    'ai-ui.js',     // 再加载UI模块，它依赖核心模块
-    'ai-quickmessage.js', // 加载快捷消息模块，依赖UI模块
-    'ai-api.js'     // 最后加载API模块，它依赖UI和核心模块
+    'ai-utils.js',          // 先加载工具模块，提供基础工具和时间管理功能
+    'ai-turn-collector.js', // 轮次收集器（无外部依赖，需在 api 之前加载）
+    'ai-data.js',           // 再加载数据模块，提供数据库和会话管理功能
+    'ai-core.js',           // 然后加载核心模块，依赖工具和数据模块
+    'ai-ui.js',             // 再加载UI模块，它依赖核心模块
+    'ai-renderers.js',      // 渲染注册表（依赖 ai-ui.js 中的 parseMarkdown 等函数）
+    'ai-quickmessage.js',   // 加载快捷消息模块，依赖UI模块
+    'ai-api.js'             // 最后加载API模块，它依赖UI、核心和收集器模块
 ];
 
 // 按顺序加载模块

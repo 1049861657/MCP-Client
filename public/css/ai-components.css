@@ -1156,4 +1156,76 @@ pre {
 @keyframes step-pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
     50%       { opacity: 0.5; transform: scale(0.75); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   历史记录模态框 - 工具调用标签 & 推理标记
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* 工具调用标签容器 */
+.session-tool-calls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+/* 单个工具调用标签 */
+.session-tool-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.6;
+    border-radius: 10px;
+    background-color: #e8f4fd;
+    color: #1a6fa8;
+    border: 1px solid #b3d9f7;
+    white-space: nowrap;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.session-tool-badge::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #1a6fa8;
+    margin-right: 5px;
+    flex-shrink: 0;
+}
+
+.session-tool-badge.error {
+    background-color: #fdecea;
+    color: #c0392b;
+    border-color: #f5b7b1;
+}
+
+.session-tool-badge.error::before {
+    background-color: #c0392b;
+}
+
+/* 推理过程标记 */
+.session-reasoning-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.6;
+    border-radius: 10px;
+    background-color: #f3f0ff;
+    color: #6941c6;
+    border: 1px solid #d9d0fb;
+}
+
+.session-reasoning-badge::before {
+    content: '💭';
+    margin-right: 4px;
+    font-size: 10px;
 } 

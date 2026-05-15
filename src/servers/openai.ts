@@ -1178,10 +1178,6 @@ private async processModelResponse(
       // 创建工具调用管理器
       const toolManager = new ToolCallManager(this.providerName, onChunk);
       
-      // 缓存 getApiDetails 返回的 supportsProgress 标志，key 为 apiId
-      // 供后续 executeApi 调用时判断是否携带 progressToken
-      const apiProgressMap = new Map<string, boolean>();
-      
       // 最大工具调用次数限制，防止无限循环
       const MAX_TOOL_CALL_ROUNDS = 10;
       
@@ -1238,35 +1234,19 @@ private async processModelResponse(
             }
             
             // 参数验证通过，执行工具调用
-            // executeApi：若该 API 声明了 supportsProgress（来自 getApiDetails 缓存），注入进度回调
+            // executeApi：统一注入进度回调，服务端依赖 progressToken 决定是否切换为 SSE 流
+            // 快速 API 收到 progressToken 但不推送通知，零额外开销；慢 API 持续推送进度防超时
             const isExecuteApi = toolCall.name === 'executeApi';
-            const apiId = isExecuteApi ? toolCall.arguments?.apiId : undefined;
-            const needsProgress = isExecuteApi && !!apiId && apiProgressMap.get(apiId) === true;
             const toolResult = await mcpClient.callTool<any>(
               toolCall.codeName,
               toolCall.arguments,
-              needsProgress ? {
+              isExecuteApi ? {
                 supportsProgress: true,
                 onProgress: (progress, total, message, elapsed_ms) => {
                   toolManager.setToolProgress(globalIndex, progress, total, message, elapsed_ms);
                 }
               } : undefined
             );
-
-            // getApiDetails：解析结果并缓存 supportsProgress，供后续 executeApi 使用
-            if (toolCall.name === 'getApiDetails') {
-              try {
-                const text: string = toolResult?.content?.[0]?.text ?? '';
-                const match = text.match(/\{[\s\S]*\}/);
-                if (match) {
-                  const info = JSON.parse(match[0]);
-                  if (info.id && info.supportsProgress === true) {
-                    apiProgressMap.set(info.id, true);
-                    Logger.debug('OPENAI', `API [${info.id}] supportsProgress=true，已缓存`);
-                  }
-                }
-              } catch { /* 解析失败不影响正常流程 */ }
-            }
 
             // 格式化工具结果
             const resultText = this.formatToolResult(toolResult);

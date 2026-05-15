@@ -1392,7 +1392,7 @@ window.AIChatUI = {
         sessionMessages.innerHTML = '';
         
         messages.forEach(message => {
-            if (!message.role || !message.content) return;
+            if (!message.role || (!message.content && !message.toolCalls?.length)) return;
             
             const messageItem = document.createElement('div');
             messageItem.className = 'session-message';
@@ -1403,9 +1403,21 @@ window.AIChatUI = {
             
             const time = new Date(message.timestamp).toLocaleString();
             
+            let extraHtml = '';
+            if (!isUser && message.toolCalls?.length > 0) {
+                const badges = message.toolCalls
+                    .map(tc => `<span class="session-tool-badge${tc.isError ? ' error' : ''}">${tc.name}</span>`)
+                    .join('');
+                extraHtml += `<div class="session-tool-calls">${badges}</div>`;
+            }
+            if (!isUser && message.reasoning) {
+                extraHtml += `<div class="session-reasoning-badge">思考过程已记录</div>`;
+            }
+            
             messageItem.innerHTML = `
                 <div class="session-message-user">${isUser ? '用户' : 'AI'}</div>
-                <div class="session-message-content">${message.content}</div>
+                <div class="session-message-content">${message.content ?? ''}</div>
+                ${extraHtml}
                 <div class="session-message-time">${time}</div>
             `;
             
@@ -1452,6 +1464,12 @@ window.AIChatUI = {
                         this.addUserMessage(msg.content);
                     } else if (msg.role === 'assistant') {
                         const aiMessage = this.addAIMessage(msg.content);
+                        if (msg.reasoning) {
+                            window.AIChatRenderers.render('reasoning', msg.reasoning, aiMessage);
+                        }
+                        if (msg.toolCalls?.length > 0) {
+                            window.AIChatRenderers.render('tool-call-group', msg.toolCalls, aiMessage);
+                        }
                         this.finalizeAIMessage(aiMessage, false);
                     }
                 });
