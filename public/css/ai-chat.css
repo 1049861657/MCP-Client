@@ -204,7 +204,19 @@ textarea:focus {
 
 /* 移除旧的按钮样式 */
 .send-button {
-    position: static; /* 移除绝对定位，现在由input-buttons管理位置 */
+    position: static;
+}
+
+.stop-button {
+    position: static;
+    background-color: #ef4444;
+    color: #fff;
+    border-radius: 6px;
+    transition: background-color 0.15s;
+}
+
+.stop-button:hover {
+    background-color: #dc2626;
 }
 
 /* 结果区域样式 */

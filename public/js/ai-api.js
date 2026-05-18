@@ -13,6 +13,24 @@ window.AIChatAPI = {
 
     // 当前轮次数据收集器（每次 sendStreamRequest 重置）
     _turnCollector: null,
+
+    // 当前流式请求的 ReadableStream reader，用于主动取消
+    _currentReader: null,
+    // 标志位：本次中断是否由用户主动触发（区别于网络错误）
+    _userAborted: false,
+
+    /**
+     * 取消当前流式请求
+     */
+    abortCurrentStream() {
+        if (this._currentReader) {
+            this._userAborted = true;
+            this._currentReader.cancel().catch(() => {});
+            this._currentReader = null;
+        }
+        window.AIChatApp.setStreamingState(false);
+        window.AIChatApp.elements.sendButton.disabled = false;
+    },
     
     /**
      * 解析 SSE data 字段：单行单 JSON，或多段 JSON 粘连（如 }{ 中间无换行）
@@ -216,6 +234,7 @@ window.AIChatAPI = {
         
         // 重置工具token累计
         this.accumulatedToolTokens = 0;
+        this._userAborted = false;
         
         // 重置轮次收集器，为本次请求收集工具调用 / 推理内容
         this._turnCollector = new window.AIChatTurnCollector();
@@ -225,6 +244,9 @@ window.AIChatAPI = {
         // 添加用户和AI消息
         UI.addUserMessage(message);
         const aiMessageDiv = UI.addAIMessage();
+
+        // 显示停止按钮
+        window.AIChatApp.setStreamingState(true);
         
         try {
             // 准备请求参数
@@ -281,11 +303,15 @@ window.AIChatAPI = {
             await this.processStreamResponse(response, aiMessageDiv, startTime);
             
         } catch (error) {
-            console.error('发送请求出错:', error);
-            
-            // 更新消息为错误信息
-            UI.updateAIMessage(aiMessageDiv, `错误: ${error.message || '与服务器通信失败'}`);
-            UI.finalizeAIMessage(aiMessageDiv);
+            if (error.name !== 'AbortError') {
+                console.error('发送请求出错:', error);
+                UI.updateAIMessage(aiMessageDiv, `错误: ${error.message || '与服务器通信失败'}`);
+                UI.finalizeAIMessage(aiMessageDiv);
+            }
+        } finally {
+            // 恢复发送按钮（无论成功、失败还是主动中止）
+            window.AIChatApp.setStreamingState(false);
+            this._currentReader = null;
         }
     },
     
@@ -463,115 +489,102 @@ window.AIChatAPI = {
     
     /**
      * 处理流式响应
-     * @param {Response} response - 服务器响应
-     * @param {HTMLElement} aiMessageDiv - AI消息元素
-     * @param {number} startTime - 请求开始时间
+     * 控制流设计：
+     *   - reader.read() 被单独的内层 try/catch 包裹，任何读取中断（用户取消/网络错误）
+     *     都统一收敛为 break，退出循环
+     *   - 所有清理逻辑（hideThinking、finalizeAIMessage、保存历史、弹出气泡）放在 finally，
+     *     保证无论正常完成、主动停止还是网络异常都只走一条路径
+     *   - 用 _userAborted 语义标志位区分"用户主动停止"与"真实错误"，不依赖错误类型名称
      */
     async processStreamResponse(response, aiMessageDiv, startTime) {
         const app = window.AIChatApp;
         const reader = response.body.getReader();
+        this._currentReader = reader;
         const decoder = new TextDecoder('utf-8');
-        let fullText = '';  // 保存完整文本
+        let fullText = '';
         let eventName = '';
         let eventData = '';
-        
-        // 用于处理跨chunks的数据
         let buffer = '';
-        
+        let readError = null;
+
+        // 发消息时移除所有快捷气泡
+        const chatMessages = app.elements.chatMessages;
+        if (chatMessages) {
+            chatMessages.querySelector('.quick-message-bubbles')?.remove();
+            chatMessages.querySelector('.appended-quick-bubbles')?.remove();
+        }
+
         try {
-            // 用户发送消息后，移除所有类型的快捷气泡
-            const chatMessages = app.elements.chatMessages;
-            if (chatMessages) {
-                // 移除标准气泡
-                const standardBubbles = chatMessages.querySelector('.quick-message-bubbles');
-                if (standardBubbles) {
-                    standardBubbles.remove();
-                }
-                // 移除追加气泡
-                const appendedBubbles = chatMessages.querySelector('.appended-quick-bubbles');
-                if (appendedBubbles) {
-                    appendedBubbles.remove();
-                }
-            }
-            
             while (true) {
-                const { done, value } = await reader.read();
-                
+                let done, value;
+                try {
+                    ({ done, value } = await reader.read());
+                } catch (e) {
+                    // read() 中断：用户取消或网络错误 → 统一 break，由 finally 收尾
+                    if (!this._userAborted) readError = e;
+                    break;
+                }
+
                 if (done) {
-                    // 流结束前缓冲区可能缺少末尾换行，补一行再按 SSE 行处理，避免最后一段 data 丢失
+                    // 流关闭前冲刷缓冲区，避免最后一段 data 丢失
                     if (buffer.length > 0) {
-                        const flushChunk = buffer + '\n';
-                        const flushLines = flushChunk.split('\n');
-                        buffer = '';
-                        for (const line of flushLines) {
+                        for (const line of (buffer + '\n').split('\n')) {
                             if (line.startsWith('event:')) {
                                 eventName = line.substring(6).trim();
                             } else if (line.startsWith('data:')) {
-                                eventData = line.substring(5).trim();
-                                fullText = await this.handleEventData(eventName, eventData, aiMessageDiv, fullText, startTime);
-                            } else if (line.trim() === '') {
+                                fullText = await this.handleEventData(eventName, line.substring(5).trim(), aiMessageDiv, fullText, startTime);
+                            } else if (!line.trim()) {
                                 eventName = '';
-                                eventData = '';
                             }
                         }
+                        buffer = '';
                     }
-                    // 确保思考状态被移除
-                    window.AIChatUI.hideThinking(aiMessageDiv);
-                    window.AIChatUI.finalizeAIMessage(aiMessageDiv);
-                    
-                    // 如果有内容，将AI回复保存到历史记录中
-                    if (fullText) {
-                        // 收集本轮完整数据（工具调用、推理内容等）并存入历史
-                        const turnData = this._turnCollector?.collect() ?? {};
-                        app.state.messageHistory.push({
-                            role: 'assistant',
-                            content: fullText,
-                            ...turnData
-                        });
-                        
-                        // 重新保存历史
-                        window.AIChatData.saveMessageHistory();
-                        
-                        // 在聊天完成后显示追加的快捷消息气泡
-                        setTimeout(() => {
-                            window.AIChatUI.showAppendedQuickMessages();
-                        }, 300); // 使用延迟确保DOM更新完成
-                    }
-                    
                     break;
                 }
-                
-                // 解码二进制数据
-                const chunk = decoder.decode(value, { stream: true });
-                
-                // 添加到缓冲区并处理完整行
-                buffer += chunk;
+
+                buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
-                
-                // 处理所有完整行，保留最后一行（可能不完整）
                 if (lines.length > 1) {
                     buffer = lines.pop() || '';
-                    
                     for (const line of lines) {
                         if (line.startsWith('event:')) {
                             eventName = line.substring(6).trim();
                         } else if (line.startsWith('data:')) {
                             eventData = line.substring(5).trim();
-                            
-                            // 在这里处理事件数据
                             fullText = await this.handleEventData(eventName, eventData, aiMessageDiv, fullText, startTime);
-                        } else if (line.trim() === '') {
-                            // 空行，重置事件数据
+                        } else if (!line.trim()) {
                             eventName = '';
                             eventData = '';
-                        } 
+                        }
                     }
                 }
             }
-        } catch (error) {
-            console.error('读取流出错:', error);
-            window.AIChatUI.updateAIMessage(aiMessageDiv, `错误: ${error.message || '读取响应流失败'}`);
+        } finally {
+            // 真实网络错误时在消息区显示提示
+            if (readError) {
+                console.error('读取流出错:', readError);
+                window.AIChatUI.updateAIMessage(aiMessageDiv, `错误: ${readError.message || '读取响应流失败'}`);
+            }
+            window.AIChatUI.hideThinking(aiMessageDiv);
             window.AIChatUI.finalizeAIMessage(aiMessageDiv);
+
+            if (this._userAborted) {
+                // 用户主动停止：不保存任何内容；
+                // 同时撤销 sendStreamRequest 预先 push 的 user 消息，避免历史出现孤立条目
+                const last = app.state.messageHistory[app.state.messageHistory.length - 1];
+                if (last?.role === 'user') {
+                    app.state.messageHistory.pop();
+                }
+            } else if (fullText) {
+                // 正常完成且有内容：保存历史
+                const turnData = this._turnCollector?.collect() ?? {};
+                app.state.messageHistory.push({ role: 'assistant', content: fullText, ...turnData });
+                window.AIChatData.saveMessageHistory();
+            }
+            // 有内容或用户主动停止时弹出气泡
+            if (fullText || this._userAborted) {
+                setTimeout(() => window.AIChatUI.showAppendedQuickMessages(), 300);
+            }
         }
     },
     

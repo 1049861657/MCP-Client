@@ -14,6 +14,8 @@ export class MCPClientManager {
   private connections: Map<string, ServerConnection> = new Map();
   private toolServerMap: Map<string, string> = new Map(); // 工具编码名称到服务器ID的映射
   private toolsCache: Map<string, ToolInfo[]> = new Map(); // 服务器ID到工具列表的缓存，连接/重连时更新
+  private toolsCacheTimestamps: Map<string, number> = new Map(); // 缓存写入时间戳，用于 TTL 检查
+  private static readonly TOOLS_CACHE_TTL = 5 * 60 * 1000; // 工具缓存 TTL：5分钟
   private currentServerId?: string; // 当前选中的服务器ID
   private mcpConfig: MCPConfigType | null = null;
   private reconnectTimer?: NodeJS.Timeout; // 存储定时重连的计时器ID
@@ -60,6 +62,7 @@ export class MCPClientManager {
     this.connections.clear();
     this.toolServerMap.clear();
     this.toolsCache.clear();
+    this.toolsCacheTimestamps.clear();
     
     try {
       // 从ConfigService获取最新MCP配置
@@ -84,6 +87,11 @@ export class MCPClientManager {
           
           try {
             const connected = await connection.connect();
+
+            // 注入工具列表变更回调：服务端通过 ToolListChangedNotification 通知时自动刷新
+            connection.onToolsChanged = async (serverId: string) => {
+              await this.updateToolServerMap(serverId);
+            };
             
             // 连接成功后获取工具列表并更新工具服务器映射
             await this.updateToolServerMap(serverConfig.serverId);
@@ -125,11 +133,21 @@ export class MCPClientManager {
       for (const tool of tools) {
         this.toolServerMap.set(tool.codeName, serverId);
       }
-      // 缓存工具列表，避免每次聊天重复调用 listTools()
+      // 缓存工具列表并记录时间戳
       this.toolsCache.set(serverId, tools);
+      this.toolsCacheTimestamps.set(serverId, Date.now());
     } catch (error) {
       Logger.error('MCP CLIENT', `更新工具服务器映射失败:`, error);
     }
+  }
+
+  /**
+   * 检查指定服务器的工具缓存是否已过期
+   */
+  private isToolsCacheStale(serverId: string): boolean {
+    const timestamp = this.toolsCacheTimestamps.get(serverId);
+    if (!timestamp) return true;
+    return Date.now() - timestamp > MCPClientManager.TOOLS_CACHE_TTL;
   }
 
   /**
@@ -238,19 +256,17 @@ export class MCPClientManager {
         
         const serverId = connection.getId();
         const cachedTools = this.toolsCache.get(serverId);
-        if (cachedTools) {
+        const cacheStale = this.isToolsCacheStale(serverId);
+
+        if (cachedTools && !cacheStale) {
           serverTools[serverId] = cachedTools;
           allTools.push(...cachedTools);
         } else {
-          // 缓存未命中（理论上仅首次连接前短暂发生），回退到网络请求并填充缓存
-          try {
-            const tools = await connection.getTools();
-            this.toolsCache.set(serverId, tools);
-            serverTools[serverId] = tools;
-            allTools.push(...tools);
-          } catch (error) {
-            Logger.error('MCP CLIENT', `获取服务器 ${connection.getName()} 的工具列表失败:`, error);
-          }
+          // 缓存未命中或已过期（TTL 5分钟），重新拉取工具列表
+          await this.updateToolServerMap(serverId);
+          const freshTools = this.toolsCache.get(serverId) ?? [];
+          serverTools[serverId] = freshTools;
+          allTools.push(...freshTools);
         }
       }
     }
@@ -412,6 +428,10 @@ export class MCPClientManager {
       const success = await connection.restart();
       
       if (success) {
+        // 确保回调在重连后仍然绑定
+        connection.onToolsChanged = async (sid: string) => {
+          await this.updateToolServerMap(sid);
+        };
         // 更新工具映射
         await this.updateToolServerMap(serverId);
       }

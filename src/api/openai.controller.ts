@@ -160,16 +160,26 @@ export class OpenAIController {
       
       // 记录开始时间
       const startTime = Date.now();
+
+      // 创建 AbortController，客户端断开 SSE 连接时自动中止后端处理
+      // 注意：必须监听 res（响应流）而非 req（请求流）
+      // req.on('close') 会在 body-parser 读完请求体后立即触发，与客户端是否断开无关
+      // res.on('close') 才代表 SSE 长连接被客户端真正关闭
+      const abortController = new AbortController();
+      res.on('close', () => {
+        if (!res.writableEnded) {
+          abortController.abort();
+        }
+      });
       
       // 调用OpenAI服务流式API
       service.chatStream(
         processedMessage,
         (chunk, done) => {
+          if (res.writableEnded) return;
           if (done) {
-            // 流内容结束，但不关闭连接，等待后续的usage信息
             return;
           } else {
-            // 发送数据块 - 直接发送整个chunk对象，包含content和reasoning_content
             res.write(`data: ${JSON.stringify(chunk)}\n\n`);
           }
         },
@@ -177,13 +187,14 @@ export class OpenAIController {
         temperature,
         maxTokens,
         enableTools,
-        enableParamValidation,  // 传递参数校验状态
-        enablePrompts  // 传递提示词状态
+        enableParamValidation,
+        enablePrompts,
+        abortController.signal
       ).then(result => {
+        if (res.writableEnded) return;
         // 计算总耗时
-        const elapsedTime = (Date.now() - startTime) / 1000; // 转换为秒
+        const elapsedTime = (Date.now() - startTime) / 1000;
         
-        // 流完成后，发送token使用信息和思考耗时
         res.write(`event: usage\n`);
         res.write(`data: ${JSON.stringify({
           ...result.usage,
@@ -192,14 +203,18 @@ export class OpenAIController {
           hasTool: result.tool_calls && result.tool_calls.length > 0
         })}\n\n`);
         
-        // 发送完成事件，包含finish_reason
         res.write(`event: done\n`);
         res.write(`data: ${JSON.stringify({
           finish_reason: result.finish_reason
         })}\n\n`);
         res.end();
       }).catch(error => {
-        // 错误处理
+        if (res.writableEnded) return;
+        // 客户端主动中止（AbortError = MCP/fetch；APIUserAbortError = OpenAI SDK）
+        if (error.name === 'AbortError' || error.name === 'APIUserAbortError') {
+          res.end();
+          return;
+        }
         Logger.error('API', '流式聊天处理出错:', error);
         res.write(`event: error\n`);
         res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);

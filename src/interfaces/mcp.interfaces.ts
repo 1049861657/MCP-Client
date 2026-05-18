@@ -53,6 +53,10 @@ export interface CallToolOptions {
    * 参数：progress（当前步骤）、total（总步骤，可选）、message（本步描述，可选）、elapsed_ms（上一步耗时毫秒，可选）。
    */
   onProgress?: (progress: number, total: number | undefined, message: string | undefined, elapsed_ms?: number) => void;
+  /**
+   * 取消信号。调用方可通过 AbortController 在工具执行中途取消请求。
+   */
+  signal?: AbortSignal;
 }
 
 /**

@@ -89,7 +89,8 @@ window.AIChatApp = {
             viewHistory: document.getElementById('view-history'),
             newSession: document.getElementById('new-session'),
             quickMessages: document.getElementById('quick-messages'),
-            mcpQuickAccess: document.getElementById('mcp-quick-access')
+            mcpQuickAccess: document.getElementById('mcp-quick-access'),
+            stopButton: document.getElementById('stop-button')
         };
         
         // 检查关键元素是否存在
@@ -191,9 +192,14 @@ window.AIChatApp = {
         }
         
         // 发送按钮和回车发送
-        const { sendButton, message } = this.elements;
+        const { sendButton, stopButton, message } = this.elements;
         if (sendButton) {
             sendButton.addEventListener('click', () => this.handleSend());
+        }
+        if (stopButton) {
+            stopButton.addEventListener('click', () => {
+                window.AIChatAPI.abortCurrentStream();
+            });
         }
         if (message) {
             message.addEventListener('keydown', (e) => {
@@ -772,6 +778,16 @@ window.AIChatApp = {
         }, 100);
     },
     
+    /**
+     * 切换流式请求状态：streaming=true 时显示停止按钮，false 时恢复发送按钮
+     */
+    setStreamingState(streaming) {
+        const { sendButton, stopButton } = this.elements;
+        if (!sendButton || !stopButton) return;
+        sendButton.style.display = streaming ? 'none' : '';
+        stopButton.style.display = streaming ? '' : 'none';
+    },
+
     // 处理发送消息
     async handleSend() {
         if (!this.API) {

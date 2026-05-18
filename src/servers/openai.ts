@@ -1164,9 +1164,10 @@ private async processModelResponse(
     model: string = this.config.defaultModel,
     temperature: number = this.chatConfig.defaultTemperature,
     maxTokens: number = this.chatConfig.defaultMaxTokens,
-    enableTools: boolean = this.toolsConfig.enableMCPTools,  // 使用统一配置
-    enableParamValidation: boolean = this.toolsConfig.enableParamValidation,  // 使用统一配置
-    enablePrompts: boolean = this.toolsConfig.enablePrompts  // 使用统一配置
+    enableTools: boolean = this.toolsConfig.enableMCPTools,
+    enableParamValidation: boolean = this.toolsConfig.enableParamValidation,
+    enablePrompts: boolean = this.toolsConfig.enablePrompts,
+    signal?: AbortSignal
   ): Promise<ChatResponse> {
     try {
       // 临时覆盖参数校验配置
@@ -1222,71 +1223,60 @@ private async processModelResponse(
           }))
         });
         
-        // 处理每个工具调用
-        for (const toolCall of toolCalls) {
+        // 并行执行所有工具调用，按原始顺序收集结果
+        const toolResultMessages = await Promise.all(toolCalls.map(async (toolCall) => {
           const globalIndex = toolCall.meta?.globalIndex as number;
-          
+
           try {
             // 验证参数是否满足要求
             const validation = await this.verifyToolArguments(toolCall.name, toolCall.arguments);
-            
+
             if (!validation.isValid) {
-              // 参数不满足要求，构造错误消息
               const errorMessage = `参数验证失败: ${validation.message}`;
               Logger.warn('OPENAI', errorMessage);
-              
-              // 将错误消息添加到消息历史
-              messages.push({
-                role: "tool",
-                content: errorMessage,
-                tool_call_id: toolCall.id
-              });
-              
-              // 更新工具调用错误
               toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage);
-              
-              continue; // 跳过工具调用
+              return { tool_call_id: toolCall.id, content: errorMessage };
             }
-            
-            // 参数验证通过，执行工具调用
+
             // executeApi：统一注入进度回调，服务端依赖 progressToken 决定是否切换为 SSE 流
             // 快速 API 收到 progressToken 但不推送通知，零额外开销；慢 API 持续推送进度防超时
             const isExecuteApi = toolCall.name === 'executeApi';
             const toolResult = await mcpClient.callTool<any>(
               toolCall.codeName,
               toolCall.arguments,
-              isExecuteApi ? {
-                supportsProgress: true,
-                onProgress: (progress, total, message, elapsed_ms) => {
-                  toolManager.setToolProgress(globalIndex, progress, total, message, elapsed_ms);
-                }
-              } : undefined
+              {
+                signal,
+                ...(isExecuteApi ? {
+                  supportsProgress: true,
+                  onProgress: (progress, total, message, elapsed_ms) => {
+                    toolManager.setToolProgress(globalIndex, progress, total, message, elapsed_ms);
+                  }
+                } : {})
+              }
             );
 
-            // 格式化工具结果
             const resultText = this.formatToolResult(toolResult);
-            // 将工具执行结果添加到消息历史
-            messages.push({
-              role: "tool",
-              content: resultText,
-              tool_call_id: toolCall.id
-            });
-
             toolManager.setToolResult(globalIndex, resultText, false, undefined, usage);
-            
+            return { tool_call_id: toolCall.id, content: resultText };
+
           } catch (error) {
+            // AbortError 直接上抛，不当工具错误处理，让 chatStream 知道请求已取消
+            if (error instanceof Error && (error.name === 'AbortError' || error.name === 'APIUserAbortError')) {
+              throw error;
+            }
             const errorMessage = `工具${toolCall.name}执行失败: ${error instanceof Error ? error.message : String(error)}`;
-            
-            // 将错误消息添加到消息历史
-            messages.push({
-              role: "tool",
-              content: errorMessage,
-              tool_call_id: toolCall.id
-            });
-            
-            // 更新工具调用错误
             toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage);
+            return { tool_call_id: toolCall.id, content: errorMessage };
           }
+        }));
+
+        // 按原始顺序写入消息历史（OpenAI 要求 tool 消息顺序与 assistant.tool_calls 一致）
+        for (const result of toolResultMessages) {
+          messages.push({
+            role: "tool",
+            content: result.content,
+            tool_call_id: result.tool_call_id
+          });
         }
         
         // 发送下一轮请求，获取模型继续回复
@@ -1302,7 +1292,7 @@ private async processModelResponse(
           );
           
           // 发送请求
-          const nextStream = await this.client.chat.completions.create(nextRequestParams);
+          const nextStream = await this.client.chat.completions.create(nextRequestParams, { signal });
           
           // 使用通用函数处理流式响应
           const result = await this.processModelResponse(
@@ -1334,7 +1324,7 @@ private async processModelResponse(
       };
       
       // 开始流式请求
-      const stream = await this.client.chat.completions.create(requestParams);
+      const stream = await this.client.chat.completions.create(requestParams, { signal });
       
       // 使用通用函数处理初始流式响应
       const initialResult = await this.processModelResponse(

@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { ClientCapabilities } from "@modelcontextprotocol/sdk/types.js";
+import { McpError, ErrorCode, ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { MCPClientIdentity } from "../config/app.config.js";
 import { Logger } from "../utils/logger.js";
 import { ConnectionType } from '../generated/prisma/client.js';
@@ -24,10 +25,15 @@ export class ServerConnection {
   private version: string = "未知";
   private connectionType: ConnectionType;
   private static readonly PING_TIMEOUT = 10000;
+  private static readonly CONNECT_TIMEOUT = 60000;
   // 存储当前配置的引用
   private mcpConfig: MCPConfigType | null = null;
   // 服务端在初始化时返回的 instructions（MCP 官方字段）
   private instructions: string | undefined = undefined;
+  // 进行中的重连 Promise，用于防止并发重连互相干扰
+  private reconnectPromise: Promise<boolean> | null = null;
+  // 工具列表变更回调，由 MCPClientManager 注入
+  onToolsChanged?: (serverId: string) => void;
 
   /**
    * 构造函数
@@ -161,7 +167,34 @@ export class ServerConnection {
         this.transportClosed = false;
       }
       
-      await this.client.connect(this.transport);
+      // 使用 Promise.race 限制连接建立时间，防止 connect() 无限挂起
+      await Promise.race([
+        this.client.connect(this.transport),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`连接超时（${ServerConnection.CONNECT_TIMEOUT / 1000}s）`)),
+            ServerConnection.CONNECT_TIMEOUT
+          )
+        )
+      ]);
+
+      // 挂载 onclose 钩子：transport 断开时主动更新连接状态
+      // SDK 在 connect() 后设置自己的 onclose，此处包装而非覆盖，保留 SDK 原有清理逻辑
+      const sdkOnClose = this.transport.onclose;
+      this.transport.onclose = () => {
+        if (this.connected) {
+          this.connected = false;
+          this.transportClosed = true;
+          Logger.warn('SERVER CONNECTION', `[${this.name}] 传输层连接已断开`);
+        }
+        sdkOnClose?.();
+      };
+
+      // 订阅官方 ToolListChangedNotification：服务端主动通知工具列表变更时刷新缓存
+      this.client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+        Logger.info('SERVER CONNECTION', `[${this.name}] 收到工具列表变更通知，刷新缓存`);
+        this.onToolsChanged?.(this.id);
+      });
       
       const serverVersion = this.client.getServerVersion();
       if (serverVersion) {
@@ -200,14 +233,26 @@ export class ServerConnection {
   }
 
   /**
-   * 重新连接
+   * 重新连接（并发安全：多个并发调用共享同一次重连过程，避免互相干扰）
    */
   async restart(): Promise<boolean> {
-    if (this.connected) {
-      await this.disconnect();
+    if (this.reconnectPromise) {
+      Logger.debug('SERVER CONNECTION', `[${this.name}] 重连已在进行中，等待其完成`);
+      return this.reconnectPromise;
     }
-    
-    return await this.connect();
+
+    this.reconnectPromise = (async () => {
+      try {
+        if (this.connected) {
+          await this.disconnect();
+        }
+        return await this.connect();
+      } finally {
+        this.reconnectPromise = null;
+      }
+    })();
+
+    return this.reconnectPromise;
   }
 
   /**
@@ -325,11 +370,55 @@ export class ServerConnection {
   }
 
   /**
-   * 调用工具
+   * 判断错误是否属于"需要重连"的连接类错误。
+   *
+   * 三层检测，按可靠性从高到低：
+   *  1. MCP 协议层：instanceof McpError + 错误码枚举（不依赖消息字符串）
+   *  2. Node.js 网络层：ErrnoException.code 枚举（不依赖消息字符串）
+   *  3. Streamable HTTP 传输层：从错误消息内嵌的 JSON-RPC 响应中提取 code 字段
+   *     （SDK 将服务端 JSON-RPC 错误体包进普通 Error.message，无法用 instanceof 捕获）
+   */
+  private isConnectionError(error: unknown): boolean {
+    // 1. MCP SDK 类型化错误
+    if (error instanceof McpError) {
+      return (
+        error.code === ErrorCode.ConnectionClosed ||  // -32000：连接关闭 / session 失效
+        error.code === ErrorCode.RequestTimeout       // -32001：请求超时
+      );
+    }
+
+    // 2. Node.js 底层网络错误（使用 code 枚举，与语言无关）
+    if (error instanceof Error && 'code' in error) {
+      const networkErrorCodes = new Set([
+        'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT',
+        'EPIPE', 'ENOTFOUND', 'ENETUNREACH', 'EHOSTUNREACH'
+      ]);
+      if (networkErrorCodes.has((error as NodeJS.ErrnoException).code ?? '')) {
+        return true;
+      }
+    }
+
+    // 3. Streamable HTTP：SDK 将 JSON-RPC 错误体作为字符串嵌入 Error.message，
+    //    提取其中的 code 字段进行数值判断，避免依赖可变的消息文本
+    if (error instanceof Error) {
+      const jsonMatch = error.message.match(/"code"\s*:\s*(-?\d+)/);
+      if (jsonMatch) {
+        const code = parseInt(jsonMatch[1], 10);
+        return code === ErrorCode.ConnectionClosed || code === ErrorCode.RequestTimeout;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * 调用工具（含自动重连重试）
    */
   async callTool<T>(toolName: string, args: any, options?: CallToolOptions): Promise<T> {
-    if (!this.connected) {
-      throw new Error('服务器未连接');
+    // 已知断线时先重连，避免直接把错误抛给上层
+    if (!this.connected || this.transportClosed) {
+      Logger.info('SERVER CONNECTION', `[${this.name}] 检测到未连接，自动重连中...`);
+      await this.restart();
     }
 
     const useProgress = options?.supportsProgress === true && typeof options?.onProgress === 'function';
@@ -340,13 +429,14 @@ export class ServerConnection {
     // 这样 _onprogress 能正确匹配 handler 并重置超时计时器。
     let stepStartTime = Date.now();
 
-    try {
-      const result = await this.client.callTool(
+    const executeCall = async (): Promise<T> => {
+      return await this.client.callTool(
         { name: toolName, arguments: args },
         undefined,
         {
           timeout: options?.timeout ?? 60000,
           resetTimeoutOnProgress: useProgress,
+          signal: options?.signal,
           ...(useProgress ? {
             onprogress: (progressData: { progress: number; total?: number; message?: string }) => {
               const now = Date.now();
@@ -358,8 +448,20 @@ export class ServerConnection {
           } : {})
         }
       ) as T;
-      return result;
+    };
+
+    try {
+      return await executeCall();
     } catch (error) {
+      // 连接断开类错误：标记状态、重连、重试一次
+      if (this.isConnectionError(error)) {
+        Logger.warn('SERVER CONNECTION', `[${this.name}] 工具 ${toolName} 调用失败（连接断开），自动重连后重试...`);
+        this.connected = false;
+        this.transportClosed = true;
+        await this.restart();
+        Logger.info('SERVER CONNECTION', `[${this.name}] 重连成功，重试 ${toolName}`);
+        return await executeCall();
+      }
       Logger.error('SERVER CONNECTION', `调用工具 ${toolName} 失败: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
