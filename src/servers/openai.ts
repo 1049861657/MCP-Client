@@ -595,20 +595,35 @@ export class OpenAI {
       ? [{ role: 'user', content: message } as ChatCompletionMessageParam]
       : [...message]; // 创建副本，避免修改原始数据
     
-    // 如果启用了工具调用和提示词，添加系统消息
-    if (enableTools && enablePrompts) {
-      // 检查是否已有系统消息
+    // 启用工具时，将 MCP 服务端 instructions 与用户配置的提示词合并注入 system message
+    if (enableTools) {
       const hasSystemMessage = messages.some(msg => msg.role === 'system');
-      
-      // 如果没有系统消息，添加MCP工具预设词作为系统消息
+
       if (!hasSystemMessage) {
-        // 从数据库获取MCP配置中的工具提示
-        const toolPromp = await ConfigService.getSetting('mcpToolPrompt');
-          
-        messages.unshift({
-          role: 'system',
-          content: String(toolPromp)
-        } as ChatCompletionMessageParam);
+        const parts: string[] = [];
+
+        // 用户在设置页配置的工具提示词（仅 enablePrompts 时注入）
+        if (enablePrompts) {
+          const toolPromp = await ConfigService.getSetting('mcpToolPrompt');
+          const toolPrompStr = String(toolPromp ?? '').trim();
+          if (toolPrompStr) parts.push(toolPrompStr);
+        }
+
+        // MCP 官方 instructions 字段：只取已启用工具服务器的 instructions，
+        // 与工具过滤逻辑对齐（参考 GitHub MCP Server 官方实现）
+        const mcpConfig = await ConfigService.getMCPConfig();
+        const enabledServerIds: string[] = mcpConfig.enabledToolServerIds ?? [];
+        const serverInstructions = mcpClient.getInstructions(
+          enabledServerIds.length > 0 ? enabledServerIds : undefined
+        ).trim();
+        if (serverInstructions) parts.push(serverInstructions);
+
+        if (parts.length > 0) {
+          messages.unshift({
+            role: 'system',
+            content: parts.join('\n\n')
+          } as ChatCompletionMessageParam);
+        }
       }
     }
     

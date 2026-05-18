@@ -26,6 +26,8 @@ export class ServerConnection {
   private static readonly PING_TIMEOUT = 10000;
   // 存储当前配置的引用
   private mcpConfig: MCPConfigType | null = null;
+  // 服务端在初始化时返回的 instructions（MCP 官方字段）
+  private instructions: string | undefined = undefined;
 
   /**
    * 构造函数
@@ -165,6 +167,12 @@ export class ServerConnection {
       if (serverVersion) {
         this.name = serverVersion.name || this.name;
         this.version = serverVersion.version || "未知";
+      }
+
+      // 缓存服务端 instructions（MCP 官方字段，初始化握手时由服务端返回）
+      this.instructions = this.client.getInstructions() ?? undefined;
+      if (this.instructions) {
+        Logger.debug('SERVER CONNECTION', `服务器 ${this.name} 返回 instructions（${this.instructions.length} 字符）`);
       }
       
       this.connected = true;
@@ -355,6 +363,14 @@ export class ServerConnection {
       Logger.error('SERVER CONNECTION', `调用工具 ${toolName} 失败: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
+  }
+
+  /**
+   * 获取服务端在初始化时返回的 instructions（MCP 官方字段）
+   * 连接成功后才有值，未连接或服务端未设置时返回 undefined
+   */
+  getInstructions(): string | undefined {
+    return this.instructions;
   }
 
   /**

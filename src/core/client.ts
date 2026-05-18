@@ -308,6 +308,34 @@ export class MCPClientManager {
   }
 
   /**
+   * 收集指定服务器（或所有已连接服务器）的 instructions 并合并为单个字符串。
+   *
+   * 业界惯例（参考 GitHub MCP Server 官方实现）：
+   *   - 只为"已启用工具的服务器"注入 instructions，避免不相关上下文占用 token
+   *   - 多服务器时以 "## [server-name]\n" 标注来源，便于 LLM 区分
+   *   - 全部为空时返回空字符串
+   *
+   * @param enabledServerIds 限定范围的服务器 ID 列表；不传则取所有已连接服务器
+   */
+  getInstructions(enabledServerIds?: string[]): string {
+    const parts: string[] = [];
+    for (const connection of this.connections.values()) {
+      if (!connection.isConnected()) continue;
+      if (enabledServerIds && !enabledServerIds.includes(connection.getId())) continue;
+
+      const inst = connection.getInstructions();
+      if (!inst) continue;
+
+      // 多服务器时加标注，单服务器时直接注入保持简洁
+      const label = enabledServerIds && enabledServerIds.length > 1
+        ? `## ${connection.getName()}\n${inst}`
+        : inst;
+      parts.push(label);
+    }
+    return parts.join('\n\n');
+  }
+
+  /**
    * 调用工具
    * options 由调用方在运行时显式传入（如 openai.ts 对 executeApi 统一注入 supportsProgress）。
    */
