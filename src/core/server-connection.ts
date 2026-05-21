@@ -370,41 +370,57 @@ export class ServerConnection {
   }
 
   /**
+   * 需要重连的 JSON-RPC 错误码集合（按 MCP 规范及生产实践整理）：
+   *   -32000  ConnectionClosed  连接关闭 / session 失效（最常见，Streamable HTTP session 过期也映射到此）
+   *   -32001  RequestTimeout    请求超时
+   *   -32002  Session Expired   部分服务端实现用此码显式表示 session 失效
+   */
+  private static readonly RETRIABLE_RPC_CODES = new Set([
+    ErrorCode.ConnectionClosed,  // -32000
+    ErrorCode.RequestTimeout,    // -32001
+    -32002,                      // Session Expired（未进入 SDK 枚举，手动补充）
+  ]);
+
+  /**
    * 判断错误是否属于"需要重连"的连接类错误。
    *
    * 三层检测，按可靠性从高到低：
-   *  1. MCP 协议层：instanceof McpError + 错误码枚举（不依赖消息字符串）
-   *  2. Node.js 网络层：ErrnoException.code 枚举（不依赖消息字符串）
-   *  3. Streamable HTTP 传输层：从错误消息内嵌的 JSON-RPC 响应中提取 code 字段
-   *     （SDK 将服务端 JSON-RPC 错误体包进普通 Error.message，无法用 instanceof 捕获）
+   *  1. MCP 协议层：instanceof McpError + RETRIABLE_RPC_CODES 集合
+   *  2. Node.js 网络层：ErrnoException.code 枚举
+   *  3. Streamable HTTP 传输层：SDK 将服务端 JSON-RPC 错误体嵌入 Error.message，
+   *     优先 JSON.parse 提取 code，降级到正则兜底
    */
   private isConnectionError(error: unknown): boolean {
     // 1. MCP SDK 类型化错误
     if (error instanceof McpError) {
-      return (
-        error.code === ErrorCode.ConnectionClosed ||  // -32000：连接关闭 / session 失效
-        error.code === ErrorCode.RequestTimeout       // -32001：请求超时
-      );
+      return ServerConnection.RETRIABLE_RPC_CODES.has(error.code);
     }
 
-    // 2. Node.js 底层网络错误（使用 code 枚举，与语言无关）
+    // 2. Node.js 底层网络错误（code 枚举，与语言无关）
     if (error instanceof Error && 'code' in error) {
       const networkErrorCodes = new Set([
         'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT',
-        'EPIPE', 'ENOTFOUND', 'ENETUNREACH', 'EHOSTUNREACH'
+        'EPIPE', 'ENOTFOUND', 'ENETUNREACH', 'EHOSTUNREACH',
       ]);
       if (networkErrorCodes.has((error as NodeJS.ErrnoException).code ?? '')) {
         return true;
       }
     }
 
-    // 3. Streamable HTTP：SDK 将 JSON-RPC 错误体作为字符串嵌入 Error.message，
-    //    提取其中的 code 字段进行数值判断，避免依赖可变的消息文本
+    // 3. Streamable HTTP：SDK 将 JSON-RPC 错误体作为字符串嵌入 Error.message
+    //    直接 JSON.parse 提取 error.code；解析失败视为非连接错误，不做降级
     if (error instanceof Error) {
-      const jsonMatch = error.message.match(/"code"\s*:\s*(-?\d+)/);
-      if (jsonMatch) {
-        const code = parseInt(jsonMatch[1], 10);
-        return code === ErrorCode.ConnectionClosed || code === ErrorCode.RequestTimeout;
+      const jsonStart = error.message.indexOf('{');
+      if (jsonStart !== -1) {
+        try {
+          const parsed = JSON.parse(error.message.slice(jsonStart));
+          const code: unknown = parsed?.error?.code;
+          if (typeof code === 'number') {
+            return ServerConnection.RETRIABLE_RPC_CODES.has(code);
+          }
+        } catch {
+          // 格式无法解析，不属于可识别的连接错误
+        }
       }
     }
 
