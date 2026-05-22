@@ -23,6 +23,7 @@ window.AIChatApp = {
         mcpTools: [], // 存储可用的MCP工具
         enableMessageHistory: true, // 是否启用历史消息（P0-03 默认开启）
         messageHistoryCount: 20, // 历史消息条数，默认 20
+        maxToolCallRounds: 25, // Agent Loop 最大工具轮次（P0-05）
         sessionId: '', // 当前会话的唯一标识符，每个供应商有自己的会话列表
         isEventsInitialized: false,
         isLoading: false, // 是否正在加载会话，防止快捷消息气泡冲突
@@ -85,6 +86,7 @@ window.AIChatApp = {
             enablePrompts: document.getElementById('enable-prompts'),
             enableMessageHistory: document.getElementById('enable-message-history'),
             messageHistoryCount: document.getElementById('message-history-count'),
+            maxToolCallRounds: document.getElementById('max-tool-call-rounds'),
             openSettings: document.getElementById('open-settings'),
             viewHistory: document.getElementById('view-history'),
             newSession: document.getElementById('new-session'),
@@ -412,6 +414,14 @@ window.AIChatApp = {
                     });
                 }
                 
+                // 更新工具轮次默认（服务端 feature-config）
+                if (data.config.tools && typeof data.config.tools.maxToolCallRounds === 'number') {
+                    this.state.maxToolCallRounds = data.config.tools.maxToolCallRounds;
+                    if (this.elements.maxToolCallRounds) {
+                        this.elements.maxToolCallRounds.value = this.state.maxToolCallRounds;
+                    }
+                }
+
                 // 更新历史记录相关配置
                 if (data.config.history) {
                     this.state.enableMessageHistory = data.config.history.enableMessageHistory;

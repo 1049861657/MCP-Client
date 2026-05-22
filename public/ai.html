@@ -255,6 +255,11 @@
                                 <div class="settings-description">验证工具调用中的参数是否符合预期(暂时无效)</div>
                             </div>
                             <div class="settings-item">
+                                <label for="max-tool-call-rounds">工具轮次上限:</label>
+                                <input type="number" id="max-tool-call-rounds" value="25" min="1" max="100" class="history-count">
+                                <div class="settings-description">单次对话中模型连续发起工具调用的最大轮次（默认 25，复杂 MCP 工作流可适当提高）</div>
+                            </div>
+                            <div class="settings-item">
                                 <label for="enable-prompts">提示词:</label>
                                 <div class="toggle-container">
                                     <label class="toggle">

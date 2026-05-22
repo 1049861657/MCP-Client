@@ -19,7 +19,6 @@ import { ConfigService } from '../services/config.service.js';
 import { AIProvider } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';
 import { verifyToolArguments as verifyToolArgumentsImpl } from '../core/agent-harness/tool-validation.js';
-import { OpenAINameCodec } from '../utils/openai-util.js';
 
 /**
  * OpenAI API客户端包装类（Provider 层：模型 I/O + 流式解析）
@@ -246,8 +245,8 @@ export class OpenAI {
     const params = {
       model,
       messages: normalizeMessages(messages),
-      // temperature,
-      // max_tokens: maxTokens
+      temperature,
+      max_tokens: maxTokens
     };
     
     if (stream) {
@@ -340,146 +339,36 @@ export class OpenAI {
     model: string = this.config.defaultModel,
     temperature: number = this.chatConfig.defaultTemperature,
     maxTokens: number = this.chatConfig.defaultMaxTokens,
-    enableTools: boolean = this.toolsConfig.enableMCPTools,  // 使用统一配置
-    enableParamValidation: boolean = this.toolsConfig.enableParamValidation,  // 使用统一配置
-    enablePrompts: boolean = this.toolsConfig.enablePrompts  // 使用统一配置
+    enableTools: boolean = this.toolsConfig.enableMCPTools,
+    enableParamValidation: boolean = this.toolsConfig.enableParamValidation,
+    enablePrompts: boolean = this.toolsConfig.enablePrompts,
+    maxToolCallRounds: number = ToolsConfig.maxToolCallRounds,
+    requestId: string = ''
   ): Promise<ChatResponse> {
     try {
-      // 临时覆盖参数校验配置
       if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
         this.toolsConfig.enableParamValidation = enableParamValidation;
       }
-      
-      // 格式化消息
+
       const messages = await this.formatMessages(message, enableTools, enablePrompts);
-      
-      // 获取工具定义
       const openAITools = await this.getToolDefinitions(enableTools);
-      
-      // 创建请求参数
-      const requestParams = this.createRequestParams(
+
+      return await runAgentLoop({
         messages,
+        openAITools,
         model,
         temperature,
         maxTokens,
-        openAITools
-      );
-      
-      // 发送请求
-      const response = await this.client.chat.completions.create(requestParams) as any;
-      
-      const assistantMessage = response.choices[0].message;
-      const usage = this.formatUsage(response.usage);
-      
-      // 检查是否需要调用工具
-      if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-        Logger.info('OPENAI', `[${this.providerName}] 大模型请求调用工具: ${assistantMessage.tool_calls.map((t: any) => t.function.name).join(', ')}`);
-        
-        // 收集工具调用结果
-        const toolCalls: IToolCallRecord[] = [];
-        
-        // 将大模型的回复添加到消息历史
-        messages.push(assistantMessage as any);
-        
-        // 处理每个工具调用
-        for (const toolCall of assistantMessage.tool_calls) {
-          const codeName = toolCall.function.name;
-          const toolName = OpenAINameCodec.decode(toolCall.function.name);
-          const toolArgs = JSON.parse(toolCall.function.arguments);
-          
-          let resultText = '';
-          
-          try {
-            // 验证参数是否满足要求
-            const validation = await this.verifyToolArguments(toolName, toolArgs);
-            
-            if (!validation.isValid) {
-              // 参数不满足要求，构造错误消息
-              const errorMessage = `参数验证失败: ${validation.message}`;
-              Logger.warn('OPENAI', errorMessage);
-              
-              // 将错误消息添加到消息历史
-              messages.push({
-                role: "tool",
-                content: errorMessage,
-                tool_call_id: toolCall.id
-              });
-              
-              // 收集工具调用及其结果
-              toolCalls.push({
-                id: toolCall.id,
-                codeName: codeName,
-                name: toolName,
-                arguments: toolArgs,
-                result: errorMessage,
-              });
-              
-              continue; // 跳过工具调用
-            }
-            
-            // 参数验证通过，执行工具调用
-            const toolResult = await mcpClient.callTool<any>(toolName, toolArgs);
-            
-            // 格式化工具结果
-            resultText = this.formatToolResult(toolResult);
-            
-            // 将工具执行结果添加到消息历史
-            messages.push({
-              role: "tool",
-              content: resultText,
-              tool_call_id: toolCall.id
-            });
-          } catch (error) {
-            const errorMessage = `工具${toolName}执行失败: ${error instanceof Error ? error.message : String(error)}`;
-            Logger.error('OPENAI', errorMessage);
-            
-            // 将错误消息添加到消息历史
-            messages.push({
-              role: "tool",
-              content: errorMessage,
-              tool_call_id: toolCall.id
-            });
-            
-            resultText = errorMessage;
-          }
-          
-          // 收集工具调用及其结果
-          toolCalls.push({
-            id: toolCall.id,
-            codeName: codeName,
-            name: toolName,
-            arguments: toolArgs,
-            result: resultText,
-          });
-        }
-        
-        // 再次调用大模型，处理工具执行结果
-        const finalResponse = await this.client.chat.completions.create(
-          this.createRequestParams(messages, model, temperature, maxTokens, [], false) as Parameters<OpenAIClient['chat']['completions']['create']>[0]
-        ) as { choices: Array<{ message: { content?: string } }> };
-        
-        const finalContent = finalResponse.choices[0].message.content || '';
-        
-        // 返回带工具调用信息的结果
-        return {
-          content: finalContent,
-          model: model,
-          tool_calls: toolCalls,
-          usage: usage
-        };
-      } else {
-        // 不需要调用工具，直接返回大模型回复
-        const aiResponse = assistantMessage.content || '';
-        
-        return {
-          content: aiResponse,
-          model: model,
-          usage: usage
-        };
-      }
-    } catch (error: any) {
+        maxToolCallRounds,
+        stream: false,
+        requestId,
+        onChunk: () => {},
+        provider: this.getAgentLoopProvider()
+      });
+    } catch (error: unknown) {
+      const errMessage = error instanceof Error ? error.message : String(error);
       Logger.error('OPENAI', `[${this.providerName}] 聊天API调用失败:`, error);
-      throw new Error(`${this.providerName} API错误: ${error.message}`);
+      throw new Error(`${this.providerName} API错误: ${errMessage}`);
     }
   }
 
@@ -497,9 +386,103 @@ export class OpenAI {
         );
         return stream as AsyncIterable<unknown>;
       },
+      createCompletion: async (requestParams, signal) => {
+        return await this.client.chat.completions.create(
+          requestParams as unknown as Parameters<OpenAIClient['chat']['completions']['create']>[0],
+          { signal }
+        );
+      },
       processModelResponse: (...args) => this.processModelResponse(...args),
+      processNonStreamResponse: (...args) => this.processNonStreamResponse(...args),
       verifyToolArguments: (toolName, args) => this.verifyToolArguments(toolName, args),
       formatToolResult: (toolResult) => this.formatToolResult(toolResult)
+    };
+  }
+
+  /**
+   * 处理模型的非流式响应
+   */
+  private async processNonStreamResponse(
+    response: unknown,
+    round: number,
+    toolManager: ToolCallManager,
+    fullContent: string,
+    fullReasoningContent: string,
+    usage: UsageInfo | null,
+    finishReasonResult: string | undefined | null,
+    onChunk: (chunk: ChunkResponse, done: boolean) => void
+  ): Promise<ModelResponseResult> {
+    const resp = response as {
+      choices?: Array<{
+        message?: {
+          content?: string | null;
+          reasoning_content?: string;
+          tool_calls?: Array<{
+            id: string;
+            function: { name: string; arguments: string };
+          }>;
+        };
+        finish_reason?: string;
+      }>;
+      usage?: unknown;
+    };
+
+    const choice = resp.choices?.[0];
+    const message = choice?.message;
+    let updatedContent = fullContent;
+    let updatedReasoningContent = fullReasoningContent;
+    let hasNewToolCalls = false;
+    const newToolCalls: IToolCallRecord[] = [];
+
+    const content = message?.content || '';
+    const reasoningContent = message?.reasoning_content || '';
+
+    if (content) {
+      updatedContent += content;
+      onChunk({ content }, false);
+    }
+
+    if (reasoningContent) {
+      updatedReasoningContent += reasoningContent;
+      onChunk({ reasoning_content: reasoningContent }, false);
+    }
+
+    const apiToolCalls = message?.tool_calls ?? [];
+    if (apiToolCalls.length > 0) {
+      hasNewToolCalls = true;
+
+      for (let localIndex = 0; localIndex < apiToolCalls.length; localIndex++) {
+        const apiToolCall = apiToolCalls[localIndex];
+        let globalIndex: number;
+
+        if (round === 0) {
+          globalIndex = await toolManager.createToolCall(
+            localIndex,
+            apiToolCall.id,
+            apiToolCall.function.name
+          );
+        } else if (!newToolCalls[localIndex]) {
+          globalIndex = await toolManager.createToolCall(
+            localIndex,
+            apiToolCall.id,
+            apiToolCall.function.name
+          );
+          newToolCalls[localIndex] = toolManager.getAllToolCalls()[globalIndex];
+        } else {
+          globalIndex = newToolCalls[localIndex].meta?.globalIndex as number;
+        }
+
+        toolManager.updateToolArguments(globalIndex, apiToolCall.function.arguments);
+      }
+    }
+
+    return {
+      fullContent: updatedContent,
+      fullReasoningContent: updatedReasoningContent,
+      usage: resp.usage ? this.formatUsage(resp.usage) : usage,
+      finishReasonResult: choice?.finish_reason ?? finishReasonResult,
+      hasNewToolCalls,
+      newToolCalls: newToolCalls.filter(tc => tc && tc.name)
     };
   }
 
@@ -625,7 +608,9 @@ export class OpenAI {
     enableTools: boolean = this.toolsConfig.enableMCPTools,
     enableParamValidation: boolean = this.toolsConfig.enableParamValidation,
     enablePrompts: boolean = this.toolsConfig.enablePrompts,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    maxToolCallRounds: number = ToolsConfig.maxToolCallRounds,
+    requestId: string = ''
   ): Promise<ChatResponse> {
     try {
       if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
@@ -641,8 +626,9 @@ export class OpenAI {
         model,
         temperature,
         maxTokens,
-        maxToolCallRounds: ToolsConfig.maxToolCallRounds,
+        maxToolCallRounds,
         signal,
+        requestId,
         onChunk,
         provider: this.getAgentLoopProvider()
       });

@@ -1554,6 +1554,12 @@ window.AIChatUI = {
         
         app.state.enableMessageHistory = elements.enableMessageHistory.checked;
         app.state.messageHistoryCount = parseInt(elements.messageHistoryCount.value);
+        if (elements.maxToolCallRounds) {
+            const parsed = parseInt(elements.maxToolCallRounds.value, 10);
+            if (!Number.isNaN(parsed)) {
+                app.state.maxToolCallRounds = Math.min(100, Math.max(1, parsed));
+            }
+        }
         
         try {
             const settings = {
@@ -1565,7 +1571,8 @@ window.AIChatUI = {
                 enableParamValidation: app.state.enableParamValidation,
                 enablePrompts: app.state.enablePrompts,
                 enableMessageHistory: app.state.enableMessageHistory,
-                messageHistoryCount: app.state.messageHistoryCount
+                messageHistoryCount: app.state.messageHistoryCount,
+                maxToolCallRounds: app.state.maxToolCallRounds
             };
             
             localStorage.setItem('aiChatSettings', JSON.stringify(settings));
@@ -1585,6 +1592,9 @@ window.AIChatUI = {
         elements.enablePrompts.checked = true;
         elements.enableMessageHistory.checked = true;
         elements.messageHistoryCount.value = 20;
+        if (elements.maxToolCallRounds) {
+            elements.maxToolCallRounds.value = 25;
+        }
         
         this.saveSettings();
     },
@@ -1645,6 +1655,11 @@ window.AIChatUI = {
             if (typeof settings.messageHistoryCount === 'number') {
                 elements.messageHistoryCount.value = settings.messageHistoryCount;
                 app.state.messageHistoryCount = settings.messageHistoryCount;
+            }
+
+            if (typeof settings.maxToolCallRounds === 'number' && elements.maxToolCallRounds) {
+                elements.maxToolCallRounds.value = settings.maxToolCallRounds;
+                app.state.maxToolCallRounds = settings.maxToolCallRounds;
             }
         } catch (error) {
             console.error('加载设置失败:', error);

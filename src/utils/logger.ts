@@ -113,4 +113,14 @@ export class Logger {
   static debug(context: string, message: string): void {
     winstonLogger.debug(message, { context });
   }
+
+  /**
+   * 结构化审计日志（JSON 行写入 logs/app.log）
+   */
+  static audit(payload: Record<string, unknown>): void {
+    winstonLogger.info(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      ...payload
+    }), { context: 'AUDIT' });
+  }
 } 

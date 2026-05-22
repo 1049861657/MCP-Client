@@ -308,6 +308,11 @@ export class MCPClientManager {
     return undefined;
   }
 
+  /** 根据 codeName 解析 MCP 服务器 ID（审计 / 排障） */
+  getServerIdForTool(codeName: string): string | undefined {
+    return this.toolServerMap.get(codeName);
+  }
+
   /**
    * 根据原始工具名查找对应的 codeName
    * 用于需要按原始名调用工具的场景（如 verifyToolArguments）

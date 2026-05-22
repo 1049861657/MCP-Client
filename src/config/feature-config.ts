@@ -16,9 +16,26 @@ export const ToolsConfig = {
   // 默认启用提示词
   enablePrompts: true,
 
-  /** Agent Loop 最大工具调用回合数（P0-01 可配置化，P0-05 设置页扩展） */
-  maxToolCallRounds: 10
+  /** Agent Loop 最大工具调用回合数（P0-05 设置页可覆盖，默认 25） */
+  maxToolCallRounds: 25,
+
+  /** 客户端可配置上限 */
+  maxToolCallRoundsLimit: 100
 };
+
+/**
+ * 解析请求中的 maxToolCallRounds，钳制到 [1, maxToolCallRoundsLimit]
+ */
+export function resolveMaxToolCallRounds(requestValue: unknown): number {
+  const fallback = ToolsConfig.maxToolCallRounds;
+  if (typeof requestValue !== 'number' || !Number.isFinite(requestValue)) {
+    return fallback;
+  }
+  return Math.min(
+    ToolsConfig.maxToolCallRoundsLimit,
+    Math.max(1, Math.floor(requestValue))
+  );
+}
 
 /**
  * 聊天相关配置

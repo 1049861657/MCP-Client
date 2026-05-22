@@ -109,17 +109,20 @@ src/core/agent-harness/
 
 ### 任务
 
-- [ ] **P0-04-01** `chat()` 复用 `agent-loop.ts`，支持完整多轮（与流式共享逻辑）  
+- [x] **P0-04-01** `chat()` 复用 `agent-loop.ts`，支持完整多轮（与流式共享逻辑）  
   - 涉及：`src/servers/openai.ts`、`agent-loop.ts`  
-  - 验收：非流式 3 轮工具调用返回最终文本
+  - 验收：非流式 3 轮工具调用返回最终文本  
+  - 完成日期：2026-05-22
 
-- [ ] **P0-04-02** 审计所有 `callTool` 调用，统一使用 `codeName`  
+- [x] **P0-04-02** 审计所有 `callTool` 调用，统一使用 `codeName`  
   - 涉及：`src/servers/openai.ts`、`src/core/client.ts`  
-  - 验收：`grep callTool` 无裸 toolName 路由
+  - 验收：`grep callTool` 无裸 toolName 路由  
+  - 完成日期：2026-05-22
 
-- [ ] **P0-04-03** 修复 `createRequestParams` 中 `temperature` / `max_tokens` 被注释问题  
+- [x] **P0-04-03** 修复 `createRequestParams` 中 `temperature` / `max_tokens` 被注释问题  
   - 涉及：`src/servers/openai.ts` L670-671  
-  - 验收：API 请求体含正确参数；设置页值生效
+  - 验收：API 请求体含正确参数；设置页值生效  
+  - 完成日期：2026-05-22
 
 ---
 
@@ -129,17 +132,20 @@ src/core/agent-harness/
 
 ### 任务
 
-- [ ] **P0-05-01** 实现 `LoopState` 并在每轮结束后更新 `transitionReason`  
+- [x] **P0-05-01** 实现 `LoopState` 并在每轮结束后更新 `transitionReason`  
   - 涉及：`loop-state.ts`、`agent-loop.ts`  
   - 验收：日志可输出 `{ turn, reason, toolCount }`
+  - 完成日期：2026-05-22
 
-- [ ] **P0-05-02** 达到 `MAX_TOOL_CALL_ROUNDS` 时写入结构化状态而非仅 UI 提示  
+- [x] **P0-05-02** 达到 `MAX_TOOL_CALL_ROUNDS` 时写入结构化状态而非仅 UI 提示  
   - 涉及：`agent-loop.ts`  
   - 验收：SSE 事件 `type: "max_tool_calls_reached"` 含 `round`、`partialResults`
+  - 完成日期：2026-05-22
 
-- [ ] **P0-05-03** `MAX_TOOL_CALL_ROUNDS` 移至配置（Setting 或 `feature-config.ts`），默认 25  
+- [x] **P0-05-03** `MAX_TOOL_CALL_ROUNDS` 移至配置（Setting 或 `feature-config.ts`），默认 25  
   - 涉及：`src/config/feature-config.ts`  
   - 验收：设置页可配置；2026 实践建议高于 10 以支撑复杂 MCP 工作流
+  - 完成日期：2026-05-22
 
 ---
 
@@ -149,14 +155,16 @@ src/core/agent-harness/
 
 ### 任务
 
-- [ ] **P0-06-01** 新增 `ToolCallAuditLog` 结构并写入 Winston  
+- [x] **P0-06-01** 新增 `ToolCallAuditLog` 结构并写入 Winston  
   - 字段：`requestId`、`round`、`toolName`、`codeName`、`serverId`、`durationMs`、`success`、`error`  
   - 涉及：`src/utils/logger.ts` 或 `src/core/agent-harness/audit.ts`  
   - 验收：`logs/app.log` 含 JSON 行审计记录
+  - 完成日期：2026-05-22
 
-- [ ] **P0-06-02** SSE 推送 `requestId` 供前端关联  
+- [x] **P0-06-02** SSE 推送 `requestId` 供前端关联  
   - 涉及：`openai.controller.ts`、`public/js/ai-api.js`  
   - 验收：单次对话所有 chunk 共享同一 `requestId`
+  - 完成日期：2026-05-22
 
 ---
 

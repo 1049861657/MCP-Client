@@ -1,6 +1,6 @@
 {
   "name": "mcp-client",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Model Context Protocol客户端 - 工具调用演示",
   "type": "module",
   "main": "dist/app.js",

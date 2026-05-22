@@ -24,9 +24,18 @@ export type InternalMessage = ChatCompletionMessageParam & InternalMessageExtens
 
 /** @deprecated 文档别名，等同 InternalMessage */
 export type IMessageBlock = InternalMessage;
-export type ITransitionReason = 'tool_result' | 'end' | null;
+export type ITransitionReason = 'tool_result' | 'end' | 'max_rounds' | null;
 
-/** Agent Loop 运行时状态（P0-05 将完善 loop-state.ts） */
+/** 触顶时未完成/中断的工具摘要（P0-05-02 SSE partialResults） */
+export interface IPartialToolResult {
+  id: string;
+  name: string;
+  codeName: string;
+  status: 'pending' | 'interrupted';
+  round?: number;
+}
+
+/** Agent Loop 运行时状态 */
 export interface ILoopState {
   messages: InternalMessage[];
   turnCount: number;

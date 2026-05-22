@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import { Logger } from '../utils/logger.js';
 import { openaiService, providerServices, reloadProviders } from '../servers/openai-providers.js';
 import { mcpClient } from '../core/client.js';
-import { ToolsConfig } from '../config/feature-config.js';
+import { resolveMaxToolCallRounds, ToolsConfig } from '../config/feature-config.js';
 import { ConfigService } from '../services/config.service.js';
 
 /**
@@ -49,8 +50,12 @@ export class OpenAIController {
         vendor,
         enableTools = ToolsConfig.enableMCPTools,  // 使用统一配置
         enableParamValidation = ToolsConfig.enableParamValidation,  // 使用统一配置
-        enablePrompts = ToolsConfig.enablePrompts  // 使用统一配置
+        enablePrompts = ToolsConfig.enablePrompts,  // 使用统一配置
+        maxToolCallRounds: maxToolCallRoundsBody
       } = req.body;
+
+      const maxToolCallRounds = resolveMaxToolCallRounds(maxToolCallRoundsBody);
+      const requestId = randomUUID();
       
       // 验证消息
       if (!message && messages.length === 0) {
@@ -72,7 +77,7 @@ export class OpenAIController {
         // 使用提供的消息历史
         processedMessage = messages;
         const toolMessageCount = messages.filter((m: { role?: string }) => m.role === 'tool').length;
-        Logger.info('API', `收到聊天请求, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
+        Logger.info('API', `收到聊天请求, requestId: ${requestId}, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}, 最大工具轮次: ${maxToolCallRounds}`);
       } else {
         // 使用单条消息
         processedMessage = message;
@@ -87,12 +92,15 @@ export class OpenAIController {
         maxTokens,
         enableTools,
         enableParamValidation,  // 传递参数校验状态
-        enablePrompts  // 传递提示词状态
+        enablePrompts,  // 传递提示词状态
+        maxToolCallRounds,
+        requestId
       );
       
       // 返回响应
       res.json({
         success: true,
+        requestId,
         content: response.content,
         model: response.model,
         tool_calls: response.tool_calls,
@@ -112,6 +120,7 @@ export class OpenAIController {
    * @param res 响应对象
    */
   static async chatStream(req: Request, res: Response): Promise<void> {
+    const requestId = randomUUID();
     try {
       // 设置响应头
       res.setHeader('Content-Type', 'text/event-stream');
@@ -119,7 +128,7 @@ export class OpenAIController {
       res.setHeader('Connection', 'keep-alive');
       // 通知客户端流已建立（独立的 SSE 帧：event + data + 结束空行）
       // 必须带 data 行和 \n\n，否则后续第一个 chunk 会被 SSE 解析器并入此 begin 帧
-      res.write(`event: begin\ndata: {}\n\n`);
+      res.write(`event: begin\ndata: ${JSON.stringify({ requestId })}\n\n`);
       // 从请求体中获取参数
       const { 
         message, 
@@ -130,13 +139,16 @@ export class OpenAIController {
         vendor,
         enableTools = ToolsConfig.enableMCPTools,  // 使用统一配置
         enableParamValidation = ToolsConfig.enableParamValidation,  // 使用统一配置
-        enablePrompts = ToolsConfig.enablePrompts  // 使用统一配置
+        enablePrompts = ToolsConfig.enablePrompts,  // 使用统一配置
+        maxToolCallRounds: maxToolCallRoundsBody
       } = req.body;
+
+      const maxToolCallRounds = resolveMaxToolCallRounds(maxToolCallRoundsBody);
       
       // 验证消息
       if (!message && messages.length === 0) {
         res.write(`event: error\n`);
-        res.write(`data: ${JSON.stringify({ error: '缺少消息参数' })}\n\n`);
+        res.write(`data: ${JSON.stringify({ requestId, error: '缺少消息参数' })}\n\n`);
         res.end();
         return;
       }
@@ -153,11 +165,11 @@ export class OpenAIController {
         // 使用提供的消息历史
         processedMessage = messages;
         const toolMessageCount = messages.filter((m: { role?: string }) => m.role === 'tool').length;
-        Logger.info('API', `收到流式聊天请求, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
+        Logger.info('API', `收到流式聊天请求, requestId: ${requestId}, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}, 最大工具轮次: ${maxToolCallRounds}`);
       } else {
         // 使用单条消息
         processedMessage = message;
-        Logger.info('API', `收到流式聊天请求, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
+        Logger.info('API', `收到流式聊天请求, requestId: ${requestId}, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
       }
       
       // 记录开始时间
@@ -181,9 +193,8 @@ export class OpenAIController {
           if (res.writableEnded) return;
           if (done) {
             return;
-          } else {
-            res.write(`data: ${JSON.stringify(chunk)}\n\n`);
           }
+          res.write(`data: ${JSON.stringify({ ...chunk, requestId })}\n\n`);
         },
         model,
         temperature,
@@ -191,7 +202,9 @@ export class OpenAIController {
         enableTools,
         enableParamValidation,
         enablePrompts,
-        abortController.signal
+        abortController.signal,
+        maxToolCallRounds,
+        requestId
       ).then(result => {
         if (res.writableEnded) return;
         // 计算总耗时
@@ -199,6 +212,7 @@ export class OpenAIController {
         
         res.write(`event: usage\n`);
         res.write(`data: ${JSON.stringify({
+          requestId,
           ...result.usage,
           elapsedTime: elapsedTime.toFixed(2),
           hasReasoning: !!result.reasoning_content,
@@ -207,6 +221,7 @@ export class OpenAIController {
         
         res.write(`event: done\n`);
         res.write(`data: ${JSON.stringify({
+          requestId,
           finish_reason: result.finish_reason
         })}\n\n`);
         res.end();
@@ -219,7 +234,7 @@ export class OpenAIController {
         }
         Logger.error('API', '流式聊天处理出错:', error);
         res.write(`event: error\n`);
-        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+        res.write(`data: ${JSON.stringify({ requestId, error: error.message })}\n\n`);
         res.end();
       });
     } catch (error: any) {

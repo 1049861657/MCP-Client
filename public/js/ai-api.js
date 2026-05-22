@@ -18,6 +18,8 @@ window.AIChatAPI = {
     _currentReader: null,
     // 标志位：本次中断是否由用户主动触发（区别于网络错误）
     _userAborted: false,
+    // 当前 SSE 请求的后端 requestId（begin 事件赋值）
+    _requestId: null,
 
     /**
      * 取消当前流式请求
@@ -68,6 +70,14 @@ window.AIChatAPI = {
     applyStreamDataObject(jsonData, aiMessageDiv, fullText) {
         const UI = window.AIChatUI;
         const collector = this._turnCollector;
+
+        if (jsonData.type === 'max_tool_calls_reached') {
+            const count = Array.isArray(jsonData.partialResults) ? jsonData.partialResults.length : 0;
+            const notice = `\n\n[系统: 已达到最大工具调用轮次 ${jsonData.round}，${count} 个后续工具调用未执行]`;
+            fullText += notice;
+            UI.updateAIMessage(aiMessageDiv, fullText);
+            return fullText;
+        }
 
         if (jsonData.reasoning_content) {
             console.log('jsonData(思考):', jsonData);
@@ -235,6 +245,7 @@ window.AIChatAPI = {
         // 重置工具token累计
         this.accumulatedToolTokens = 0;
         this._userAborted = false;
+        this._requestId = null;
         
         // 重置轮次收集器，为本次请求收集工具调用 / 推理内容
         this._turnCollector = new window.AIChatTurnCollector();
@@ -258,7 +269,8 @@ window.AIChatAPI = {
                 vendor: provider,
                 enableTools,
                 enableParamValidation,
-                enablePrompts
+                enablePrompts,
+                maxToolCallRounds: app.state.maxToolCallRounds
             };
             
             // P0-03：携带完整 messages（含 tool_calls / tool / reasoning_content）
@@ -349,7 +361,8 @@ window.AIChatAPI = {
                 vendor: provider,
                 enableTools,
                 enableParamValidation,
-                enablePrompts
+                enablePrompts,
+                maxToolCallRounds: app.state.maxToolCallRounds
             };
             
             // P0-03：携带完整 messages（含 tool_calls / tool / reasoning_content）
@@ -592,8 +605,19 @@ window.AIChatAPI = {
         const timeManager = window.AIChatApp.timeManager;
 
         // 处理使用情况数据
-        if(eventName === 'begin'){
-            window.parent.postMessage({type: 'ai_tool_call_begin'}, '*');
+        if (eventName === 'begin') {
+            if (eventData) {
+                try {
+                    const beginData = JSON.parse(eventData);
+                    if (beginData.requestId) {
+                        this._requestId = beginData.requestId;
+                        console.debug('[SSE] requestId:', this._requestId);
+                    }
+                } catch (e) {
+                    console.warn('解析 begin 事件失败:', e);
+                }
+            }
+            window.parent.postMessage({ type: 'ai_tool_call_begin', requestId: this._requestId }, '*');
         }
         else if (eventName === 'usage' && eventData) {
             try {

@@ -1,5 +1,7 @@
 packages:
   - '.'
+#取消禁止1天内的包安装
+minimumReleaseAge: 0
 
 # pnpm 11+：依赖默认不执行 install/postinstall，原生模块需显式放行
 # https://pnpm.io/11.x/npmrc (migration / allowBuilds)

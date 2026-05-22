@@ -229,17 +229,6 @@ export class ToolCallManager {
       }
     });
 
-    if (pendingFound && this.reachedMaxRounds) {
-      this.onChunk({
-        content: '\n\n',
-        special_notice: {
-          type: 'max_tool_calls_reached',
-          title: '🚫 工具调用次数已达上限',
-          message: `系统限制了最大连续工具调用次数为${this.currentRound}次，为保证系统稳定性，后续工具调用已被中断`,
-          level: 'warning'
-        }
-      }, false);
-    }
   }
 
   hasValidToolCalls(): boolean {
