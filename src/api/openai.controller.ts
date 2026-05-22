@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { Logger } from '../utils/logger.js';
-import { openaiService, providerServices, reloadProviders } from '../servers/openai.js';
+import { openaiService, providerServices, reloadProviders } from '../servers/openai-providers.js';
 import { mcpClient } from '../core/client.js';
 import { ToolsConfig } from '../config/feature-config.js';
 import { ConfigService } from '../services/config.service.js';
@@ -71,7 +71,8 @@ export class OpenAIController {
       if (messages.length > 0) {
         // 使用提供的消息历史
         processedMessage = messages;
-        Logger.info('API', `收到聊天请求, 消息数量: ${messages.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
+        const toolMessageCount = messages.filter((m: { role?: string }) => m.role === 'tool').length;
+        Logger.info('API', `收到聊天请求, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
       } else {
         // 使用单条消息
         processedMessage = message;
@@ -151,7 +152,8 @@ export class OpenAIController {
       if (messages.length > 0) {
         // 使用提供的消息历史
         processedMessage = messages;
-        Logger.info('API', `收到流式聊天请求, 消息数量: ${messages.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
+        const toolMessageCount = messages.filter((m: { role?: string }) => m.role === 'tool').length;
+        Logger.info('API', `收到流式聊天请求, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
       } else {
         // 使用单条消息
         processedMessage = message;

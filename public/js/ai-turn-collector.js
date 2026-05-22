@@ -123,8 +123,7 @@ class TurnCollector {
     }
 
     /**
-     * 流结束时调用，返回可直接存入 IndexedDB 的轮次快照
-     * 对象仅包含有实际数据的字段（undefined 字段不参与 JSON 序列化）
+     * 流结束时调用，返回可直接存入 IndexedDB 的轮次快照（UI 回放用）
      * @returns {{ turnId: string, reasoning?: string, toolCalls?: object[] }}
      */
     collect() {
@@ -143,6 +142,51 @@ class TurnCollector {
         }
 
         return snapshot;
+    }
+
+    /**
+     * 展开为 messageHistory / API 用的多条记录（assistant + tool）
+     * @param {string} assistantContent
+     * @returns {object[]}
+     */
+    toHistoryEntries(assistantContent) {
+        const entries = [];
+        const toolCalls = this._toolCallsOrder
+            .map(id => this._toolCallsMap.get(id))
+            .filter(Boolean);
+
+        const assistant = {
+            role: 'assistant',
+            content: assistantContent ?? '',
+            turnId: this._turnId
+        };
+
+        if (this._reasoning) {
+            assistant.reasoning_content = this._reasoning;
+            assistant.reasoning = this._reasoning;
+        }
+
+        if (toolCalls.length > 0) {
+            assistant.tool_calls = window.AIChatMessageHistoryBuilder.buildToolCallsFromStored(toolCalls);
+            assistant.toolCalls = toolCalls;
+            assistant._toolResultsExpanded = true;
+            entries.push(assistant);
+
+            for (const tc of toolCalls) {
+                if (tc.result === null || tc.result === undefined) {
+                    continue;
+                }
+                entries.push({
+                    role: 'tool',
+                    tool_call_id: tc.id,
+                    content: window.AIChatMessageHistoryBuilder.stringifyToolContent(tc.result)
+                });
+            }
+        } else {
+            entries.push(assistant);
+        }
+
+        return entries;
     }
 
     /**

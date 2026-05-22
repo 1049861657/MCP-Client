@@ -230,11 +230,19 @@ window.AIChatData = {
             return Promise.reject(new Error('数据库未就绪'));
         }
         
-        if (!message || !message.content || !this.app.state.sessionId) {
-            console.error('保存消息失败: 无效的消息或会话ID', { 
-                hasMessage: !!message, 
-                hasContent: message && !!message.content, 
-                sessionId: this.app.state.sessionId 
+        const hasPersistablePayload = message && (
+            (message.content != null && message.content !== '') ||
+            message.role === 'tool' ||
+            (message.role === 'assistant' && (
+                (message.tool_calls?.length > 0) || (message.toolCalls?.length > 0)
+            ))
+        );
+
+        if (!hasPersistablePayload || !this.app.state.sessionId) {
+            console.error('保存消息失败: 无效的消息或会话ID', {
+                hasMessage: !!message,
+                role: message?.role,
+                sessionId: this.app.state.sessionId
             });
             return Promise.reject(new Error('无效的消息或会话ID'));
         }
@@ -615,13 +623,17 @@ window.AIChatData = {
                         this.app.elements.chatMessages.innerHTML = '';
                     }
                     
-                    // 更新消息历史（保留所有字段，供 context 传递和历史回放使用）
+                    // 更新消息历史（完整 turn 结构，供 API context 与回放）
                     this.app.state.messageHistory = messages.map(msg => ({
                         role: msg.role,
                         content: msg.content,
                         turnId: msg.turnId,
-                        reasoning: msg.reasoning,
-                        toolCalls: msg.toolCalls
+                        reasoning: msg.reasoning ?? msg.reasoning_content,
+                        reasoning_content: msg.reasoning_content ?? msg.reasoning,
+                        tool_calls: msg.tool_calls,
+                        tool_call_id: msg.tool_call_id,
+                        toolCalls: msg.toolCalls,
+                        _toolResultsExpanded: msg._toolResultsExpanded
                     }));
                     
                     // 重建聊天界面
@@ -632,13 +644,15 @@ window.AIChatData = {
                             if (message.role === 'user') {
                                 previousUserMessage = message;
                                 this.app.UI.addUserMessage(message.content);
+                            } else if (message.role === 'tool') {
+                                // tool 结果已并入 assistant 卡片，跳过独立渲染
+                                continue;
                             } else if (message.role === 'assistant' && previousUserMessage) {
                                 const aiMessageDiv = this.app.UI.addAIMessage(message.content);
-                                // 历史回放：还原推理过程
-                                if (message.reasoning) {
-                                    window.AIChatRenderers.render('reasoning', message.reasoning, aiMessageDiv);
+                                const reasoningText = message.reasoning_content ?? message.reasoning;
+                                if (reasoningText) {
+                                    window.AIChatRenderers.render('reasoning', reasoningText, aiMessageDiv);
                                 }
-                                // 历史回放：还原工具调用
                                 if (message.toolCalls?.length > 0) {
                                     window.AIChatRenderers.render('tool-call-group', message.toolCalls, aiMessageDiv);
                                 }
@@ -707,13 +721,21 @@ window.AIChatData = {
                 if (messages && messages.length > 0) {
                     // 过滤出有效的消息结构，保留所有字段（含 toolCalls / reasoning / turnId）
                     this.app.state.messageHistory = messages
-                        .filter(msg => msg.role && msg.content)
+                        .filter(msg => msg.role && (
+                            msg.content != null && msg.content !== '' ||
+                            msg.role === 'tool' ||
+                            (msg.role === 'assistant' && (msg.tool_calls?.length || msg.toolCalls?.length))
+                        ))
                         .map(msg => ({
                             role: msg.role,
                             content: msg.content,
                             turnId: msg.turnId,
-                            reasoning: msg.reasoning,
-                            toolCalls: msg.toolCalls
+                            reasoning: msg.reasoning ?? msg.reasoning_content,
+                            reasoning_content: msg.reasoning_content ?? msg.reasoning,
+                            tool_calls: msg.tool_calls,
+                            tool_call_id: msg.tool_call_id,
+                            toolCalls: msg.toolCalls,
+                            _toolResultsExpanded: msg._toolResultsExpanded
                         }));
                     
                     console.log(`已从IndexedDB加载 ${this.app.state.messageHistory.length} 条消息历史 [会话: ${this.app.state.sessionId}]`);
@@ -735,16 +757,20 @@ window.AIChatData = {
             return;
         }
         
-        // 获取最新的消息(通常是一对用户消息和AI回复)
-        const recentMessages = this.app.state.messageHistory.slice(-2);
-        
-        // 保存每条消息到数据库
-        recentMessages.forEach(msg => {
-            if (msg.role && msg.content) {
-                this.saveChatMessage(msg)
-                    .catch(error => console.error('保存消息失败:', error));
+        // 保存本轮：从最后一条 user 消息到末尾（含 assistant / tool）
+        let startIdx = 0;
+        for (let i = this.app.state.messageHistory.length - 1; i >= 0; i--) {
+            if (this.app.state.messageHistory[i].role === 'user') {
+                startIdx = i;
+                break;
             }
-        });
+        }
+        const turnMessages = this.app.state.messageHistory.slice(startIdx);
+
+        for (const msg of turnMessages) {
+            this.saveChatMessage(msg)
+                .catch(error => console.error('保存消息失败:', error));
+        }
     },
     
     // 从数据库加载会话消息

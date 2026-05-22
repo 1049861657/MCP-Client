@@ -25,6 +25,7 @@ yarn-error.log*
 *.swp
 *.swo 
 .cursor/
+.codegraph/
 
 # 数据库
 src/generated/

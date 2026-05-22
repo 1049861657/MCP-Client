@@ -14,6 +14,7 @@ const modules = [
     'ai-ui.js',             // 再加载UI模块，它依赖核心模块
     'ai-renderers.js',      // 渲染注册表（依赖 ai-ui.js 中的 parseMarkdown 等函数）
     'ai-quickmessage.js',   // 加载快捷消息模块，依赖UI模块
+    'message-history-builder.js', // P0-03 历史消息 ↔ API messages
     'ai-api.js'             // 最后加载API模块，它依赖UI、核心和收集器模块
 ];
 

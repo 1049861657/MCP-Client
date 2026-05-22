@@ -191,7 +191,7 @@
     color: #666;
 }
 
-.settings-select, .settings-item select, .settings-input, .settings-item input[type="number"] {
+.settings-select, .settings-item select, .settings-input {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid #e0e0e0;
@@ -204,7 +204,7 @@
     appearance: none;
 }
 
-.settings-select:focus, .settings-item select:focus, .settings-input:focus, .settings-item input[type="number"]:focus {
+.settings-select:focus, .settings-item select:focus, .settings-input:focus, .history-count:focus {
     border-color: #3498db;
     outline: none;
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
@@ -253,15 +253,16 @@
 .toggle-container {
     display: flex;
     align-items: center;
+    gap: 12px;
     margin-top: 6px;
 }
 
 .toggle {
     position: relative;
     display: inline-block;
+    flex-shrink: 0;
     width: 44px;
     height: 24px;
-    margin-right: 10px;
 }
 
 .toggle input {
@@ -305,15 +306,24 @@ input:checked + .toggle-slider:before {
 
 .toggle-label {
     font-size: 14px;
+    line-height: 24px;
     color: #333;
     font-weight: 400;
+    white-space: nowrap;
 }
 
 .history-count {
+    flex-shrink: 0;
+    width: 72px;
+    height: 28px;
+    margin: 0;
     padding: 4px 8px;
     border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    font-size: 13px;
+    border-radius: 6px;
+    font-size: 14px;
+    text-align: center;
+    box-sizing: border-box;
+    background-color: #fff;
     box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 

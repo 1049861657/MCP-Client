@@ -14,7 +14,10 @@ export const ToolsConfig = {
   enableParamValidation: false,
 
   // 默认启用提示词
-  enablePrompts: true
+  enablePrompts: true,
+
+  /** Agent Loop 最大工具调用回合数（P0-01 可配置化，P0-05 设置页扩展） */
+  maxToolCallRounds: 10
 };
 
 /**
@@ -35,11 +38,11 @@ export const ChatConfig = {
  * 历史记录相关配置
  */
 export const HistoryConfig = {
-  // 默认禁用历史消息
-  enableMessageHistory: false,
-  
-  // 默认历史消息数量
-  defaultMessageHistoryCount: 3
+  // 默认启用历史消息（P0-03 完整 context graph）
+  enableMessageHistory: true,
+
+  // 默认历史消息条数（按存储条目计，含 tool 消息）
+  defaultMessageHistoryCount: 20
 };
 
 /**

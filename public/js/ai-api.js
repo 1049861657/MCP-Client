@@ -261,23 +261,13 @@ window.AIChatAPI = {
                 enablePrompts
             };
             
-            // 如果启用了消息历史，准备消息历史
-            if (enableTools && app.state.enableMessageHistory && app.state.messageHistory.length > 0) {
-                // 获取设定数量的最近历史消息
-                const historyCount = app.state.messageHistoryCount;
-                const recentHistory = app.state.messageHistory.slice(-historyCount);
-                
-                const messages = recentHistory.map(msg => ({
-                    role: msg.role,
-                    content: msg.content
-                }));
-                
-                // 添加当前用户消息到历史
-                messages.push({
-                    role: 'user',
-                    content: message
-                });
-                
+            // P0-03：携带完整 messages（含 tool_calls / tool / reasoning_content）
+            if (app.state.enableMessageHistory && app.state.messageHistory.length > 0) {
+                const messages = window.AIChatMessageHistoryBuilder.buildApiMessagesFromHistory(
+                    app.state.messageHistory,
+                    app.state.messageHistoryCount
+                );
+                messages.push({ role: 'user', content: message });
                 requestBody.messages = messages;
             }
             
@@ -362,23 +352,13 @@ window.AIChatAPI = {
                 enablePrompts
             };
             
-            // 如果启用了消息历史，准备消息历史
-            if (enableTools && app.state.enableMessageHistory && app.state.messageHistory.length > 0) {
-                // 获取设定数量的最近历史消息
-                const historyCount = app.state.messageHistoryCount;
-                const recentHistory = app.state.messageHistory.slice(-historyCount);
-                
-                const messages = recentHistory.map(msg => ({
-                    role: msg.role,
-                    content: msg.content
-                }));
-                
-                // 添加当前用户消息到历史
-                messages.push({
-                    role: 'user',
-                    content: message
-                });
-                
+            // P0-03：携带完整 messages（含 tool_calls / tool / reasoning_content）
+            if (app.state.enableMessageHistory && app.state.messageHistory.length > 0) {
+                const messages = window.AIChatMessageHistoryBuilder.buildApiMessagesFromHistory(
+                    app.state.messageHistory,
+                    app.state.messageHistoryCount
+                );
+                messages.push({ role: 'user', content: message });
                 requestBody.messages = messages;
             }
             
@@ -447,10 +427,21 @@ window.AIChatAPI = {
             UI.showResponseTime(elapsedTime);
             UI.showTokenUsage(data.usage || (data.result && data.result.usage));
             
-            // 添加到消息历史
+            // 添加到消息历史（含 tool_calls / tool 消息）
             if (content) {
-                const storedToolCalls = data.tool_calls?.length > 0
-                    ? data.tool_calls.map((tc, i) => ({
+                app.state.messageHistory.push({
+                    role: 'user',
+                    content: message
+                });
+
+                const assistant = {
+                    role: 'assistant',
+                    content,
+                    turnId: crypto.randomUUID()
+                };
+
+                if (data.tool_calls?.length > 0) {
+                    const storedToolCalls = data.tool_calls.map((tc, i) => ({
                         id: tc.id ?? `tc-${Date.now()}-${i}`,
                         name: tc.name,
                         args: tc.arguments ?? {},
@@ -459,22 +450,26 @@ window.AIChatAPI = {
                         executionTime: undefined,
                         tokenUsage: undefined,
                         progressSteps: []
-                    }))
-                    : undefined;
+                    }));
+                    assistant.tool_calls = window.AIChatMessageHistoryBuilder.buildToolCallsFromStored(storedToolCalls);
+                    assistant.toolCalls = storedToolCalls;
+                    assistant._toolResultsExpanded = true;
+                    app.state.messageHistory.push(assistant);
 
-                app.state.messageHistory.push({
-                    role: 'user',
-                    content: message
-                });
-                
-                app.state.messageHistory.push({
-                    role: 'assistant',
-                    content: content,
-                    turnId: crypto.randomUUID(),
-                    toolCalls: storedToolCalls
-                });
-                
-                // 保存历史
+                    for (const tc of storedToolCalls) {
+                        if (tc.result === null || tc.result === undefined) {
+                            continue;
+                        }
+                        app.state.messageHistory.push({
+                            role: 'tool',
+                            tool_call_id: tc.id,
+                            content: window.AIChatMessageHistoryBuilder.stringifyToolContent(tc.result)
+                        });
+                    }
+                } else {
+                    app.state.messageHistory.push(assistant);
+                }
+
                 app.saveMessageHistory();
             }
             
@@ -576,9 +571,12 @@ window.AIChatAPI = {
                     app.state.messageHistory.pop();
                 }
             } else if (fullText) {
-                // 正常完成且有内容：保存历史
-                const turnData = this._turnCollector?.collect() ?? {};
-                app.state.messageHistory.push({ role: 'assistant', content: fullText, ...turnData });
+                // 正常完成且有内容：保存完整 turn（assistant + tool + reasoning）
+                const turnEntries = this._turnCollector?.toHistoryEntries(fullText)
+                    ?? [{ role: 'assistant', content: fullText }];
+                for (const entry of turnEntries) {
+                    app.state.messageHistory.push(entry);
+                }
                 window.AIChatData.saveMessageHistory();
             }
             // 有内容或用户主动停止时弹出气泡

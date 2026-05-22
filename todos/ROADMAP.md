@@ -144,7 +144,7 @@ P3-* 可在 P1 完成后按需启动
 ### M1 — Harness 可用（P0 完成）
 
 - [ ] 新建 `src/core/agent-harness/` 目录，Loop 从 `openai.ts` 抽出
-- [ ] 前端历史默认开启，含 tool_calls / tool / reasoning
+- [x] 前端历史默认开启，含 tool_calls / tool / reasoning
 - [ ] 非流式 `chat()` 支持完整多轮工具循环
 - [ ] `temperature` / `max_tokens` 正确传给 API
 

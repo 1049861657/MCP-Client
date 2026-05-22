@@ -1,453 +1,28 @@
 import { OpenAI as OpenAIClient } from 'openai';
-import { Logger } from '../utils/logger.js';
+import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
+import { AgentLoopProvider, runAgentLoop } from '../core/agent-harness/agent-loop.js';
+import { ToolCallManager } from '../core/agent-harness/tool-executor.js';
+import { normalizeMessages } from '../core/agent-harness/message-normalizer.js';
+import {
+  ChatResponse,
+  ChunkResponse,
+  ExtendedDelta,
+  InternalMessage,
+  IToolCallRecord,
+  ModelResponseResult,
+  OpenAITool,
+  UsageInfo
+} from '../core/agent-harness/types.js';
 import { ChatConfig, ToolsConfig } from '../config/feature-config.js';
 import { mcpClient } from '../core/client.js';
-import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
-import { AIProvider } from '../types/config.types.js';
-import { OpenAINameCodec } from '../utils/openai-util.js';
 import { ConfigService } from '../services/config.service.js';
-
-// 扩展Delta接口以支持reasoning_content属性
-interface ExtendedDelta {
-  content?: string;
-  reasoning_content?: string;
-  tool_calls?: Array<{
-    index: number;
-    id?: string;
-    function?: {
-      name?: string;
-      arguments?: string;
-    };
-  }>;
-  [key: string]: any;
-}
-
-// 定义流式响应数据块的接口
-interface ChunkResponse {
-  content?: string;
-  reasoning_content?: string;
-  tool_call?: {
-    index: number;
-    id: string;
-    name?: string;
-  };
-  tool_call_update?: {
-    index: number;
-    completeArguments?: string;
-    tool_call_id?: string;
-  };
-  tool_call_result?: {
-    name: string;
-    result: any;
-    error?: boolean;
-    tool_call_id?: string;
-    index?: number;
-    execution_time?: number;
-    token_usage?: any;
-  };
-  tool_progress?: {
-    index: number;
-    progress: number;
-    total?: number;
-    message?: string;
-    elapsed_ms?: number;
-  };
-  special_notice?: {
-    type: string;
-    title: string;
-    message: string;
-    level: 'info' | 'warning' | 'error';
-  };
-  error?: string;
-  [key: string]: any;
-}
+import { AIProvider } from '../types/config.types.js';
+import { Logger } from '../utils/logger.js';
+import { verifyToolArguments as verifyToolArgumentsImpl } from '../core/agent-harness/tool-validation.js';
+import { OpenAINameCodec } from '../utils/openai-util.js';
 
 /**
- * OpenAI工具调用的函数定义
- */
-interface OpenAIFunctionDefinition {
-  name: string;
-  description: string;
-  parameters: {
-    type: string;
-    properties: Record<string, any>;
-    required?: string[];
-  };
-}
-
-/**
- * OpenAI工具定义
- */
-interface OpenAITool {
-  type: "function";
-  function: OpenAIFunctionDefinition;
-}
-
-/**
- * 工具调用封装
- */
-interface ToolCallInfo {
-  id: string;
-  codeName: string;
-  name: string;
-  arguments: Record<string, any>;
-  argumentsText?: string;
-  result?: any;
-  meta?: {
-    round?: number;
-    localIndex?: number;
-    globalIndex?: number;
-    createdAt?: string;
-    status?: 'pending' | 'completed' | 'error' | 'interrupted';
-    completedAt?: string;
-    errorMessage?: string;
-    interruptReason?: string;
-    executionTime?: number;
-    tokenUsage?: any;
-  };
-}
-
-/**
- * 使用量统计
- */
-interface UsageInfo {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-}
-
-/**
- * 聊天响应结果
- */
-interface ChatResponse {
-  content: string;
-  model: string;
-  tool_calls?: ToolCallInfo[];
-  reasoning_content?: string;
-  finish_reason?: string;
-  usage: UsageInfo;
-}
-
-/**
- * 工具调用管理器 - 负责工具调用的生命周期管理
- */
-class ToolCallManager {
-  // 所有工具调用
-  private toolCalls: ToolCallInfo[] = [];
-  // 全局索引到工具调用的映射 - 用于快速查找
-  private indexMap: Map<number, ToolCallInfo> = new Map();
-  // 当前回合
-  private currentRound: number = 0;
-  // 服务提供商名称 - 用于日志
-  private providerName: string;
-  // 状态更新回调
-  private onChunk: (chunk: ChunkResponse, done: boolean) => void;
-  // 是否因达到最大调用次数而中断
-  private reachedMaxRounds: boolean = false;
-  
-  constructor(providerName: string, onChunk: (chunk: ChunkResponse, done: boolean) => void) {
-    this.providerName = providerName;
-    this.onChunk = onChunk;
-  }
-  
-  /**
-   * 设置是否达到最大回合数
-   * @param reached 是否达到最大回合数
-   */
-  setReachedMaxRounds(reached: boolean): void {
-    this.reachedMaxRounds = reached;
-  }
-  
-  /**
-   * 获取是否达到最大回合数
-   * @returns 是否达到最大回合数
-   */
-  hasReachedMaxRounds(): boolean {
-    return this.reachedMaxRounds;
-  }
-  
-  /**
-   * 创建工具调用对象
-   * @param index 工具在当前回合中的索引
-   * @param id 工具调用ID
-   * @param name 工具名称
-   * @returns 全局索引
-   */
-  async createToolCall(index: number, id?: string, name: string = ''): Promise<number> {
-    // 生成工具调用ID（如果未提供）
-    const toolCallId = id || `tool-call-round-${this.currentRound}-${Date.now()}-${index}`;
-    // 计算全局索引
-    const globalIndex = this.toolCalls.length;
-    
-    // 创建工具调用对象
-    const toolCall: ToolCallInfo = {
-      id: toolCallId,
-      codeName: name,
-      name: name.startsWith('mcp__') ? OpenAINameCodec.decode(name) : name,
-      arguments: {},
-      meta: {
-        round: this.currentRound,
-        localIndex: index,
-        globalIndex: globalIndex,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      }
-    };
-    
-    // 添加到集合和映射
-    this.toolCalls.push(toolCall);
-    this.indexMap.set(globalIndex, toolCall);
-    
-    // 通知前端新的工具调用创建
-    this.onChunk({
-      tool_call: {
-        index: globalIndex,
-        id: toolCallId,
-        name: toolCall.name
-      }
-    }, false);
-    
-    return globalIndex;
-  }
-  
-  /**
-   * 更新工具调用参数
-   * @param globalIndex 全局索引
-   * @param argumentText 参数文本片段
-   */
-  updateToolArguments(globalIndex: number, argumentText: string): void {
-    const toolCall = this.indexMap.get(globalIndex);
-    if (!toolCall) return;
-
-    // 累积参数文本
-    if (!toolCall.argumentsText) {
-      toolCall.argumentsText = '';
-    }
-    toolCall.argumentsText += argumentText;
-    
-    // 尝试解析参数
-    const parsedArgs = this.tryParseJson(toolCall.argumentsText);
-    if (parsedArgs !== null) {
-      toolCall.arguments = parsedArgs;
-      
-      // 通知前端完整参数
-      this.onChunk({
-        tool_call_update: {
-          index: globalIndex,
-          completeArguments: JSON.stringify(parsedArgs),
-          tool_call_id: toolCall.id
-        }
-      }, false);
-    }
-  }
-  
-  /**
-   * 尝试解析JSON字符串
-   * @param text JSON字符串
-   * @returns 解析成功则返回解析后的对象，失败则返回null
-   * @private
-   */
-  private tryParseJson(text: string): any | null {
-    if (!text) return null;
-    
-    text = text.trim();
-    // 基本结构检查
-    const isStructureComplete = 
-      (text.startsWith('{') && text.endsWith('}')) || 
-      (text.startsWith('[') && text.endsWith(']'));
-      
-    if (!isStructureComplete) return null;
-    
-    // 尝试JSON解析
-    try {
-      return JSON.parse(text);
-    } catch (e) {
-      return null;
-    }
-  }
-  
-  /**
-   * 设置工具调用结果
-   * @param globalIndex 全局索引
-   * @param result 结果对象
-   * @param error 是否发生错误
-   * @param errorMessage 错误消息
-   * @param tokenUsage Token使用情况
-   */
-  setToolResult(globalIndex: number, result: any, error: boolean = false, errorMessage?: string, tokenUsage?: any): void {
-    const toolCall = this.indexMap.get(globalIndex);
-    if (!toolCall) return;
-    
-    // 保存结果
-    toolCall.result = result;
-    
-    // 更新状态
-    if (toolCall.meta) {
-      toolCall.meta.status = error ? 'error' : 'completed';
-      toolCall.meta.completedAt = new Date().toISOString();
-      if (error && errorMessage) {
-        toolCall.meta.errorMessage = errorMessage;
-      }
-      
-      // 计算执行时间
-      if (toolCall.meta.createdAt) {
-        const startTime = new Date(toolCall.meta.createdAt).getTime();
-        const endTime = new Date(toolCall.meta.completedAt || new Date().toISOString()).getTime();
-        toolCall.meta.executionTime = endTime - startTime;
-      }
-      
-      // 保存Token使用情况
-      if (tokenUsage) {
-        toolCall.meta.tokenUsage = tokenUsage;
-      }
-    }
-    
-    // 通知前端工具调用结果
-    this.onChunk({
-      tool_call_result: {
-        name: toolCall.name,
-        result: result,
-        error: error,
-        index: globalIndex,
-        tool_call_id: toolCall.id,
-        execution_time: toolCall.meta?.executionTime,
-        token_usage: tokenUsage || toolCall.meta?.tokenUsage
-      }
-    }, false);
-  }
-
-  /**
-   * 推送工具执行进度给前端
-   */
-  setToolProgress(globalIndex: number, progress: number, total: number | undefined, message: string | undefined, elapsed_ms?: number): void {
-    this.onChunk({
-      tool_progress: {
-        index: globalIndex,
-        progress,
-        total,
-        message,
-        elapsed_ms
-      }
-    }, false);
-  }
-  
-  /**
-   * 获取指定回合的工具调用
-   * @param round 回合数
-   * @returns 此回合的工具调用列表
-   */
-  getToolCallsByRound(round: number): ToolCallInfo[] {
-    return this.toolCalls.filter(tc => tc.meta && tc.meta.round === round);
-  }
-  
-  /**
-   * 获取工具调用总数
-   */
-  getTotalCount(): number {
-    return this.toolCalls.length;
-  }
-  
-  /**
-   * 获取当前回合数
-   */
-  getCurrentRound(): number {
-    return this.currentRound;
-  }
-  
-  /**
-   * 设置当前回合数
-   */
-  setCurrentRound(round: number): void {
-    this.currentRound = round;
-  }
-  
-  /**
-   * 获取所有工具调用
-   */
-  getAllToolCalls(): ToolCallInfo[] {
-    return [...this.toolCalls];
-  }
-  
-  /**
-   * 确保所有工具调用都已处理（将未完成的调用标记为中断）
-   */
-  finalizeAllToolCalls(): void {
-    let pendingFound = false;
-    
-    this.toolCalls.forEach((tc) => {
-      if (tc.meta && tc.meta.status === 'pending') {
-        pendingFound = true;
-        tc.meta.status = 'interrupted';
-        tc.meta.completedAt = new Date().toISOString();
-        
-        // 根据是否达到最大回合数设置不同的中断原因
-        if (this.reachedMaxRounds) {
-          tc.meta.interruptReason = '已达到最大工具调用次数限制';
-        } else {
-          tc.meta.interruptReason = '工具调用处理过程被中断';
-        }
-        
-        // 计算执行时间
-        let executionTime = undefined;
-        if (tc.meta.createdAt) {
-          const startTime = new Date(tc.meta.createdAt).getTime();
-          const endTime = new Date(tc.meta.completedAt).getTime();
-          executionTime = endTime - startTime;
-          tc.meta.executionTime = executionTime;
-        }
-        
-        // 通知前端 - 使用globalIndex而不是数组索引
-        const globalIndex = tc.meta.globalIndex || 0;
-        
-        // 根据中断原因设置不同的消息
-        let resultMessage = {
-          status: 'interrupted',
-          message: this.reachedMaxRounds 
-                  ? '已达到最大工具调用次数限制' 
-                  : '工具调用处理过程被中断',
-          details: this.reachedMaxRounds
-                  ? `系统限制了最大连续工具调用次数为${this.currentRound}次，为保证系统稳定性，后续工具调用已被中断`
-                  : '请求处理结束，工具调用未能完成'
-        };
-
-        this.onChunk({
-          tool_call_result: {
-            name: tc.name,
-            result: resultMessage,
-            index: globalIndex,  
-            tool_call_id: tc.id,
-            error: true,
-            execution_time: executionTime,
-            token_usage: tc.meta.tokenUsage
-          }
-        }, false);
-      }
-    });
-    
-    if (pendingFound && this.reachedMaxRounds) {
-      // 发送特殊通知到前端，突出显示达到工具调用上限的警告
-      this.onChunk({
-        content: "\n\n",
-        special_notice: {
-          type: "max_tool_calls_reached",
-          title: "🚫 工具调用次数已达上限",
-          message: `系统限制了最大连续工具调用次数为${this.currentRound}次，为保证系统稳定性，后续工具调用已被中断`,
-          level: "warning"
-        }
-      }, false);
-    }
-  }
-  
-  /**
-   * 是否包含有效的工具调用
-   */
-  hasValidToolCalls(): boolean {
-    return this.toolCalls.some(tc => tc && tc.name);
-  }
-}
-
-/**
- * OpenAI API客户端包装类
+ * OpenAI API客户端包装类（Provider 层：模型 I/O + 流式解析）
  */
 export class OpenAI {
   // 公共属性
@@ -589,11 +164,14 @@ export class OpenAI {
    * @param enablePrompts 是否启用提示词
    * @returns 格式化后的消息数组
    */
-  private async formatMessages(message: string | ChatCompletionMessageParam[], enableTools: boolean = false, enablePrompts: boolean = false): Promise<ChatCompletionMessageParam[]> {
-    // 将输入转换为标准消息数组格式
-    const messages: ChatCompletionMessageParam[] = typeof message === 'string'
-      ? [{ role: 'user', content: message } as ChatCompletionMessageParam]
-      : [...message]; // 创建副本，避免修改原始数据
+  private async formatMessages(
+    message: string | InternalMessage[],
+    enableTools: boolean = false,
+    enablePrompts: boolean = false
+  ): Promise<InternalMessage[]> {
+    const messages: InternalMessage[] = typeof message === 'string'
+      ? [{ role: 'user', content: message, _source: 'user' }]
+      : [...message];
     
     // 启用工具时，将 MCP 服务端 instructions 与用户配置的提示词合并注入 system message
     if (enableTools) {
@@ -621,8 +199,9 @@ export class OpenAI {
         if (parts.length > 0) {
           messages.unshift({
             role: 'system',
-            content: parts.join('\n\n')
-          } as ChatCompletionMessageParam);
+            content: parts.join('\n\n'),
+            _source: 'system'
+          });
         }
       }
     }
@@ -657,7 +236,7 @@ export class OpenAI {
    * @returns 请求参数对象
    */
   private createRequestParams(
-    messages: ChatCompletionMessageParam[],
+    messages: InternalMessage[],
     model: string,
     temperature: number,
     maxTokens: number,
@@ -666,7 +245,7 @@ export class OpenAI {
   ) {
     const params = {
       model,
-      messages,
+      messages: normalizeMessages(messages),
       // temperature,
       // max_tokens: maxTokens
     };
@@ -721,132 +300,28 @@ export class OpenAI {
   }
 
   /**
-   * 根据提供商名称获取客户端实例用于参数验证
-   * @param providerName 提供商名称
-   * @returns 客户端和模型配置
-   * @private
-   */
-  private getClientForValidation(providerName: string): { client: OpenAIClient, model: string } {
-    // 首先尝试从已初始化的服务实例中获取
-    if (providerServices[providerName]) {
-      const providerInstance = providerServices[providerName];
-      return { 
-        client: providerInstance.client, 
-        model: providerInstance.config.defaultModel 
-      };
-    }
-    
-    // 如果找不到提供商，使用当前客户端
-    return { client: this.client, model: this.config.defaultModel };
-  }
-
-  /**
    * 验证工具调用参数是否满足要求
-   * @param toolName 工具名称
-   * @param args 参数对象
-  /**
-   * @returns 验证结果，包含是否有效和错误消息
    */
-  private async verifyToolArguments(toolName: string, args: any): Promise<{isValid: boolean, message: string}> {
-    // 以下情况跳过验证:
-    // 1. 参数校验被禁用
-    // 2. 非executeApi工具
-    if (!this.toolsConfig.enableParamValidation || toolName !== "executeApi") {
-      return {isValid: true, message: ''};
-    }
-    
-    try {
-      // 获取工具参数模式（使用 codeName 路由，避免原始名在 toolServerMap 中查不到）
-      const getApiDetailsCode = mcpClient.findCodeNameByToolName('getApiDetails');
-      if (!getApiDetailsCode) {
-        return { isValid: true, message: '' };
-      }
-      const toolResult = await mcpClient.callTool<any>(getApiDetailsCode, { apiId: args.apiId });
-      
-      // 提取API详情中的parameters部分
-      let apiParameters = [];
-      try {
-        // 查找API详情内容
-        const apiDetailText = toolResult.content[0]?.text || '';
-        const apiDetailMatch = apiDetailText.match(/\{[\s\S]*\}/);
-        
-        if (apiDetailMatch) {
-          const apiDetail = JSON.parse(apiDetailMatch[0]);
-          if (apiDetail && apiDetail.parameters && Array.isArray(apiDetail.parameters)) {
-            // 如果args.params存在，则只提取使用到的参数
-            if (args.params) {
-              // 获取用户提供的参数名称
-              const providedParamNames = Object.keys(args.params);
-              // 筛选只包含用户提供的参数
-              apiParameters = apiDetail.parameters.filter((param: any) => 
-                providedParamNames.includes(param.name)
-              );
-            } else {
-              apiParameters = apiDetail.parameters;
-            }
-          }
+  private async verifyToolArguments(
+    toolName: string,
+    args: Record<string, unknown>
+  ): Promise<{ isValid: boolean; message: string }> {
+    const { providerServices } = await import('./openai-providers.js');
+    return verifyToolArgumentsImpl({
+      enableParamValidation: this.toolsConfig.enableParamValidation,
+      fallbackClient: this.client,
+      fallbackModel: this.config.defaultModel,
+      getValidationClient: (providerName) => {
+        const providerInstance = providerServices[providerName];
+        if (!providerInstance) {
+          return undefined;
         }
-      } catch (e) {
-        Logger.warn('OPENAI', `解析API详情参数失败: ${e}`);
+        return {
+          client: providerInstance.client,
+          model: providerInstance.config.defaultModel
+        };
       }
-      
-      // 如果参数和API参数要求都为空，则直接通过验证
-      if ((!args.params || Object.keys(args.params).length === 0) && 
-          (!apiParameters || apiParameters.length === 0)) {
-        return {isValid: true, message: ''};
-      }
-      
-      // 构造请求AI验证参数的消息
-      let messages = [
-        {
-          role: "system" as const,
-          content: "你是一个工具参数验证助手。你的任务是验证提供的参数是否满足工具要求，请懂得灵活变通，不要死板。只回答'是'或'否'，如果是'否',简要说明原因。"
-        },
-        {
-          role: "user" as const,
-          content: `参数：${JSON.stringify(args.params)}--工具参数要求：${JSON.stringify(apiParameters)}`
-        }
-      ];
-      if(args.apiId === "doSqlQuery") {
-        messages = [
-          {
-            role: "system" as const,
-            content: "你是一个 SQL 验证助手，任务是验证 AI生成的SQL 语句中是否合规。不合规指的是存在占位模版或明显不符合参数名含义，只回答'是'或'否'，如果是'否'，简要说明原因。"
-          },
-          {
-            role: "user" as const,
-            content: `${args.params.sql}`
-          }
-        ]
-      }
-      
-      // 根据apiId选择使用的客户端和模型
-      const { client, model } = args.apiId === "doSqlQuery" 
-        ? this.getClientForValidation("火山引擎")
-        : this.getClientForValidation("Deepseek");
-      
-      // 发送请求
-      const response = await client.chat.completions.create({
-        model,
-        messages,
-        temperature: 0,  // 使用低温度，让回复更确定
-        max_tokens: 100  // 简短回复即可
-      }) as any;
-      
-      const result = response.choices[0].message.content.trim();
-      
-      // 解析回复
-      if (result.startsWith('是')) {
-        return {isValid: true, message: ''};
-      } else {
-        // 提取错误原因
-        const errorMessage = result.replace(/^否[。：:,，、\s]*/i, '').trim();
-        return {isValid: false, message: errorMessage || '参数不满足要求'};
-      }
-    } catch (error) {
-      Logger.error('OPENAI', `验证工具参数失败:`, error);
-      return {isValid: true, message: ''};  // 验证失败时默认通过，确保流程不中断
-    }
+    }, toolName, args);
   }
 
   /**
@@ -861,7 +336,7 @@ export class OpenAI {
    * @returns 处理结果
    */
   async chat(
-    message: string | ChatCompletionMessageParam[], 
+    message: string | InternalMessage[],
     model: string = this.config.defaultModel,
     temperature: number = this.chatConfig.defaultTemperature,
     maxTokens: number = this.chatConfig.defaultMaxTokens,
@@ -901,7 +376,7 @@ export class OpenAI {
         Logger.info('OPENAI', `[${this.providerName}] 大模型请求调用工具: ${assistantMessage.tool_calls.map((t: any) => t.function.name).join(', ')}`);
         
         // 收集工具调用结果
-        const toolCalls: ToolCallInfo[] = [];
+        const toolCalls: IToolCallRecord[] = [];
         
         // 将大模型的回复添加到消息历史
         messages.push(assistantMessage as any);
@@ -979,12 +454,9 @@ export class OpenAI {
         }
         
         // 再次调用大模型，处理工具执行结果
-        const finalResponse = await this.client.chat.completions.create({
-          model,
-          messages: messages as ChatCompletionMessageParam[],
-          temperature,
-          max_tokens: maxTokens
-        }) as any;
+        const finalResponse = await this.client.chat.completions.create(
+          this.createRequestParams(messages, model, temperature, maxTokens, [], false) as Parameters<OpenAIClient['chat']['completions']['create']>[0]
+        ) as { choices: Array<{ message: { content?: string } }> };
         
         const finalContent = finalResponse.choices[0].message.content || '';
         
@@ -1011,155 +483,141 @@ export class OpenAI {
     }
   }
 
-/**
-   * 处理模型的流式响应
-   * @param stream 模型流式响应
-   * @param round 当前回合数
-   * @param toolManager 工具调用管理器
-   * @param fullContent 累积的完整内容
-   * @param fullReasoningContent 累积的推理内容
-   * @param usage 使用量统计
-   * @param finishReasonResult 完成原因
-   * @param onChunk 数据块回调函数
-   * @returns 包含处理结果的对象
-   * @private
+  /**
+   * 构建 Agent Loop 所需的 Provider 适配器
    */
-private async processModelResponse(
-  stream: any,
-  round: number,
-  toolManager: ToolCallManager,
-  fullContent: string,
-  fullReasoningContent: string,
-  usage: UsageInfo | null,
-  finishReasonResult: string | undefined | null,
-  onChunk: (chunk: ChunkResponse, done: boolean) => void
-): Promise<{
-  fullContent: string,
-  fullReasoningContent: string,
-  usage: UsageInfo | null,
-  finishReasonResult: string | undefined | null,
-  hasNewToolCalls: boolean,
-  newToolCalls: ToolCallInfo[]
-}> {
-  let hasNewToolCalls = false;
-  let newToolCalls: ToolCallInfo[] = [];
-  let updatedContent = fullContent;
-  let updatedReasoningContent = fullReasoningContent;
-  let updatedUsage = usage;
-  let updatedFinishReason = finishReasonResult;
-  
-  try {
-    // 处理流式响应
-    for await (const chunk of stream) {
-      // 提取delta信息
-      const delta = chunk.choices?.[0]?.delta as ExtendedDelta || {};
-      const content = delta.content || '';
-      const reasoningContent = delta.reasoning_content || '';
-      const deltaToolCalls = delta.tool_calls || [];
-      const finishReason = chunk.choices?.[0]?.finish_reason;
-      
-      // 处理内容
-      if (content) {
-        updatedContent += content;
-        onChunk({ content }, false);
-      }
-      
-      if (reasoningContent) {
-        updatedReasoningContent += reasoningContent;
-        onChunk({ reasoning_content: reasoningContent }, false);
-      }
-      
-      // 处理工具调用
-      if (deltaToolCalls.length > 0) {
-        hasNewToolCalls = true;
-        
-        for (const deltaToolCall of deltaToolCalls) {
-          if (deltaToolCall.index !== undefined) {
-            const localIndex = deltaToolCall.index;
-            let globalIndex: number;
-            
-            // 处理现有或新工具调用
-            if (round === 0) {
-              // 初始回合 - 检查工具调用是否已创建
-              const existingToolCalls = toolManager.getAllToolCalls();
-              const existingCall = existingToolCalls.find(tc => 
-                tc.meta?.round === 0 && tc.meta?.localIndex === localIndex);
-                
-              if (!existingCall) {
-                // 创建新工具调用
-                globalIndex = await toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name);
+  private getAgentLoopProvider(): AgentLoopProvider {
+    return {
+      providerName: this.providerName,
+      createRequestParams: (...args) => this.createRequestParams(...args),
+      createCompletionStream: async (requestParams, signal) => {
+        const stream = await this.client.chat.completions.create(
+          requestParams as unknown as Parameters<OpenAIClient['chat']['completions']['create']>[0],
+          { signal }
+        );
+        return stream as AsyncIterable<unknown>;
+      },
+      processModelResponse: (...args) => this.processModelResponse(...args),
+      verifyToolArguments: (toolName, args) => this.verifyToolArguments(toolName, args),
+      formatToolResult: (toolResult) => this.formatToolResult(toolResult)
+    };
+  }
+
+  /**
+   * 处理模型的流式响应
+   */
+  private async processModelResponse(
+    stream: AsyncIterable<unknown>,
+    round: number,
+    toolManager: ToolCallManager,
+    fullContent: string,
+    fullReasoningContent: string,
+    usage: UsageInfo | null,
+    finishReasonResult: string | undefined | null,
+    onChunk: (chunk: ChunkResponse, done: boolean) => void
+  ): Promise<ModelResponseResult> {
+    let hasNewToolCalls = false;
+    let newToolCalls: IToolCallRecord[] = [];
+    let updatedContent = fullContent;
+    let updatedReasoningContent = fullReasoningContent;
+    let updatedUsage = usage;
+    let updatedFinishReason = finishReasonResult;
+
+    try {
+      for await (const chunk of stream) {
+        const chunkData = chunk as {
+          choices?: Array<{ delta?: ExtendedDelta; finish_reason?: string }>;
+          usage?: unknown;
+        };
+        const delta = chunkData.choices?.[0]?.delta ?? {};
+        const content = delta.content || '';
+        const reasoningContent = delta.reasoning_content || '';
+        const deltaToolCalls = delta.tool_calls || [];
+        const finishReason = chunkData.choices?.[0]?.finish_reason;
+
+        if (content) {
+          updatedContent += content;
+          onChunk({ content }, false);
+        }
+
+        if (reasoningContent) {
+          updatedReasoningContent += reasoningContent;
+          onChunk({ reasoning_content: reasoningContent }, false);
+        }
+
+        if (deltaToolCalls.length > 0) {
+          hasNewToolCalls = true;
+
+          for (const deltaToolCall of deltaToolCalls) {
+            if (deltaToolCall.index !== undefined) {
+              const localIndex = deltaToolCall.index;
+              let globalIndex: number;
+
+              if (round === 0) {
+                const existingToolCalls = toolManager.getAllToolCalls();
+                const existingCall = existingToolCalls.find(tc =>
+                  tc.meta?.round === 0 && tc.meta?.localIndex === localIndex);
+
+                if (!existingCall) {
+                  globalIndex = await toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name);
+                } else {
+                  globalIndex = existingCall.meta?.globalIndex as number;
+                }
               } else {
-                globalIndex = existingCall.meta?.globalIndex as number;
+                if (!newToolCalls[localIndex]) {
+                  globalIndex = await toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name || '');
+                  newToolCalls[localIndex] = toolManager.getAllToolCalls()[globalIndex];
+                } else {
+                  globalIndex = newToolCalls[localIndex].meta?.globalIndex as number;
+                }
               }
-            } else {
-              // 后续回合 - 检查是否已存在此索引的工具调用
-              if (!newToolCalls[localIndex]) {
-                // 创建新工具调用
-                globalIndex = await toolManager.createToolCall(localIndex, deltaToolCall.id, deltaToolCall.function?.name || '');
-                
-                // 将新工具调用添加到集合
-                newToolCalls[localIndex] = toolManager.getAllToolCalls()[globalIndex];
-              } else {
-                globalIndex = newToolCalls[localIndex].meta?.globalIndex as number;
+
+              if (deltaToolCall.function?.arguments) {
+                toolManager.updateToolArguments(globalIndex, deltaToolCall.function.arguments);
               }
-            }
-            
-            // 更新工具参数流式信息
-            if (deltaToolCall.function?.arguments) {
-              toolManager.updateToolArguments(globalIndex, deltaToolCall.function.arguments);
             }
           }
         }
-      }
-      
-      // 检查是否完成
-      if (chunk.usage || finishReason === 'stop') {
-        if (chunk.usage) {
-          updatedUsage = this.formatUsage(chunk.usage);
+
+        if (chunkData.usage || finishReason === 'stop') {
+          if (chunkData.usage) {
+            updatedUsage = this.formatUsage(chunkData.usage);
+          }
+
+          if (finishReason === 'stop') {
+            updatedFinishReason = finishReason;
+          }
         }
-        
-        if (finishReason === 'stop') {
-          updatedFinishReason = finishReason;
-        }
       }
+
+      return {
+        fullContent: updatedContent,
+        fullReasoningContent: updatedReasoningContent,
+        usage: updatedUsage,
+        finishReasonResult: updatedFinishReason,
+        hasNewToolCalls,
+        newToolCalls: newToolCalls.filter(tc => tc && tc.name)
+      };
+    } catch (error) {
+      Logger.error('OPENAI', `[${this.providerName}] : 处理模型响应失败: ${error instanceof Error ? error.message : String(error)}`);
+      onChunk({ error: `处理模型响应失败: ${error instanceof Error ? error.message : String(error)}` }, false);
+
+      return {
+        fullContent: updatedContent,
+        fullReasoningContent: updatedReasoningContent,
+        usage: updatedUsage,
+        finishReasonResult: updatedFinishReason,
+        hasNewToolCalls: false,
+        newToolCalls: []
+      };
     }
-    
-    return {
-      fullContent: updatedContent,
-      fullReasoningContent: updatedReasoningContent,
-      usage: updatedUsage,
-      finishReasonResult: updatedFinishReason,
-      hasNewToolCalls,
-      newToolCalls: newToolCalls.filter(tc => tc && tc.name)
-    };
-  } catch (error) {
-    Logger.error('OPENAI', `[${this.providerName}] : 处理模型响应失败: ${error instanceof Error ? error.message : String(error)}`);
-    onChunk({ error: `处理模型响应失败: ${error instanceof Error ? error.message : String(error)}` }, false);
-    
-    return {
-      fullContent: updatedContent,
-      fullReasoningContent: updatedReasoningContent,
-      usage: updatedUsage,
-      finishReasonResult: updatedFinishReason,
-      hasNewToolCalls: false,
-      newToolCalls: []
-    };
   }
-}
+
   /**
    * 处理流式聊天请求
-   * @param message 用户消息或消息历史
-   * @param onChunk 数据块处理回调
-   * @param model 模型名称
-   * @param temperature 温度参数
-   * @param maxTokens 最大生成令牌数
-   * @param enableTools 是否启用工具
-   * @param enableParamValidation 是否启用参数校验
-   * @param enablePrompts 是否启用提示词
-   * @returns 处理结果
    */
   async chatStream(
-    message: string | ChatCompletionMessageParam[],
+    message: string | InternalMessage[],
     onChunk: (chunk: ChunkResponse, done: boolean) => void,
     model: string = this.config.defaultModel,
     temperature: number = this.chatConfig.defaultTemperature,
@@ -1170,394 +628,28 @@ private async processModelResponse(
     signal?: AbortSignal
   ): Promise<ChatResponse> {
     try {
-      // 临时覆盖参数校验配置
       if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
         this.toolsConfig.enableParamValidation = enableParamValidation;
       }
-      
-      // 格式化消息
+
       const messages = await this.formatMessages(message, enableTools, enablePrompts);
-      
-      // 获取工具定义
       const openAITools = await this.getToolDefinitions(enableTools);
-      
-      // 创建请求参数
-      const requestParams = this.createRequestParams(
+
+      return await runAgentLoop({
         messages,
+        openAITools,
         model,
         temperature,
         maxTokens,
-        openAITools,
-        true // 启用流式输出
-      );
-      
-      // 创建工具调用管理器
-      const toolManager = new ToolCallManager(this.providerName, onChunk);
-      
-      // 最大工具调用次数限制，防止无限循环
-      const MAX_TOOL_CALL_ROUNDS = 10;
-      
-      // 跟踪变量
-      let fullContent = '';
-      let fullReasoningContent = '';
-      let usage: UsageInfo | null = null;
-      let finishReasonResult: string | undefined | null = null;
-      
-      // 创建处理工具调用的函数
-      const processToolCalls = async (toolCalls: ToolCallInfo[]): Promise<boolean> => {
-        if (toolCalls.length === 0) return false;
-        
-        const round = toolManager.getCurrentRound();
-        Logger.info('OPENAI', `回合${round}: 处理 ${toolCalls.length} 个工具调用`);
-        
-        // 将大模型的回复添加到消息历史
-        messages.push({
-          role: "assistant",
-          tool_calls: toolCalls.map(t => ({
-            id: t.id,
-            function: {
-              name: t.codeName,
-              arguments: JSON.stringify(t.arguments)
-            },
-            type: "function"
-          }))
-        });
-        
-        // 并行执行所有工具调用，按原始顺序收集结果
-        const toolResultMessages = await Promise.all(toolCalls.map(async (toolCall) => {
-          const globalIndex = toolCall.meta?.globalIndex as number;
-
-          try {
-            // 验证参数是否满足要求
-            const validation = await this.verifyToolArguments(toolCall.name, toolCall.arguments);
-
-            if (!validation.isValid) {
-              const errorMessage = `参数验证失败: ${validation.message}`;
-              Logger.warn('OPENAI', errorMessage);
-              toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage);
-              return { tool_call_id: toolCall.id, content: errorMessage };
-            }
-
-            // executeApi：统一注入进度回调，服务端依赖 progressToken 决定是否切换为 SSE 流
-            // 快速 API 收到 progressToken 但不推送通知，零额外开销；慢 API 持续推送进度防超时
-            const isExecuteApi = toolCall.name === 'executeApi';
-            const toolResult = await mcpClient.callTool<any>(
-              toolCall.codeName,
-              toolCall.arguments,
-              {
-                signal,
-                ...(isExecuteApi ? {
-                  supportsProgress: true,
-                  onProgress: (progress, total, message, elapsed_ms) => {
-                    toolManager.setToolProgress(globalIndex, progress, total, message, elapsed_ms);
-                  }
-                } : {})
-              }
-            );
-
-            const resultText = this.formatToolResult(toolResult);
-            toolManager.setToolResult(globalIndex, resultText, false, undefined, usage);
-            return { tool_call_id: toolCall.id, content: resultText };
-
-          } catch (error) {
-            // AbortError 直接上抛，不当工具错误处理，让 chatStream 知道请求已取消
-            if (error instanceof Error && (error.name === 'AbortError' || error.name === 'APIUserAbortError')) {
-              throw error;
-            }
-            const errorMessage = `工具${toolCall.name}执行失败: ${error instanceof Error ? error.message : String(error)}`;
-            toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage);
-            return { tool_call_id: toolCall.id, content: errorMessage };
-          }
-        }));
-
-        // 按原始顺序写入消息历史（OpenAI 要求 tool 消息顺序与 assistant.tool_calls 一致）
-        for (const result of toolResultMessages) {
-          messages.push({
-            role: "tool",
-            content: result.content,
-            tool_call_id: result.tool_call_id
-          });
-        }
-        
-        // 发送下一轮请求，获取模型继续回复
-        try {
-          // 创建下一次请求参数 - 保留工具定义以支持后续工具调用
-          const nextRequestParams = this.createRequestParams(
-            messages as ChatCompletionMessageParam[],
-            model,
-            temperature,
-            maxTokens,
-            openAITools,
-            true // 启用流式输出
-          );
-          
-          // 发送请求
-          const nextStream = await this.client.chat.completions.create(nextRequestParams, { signal });
-          
-          // 使用通用函数处理流式响应
-          const result = await this.processModelResponse(
-            nextStream,
-            round,
-            toolManager,
-            fullContent,
-            fullReasoningContent,
-            usage,
-            finishReasonResult,
-            onChunk
-          );
-          
-          // 更新全局状态
-          fullContent = result.fullContent;
-          fullReasoningContent = result.fullReasoningContent;
-          usage = result.usage;
-          finishReasonResult = result.finishReasonResult;
-          
-          // 返回是否有新工具调用
-          return result.hasNewToolCalls && result.newToolCalls.length > 0;
-          
-        } catch (error) {
-          Logger.error('OPENAI', `[${this.providerName}] 回合${round}: 获取模型回复失败: ${error instanceof Error ? error.message : String(error)}`);
-          onChunk({ error: `获取模型回复失败: ${error instanceof Error ? error.message : String(error)}` }, false);
-        }
-        
-        return false;
-      };
-      
-      // 开始流式请求
-      const stream = await this.client.chat.completions.create(requestParams, { signal });
-      
-      // 使用通用函数处理初始流式响应
-      const initialResult = await this.processModelResponse(
-        stream,
-        0,
-        toolManager,
-        fullContent,
-        fullReasoningContent,
-        usage,
-        finishReasonResult,
-        onChunk
-      );
-      
-      // 更新状态
-      fullContent = initialResult.fullContent;
-      fullReasoningContent = initialResult.fullReasoningContent;
-      usage = initialResult.usage;
-      finishReasonResult = initialResult.finishReasonResult;
-      
-      // 处理工具调用循环
-      if (toolManager.hasValidToolCalls()) {
-        toolManager.setCurrentRound(1); // 设置为第1回合
-        
-        let initialToolCalls = toolManager.getToolCallsByRound(0);
-        let hasMore = await processToolCalls(initialToolCalls);
-        
-        // 循环处理工具调用，直到没有新的工具调用或达到最大次数限制
-        while (hasMore && toolManager.getCurrentRound() < MAX_TOOL_CALL_ROUNDS) {
-          // 增加回合数
-          toolManager.setCurrentRound(toolManager.getCurrentRound() + 1);
-          const round = toolManager.getCurrentRound();
-          
-          // 检查是否达到最大回合数
-          if (round >= MAX_TOOL_CALL_ROUNDS) {
-            Logger.warn('OPENAI', `已达到最大工具调用回合数 ${MAX_TOOL_CALL_ROUNDS}，停止后续调用`);
-            onChunk({ content: "\n\n[系统: 已达到最大工具调用次数限制，后续工具调用已被中断]" }, false);
-            // 设置达到最大回合数标志
-            toolManager.setReachedMaxRounds(true);
-            break;
-          }
-          
-          // 获取当前回合的工具调用
-          const roundToolCalls = toolManager.getToolCallsByRound(round - 1);
-          hasMore = await processToolCalls(roundToolCalls);
-        }
-        
-        // 确保工具全部结束
-        toolManager.finalizeAllToolCalls();
-      }
-      
-      onChunk({}, true); // 发送完成标志
-      
-      // 返回最终结果
-      return {
-        content: fullContent,
-        reasoning_content: fullReasoningContent,
-        tool_calls: toolManager.getAllToolCalls(),
-        model: model,
-        finish_reason: finishReasonResult || undefined,
-        usage: usage || {
-          promptTokens: 0,
-          completionTokens: 0,
-          totalTokens: 0
-        }
-      };
-    } catch (error: any) {
-      Logger.error('OPENAI', `[${this.providerName}] 流式聊天API调用失败:`, error);
-      throw new Error(`${this.providerName} API流式错误: ${error.message}`);
-    }
-  }
-}
-
-// 为每个提供商创建服务实例映射
-const providerServices: { [key: string]: OpenAI } = {};
-
-// 默认服务实例
-let openaiService: OpenAI | undefined;
-
-// 初始化标志
-let isInitialized = false;
-
-/**
- * 异步初始化所有AI提供商服务
- * 从数据库加载配置并创建服务实例
- */
-export async function initializeProviders(): Promise<void> {
-  try {
-    // 从数据库获取AI提供商配置
-    const config = await ConfigService.getAIProvidersConfig();
-    
-    // 处理没有提供商的情况
-    if (!config || !config.providers || config.providers.length === 0) {
-      Logger.info('OPENAI', '数据库中没有提供商配置，需要先添加提供商');
-      isInitialized = true; // 标记为已初始化，避免重复初始化
-      return; // 提前返回，不抛出异常
-    }
-    
-    // 创建所有服务提供商的实例
-    for (const provider of config.providers) {
-      providerServices[provider.name] = new OpenAI(provider);
-    }
-    
-    // 设置默认服务实例
-    const defaultProviderName = config.defaultProvider;
-    if (defaultProviderName && providerServices[defaultProviderName]) {
-      openaiService = providerServices[defaultProviderName];
-      Logger.info('OPENAI', `使用默认提供商实例: ${defaultProviderName}`);
-    } else if (config.providers.length > 0) {
-      // 如果没有找到默认提供商，使用第一个
-      openaiService = providerServices[config.providers[0].name];
-      Logger.info('OPENAI', `默认提供商未指定，使用第一个提供商: ${config.providers[0].name}`);
-    }
-    
-    isInitialized = true;
-    Logger.info('OPENAI', '所有AI提供商服务初始化完成');
-  } catch (error) {
-    Logger.error('OPENAI', '初始化AI提供商服务失败:', error);
-    // 设置初始化标志为true，防止反复重试导致的错误堆积
-    isInitialized = true;
-  }
-}
-
-/**
- * 获取提供商服务实例
- * 如果还未初始化，则先初始化
- * @param providerName 提供商名称
- * @returns 提供商服务实例的Promise
- * @throws Error 如果提供商不存在或初始化失败
- */
-export async function getProviderService(providerName?: string): Promise<OpenAI> {
-  if (!isInitialized) {
-    await initializeProviders();
-  }
-  
-  if (providerName && providerServices[providerName]) {
-    return providerServices[providerName];
-  }
-  
-  if (!openaiService) {
-    throw new Error('无法获取有效的AI提供商服务，请先添加至少一个提供商');
-  }
-  
-  return openaiService;
-}
-
-/**
- * 获取默认提供商服务实例
- * @returns 默认提供商服务实例的Promise
- * @throws Error 如果无法获取默认服务
- */
-export async function getDefaultService(): Promise<OpenAI> {
-  if (!isInitialized) {
-    await initializeProviders();
-  }
-  
-  if (!openaiService) {
-    throw new Error('无法获取默认AI提供商服务，请先添加至少一个提供商');
-  }
-  
-  return openaiService;
-}
-
-/**
- * 重新加载所有AI提供商配置
- * 在数据库配置变更后调用，无需重启服务器
- * @returns 提供商信息对象，包含所有提供商名称和默认提供商
- */
-export async function reloadProviders(): Promise<{providers: string[], default: string}> {
-  Logger.info('OPENAI', '开始重新加载AI提供商配置');
-  
-  try {
-    // 从数据库获取最新配置
-    const config = await ConfigService.getAIProvidersConfig();
-    
-    // 处理没有提供商的情况
-    if (!config || !config.providers || config.providers.length === 0) {
-      // 清空当前提供商服务
-      Object.keys(providerServices).forEach(key => {
-        delete providerServices[key];
+        maxToolCallRounds: ToolsConfig.maxToolCallRounds,
+        signal,
+        onChunk,
+        provider: this.getAgentLoopProvider()
       });
-      openaiService = undefined;
-      
-      return {
-        providers: [],
-        default: ''
-      };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error('OPENAI', `[${this.providerName}] 流式聊天API调用失败:`, error);
+      throw new Error(`${this.providerName} API流式错误: ${message}`);
     }
-    
-    // 清空当前提供商服务
-    Object.keys(providerServices).forEach(key => {
-      delete providerServices[key];
-    });
-    
-    // 重新创建提供商实例
-    for (const provider of config.providers) {
-      providerServices[provider.name] = new OpenAI(provider);
-    }
-    
-    // 更新默认服务实例（与 initializeProviders 一致：库里有 defaultProvider 才视为「已配置」）
-    const fromDb =
-      config.defaultProvider != null && String(config.defaultProvider).trim() !== ''
-        ? String(config.defaultProvider).trim()
-        : '';
-    const runtimeDefault =
-      fromDb || (config.providers.length > 0 ? config.providers[0].name : '');
-
-    if (runtimeDefault && providerServices[runtimeDefault]) {
-      openaiService = providerServices[runtimeDefault];
-      if (fromDb) {
-        Logger.info('OPENAI', `重新加载：默认提供商（来自数据库 Setting.defaultProvider）: ${runtimeDefault}`);
-      } else {
-        Logger.info(
-          'OPENAI',
-          `重新加载：数据库未写入 defaultProvider，进程内暂用第一个提供商: ${runtimeDefault}（保存配置时须把下拉选中项写入请求体 defaultProvider 才会落库）`
-        );
-      }
-    } else {
-      openaiService = undefined;
-    }
-    
-    return {
-      providers: Object.keys(providerServices),
-      default: runtimeDefault
-    };
-  } catch (error) {
-    Logger.error('OPENAI', '重新加载AI提供商配置失败:', error);
-    throw error;
   }
 }
-
-// 自动初始化提供商服务
-initializeProviders().catch(error => {
-  Logger.error('OPENAI', '自动初始化AI提供商服务失败:', error);
-});
-
-export { openaiService, providerServices }; 

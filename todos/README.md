@@ -31,7 +31,7 @@
 
 | 阶段 | 总数 | 已完成 | 进度 |
 |------|------|--------|------|
-| P0 | 12 | 0 | 0% |
+| P0 | 12 | 11 | 92% |
 | P1 | 14 | 0 | 0% |
 | P2 | 11 | 0 | 0% |
 | P3 | 10 | 0 | 0% |
@@ -41,12 +41,14 @@
 
 ## 当前阶段
 
-**P0 — 核心 Harness 加固**（尚未开始）
+**P0 — 核心 Harness 加固**（P0-01/02/03 已完成，待做：P0-04/05/06）
 
 ## 相关代码入口
 
 ```
-src/servers/openai.ts      # Agent Loop 主逻辑（chat / chatStream）
+src/core/agent-harness/  # Harness：agent-loop、tool-executor、message-normalizer、types
+src/servers/openai.ts      # Provider 层（chat / chatStream 入口）
+src/servers/openai-providers.ts  # 多提供商实例注册
 src/core/client.ts         # MCPClientManager 多服聚合
 src/core/server-connection.ts  # 单服连接、callTool、重连
 src/config/feature-config.ts # 特性开关（历史、工具、校验）

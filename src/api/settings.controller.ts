@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { Logger } from '../utils/logger.js';
 import { ProviderTypes } from '../config/app.config.js';
 // 导入提供商重载功能
-import { reloadProviders } from '../servers/openai.js';
+import { reloadProviders } from '../servers/openai-providers.js';
 import { ConfigService } from '../services/config.service.js';
 import { ToolsConfig } from '../config/feature-config.js';
 

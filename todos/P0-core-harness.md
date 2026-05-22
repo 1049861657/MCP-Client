@@ -24,21 +24,25 @@ src/core/agent-harness/
 
 ### 任务
 
-- [ ] **P0-01-01** 创建 `src/core/agent-harness/types.ts`，定义 `ILoopState`、`ITransitionReason`、`IRecoveryState` 骨架  
+- [x] **P0-01-01** 创建 `src/core/agent-harness/types.ts`，定义 `ILoopState`、`ITransitionReason`、`IRecoveryState` 骨架  
   - 涉及：`src/core/agent-harness/types.ts`（新建）  
-  - 验收：`turnCount`、`transitionReason: 'tool_result' | 'end' | null` 类型完整
+  - 验收：`turnCount`、`transitionReason: 'tool_result' | 'end' | null` 类型完整  
+  - 完成日期：2026-05-21
 
-- [ ] **P0-01-02** 从 `openai.ts` 抽出 `ToolCallManager` 相关逻辑到 `tool-executor.ts`  
+- [x] **P0-01-02** 从 `openai.ts` 抽出 `ToolCallManager` 相关逻辑到 `tool-executor.ts`  
   - 涉及：`src/servers/openai.ts`、`src/core/agent-harness/tool-executor.ts`  
-  - 验收：`chatStream` 行为不变，现有 SSE 事件格式兼容
+  - 验收：`chatStream` 行为不变，现有 SSE 事件格式兼容  
+  - 完成日期：2026-05-21
 
-- [ ] **P0-01-03** 实现 `agent-loop.ts`，`chatStream` 改调 Harness 入口  
+- [x] **P0-01-03** 实现 `agent-loop.ts`，`chatStream` 改调 Harness 入口  
   - 涉及：`src/servers/openai.ts`、`src/core/agent-harness/agent-loop.ts`  
-  - 验收：流式多轮工具调用回归通过；`MAX_TOOL_CALL_ROUNDS` 可配置化
+  - 验收：流式多轮工具调用回归通过；`MAX_TOOL_CALL_ROUNDS` 可配置化  
+  - 完成日期：2026-05-21
 
-- [ ] **P0-01-04** `openai.ts` 瘦身：仅保留 Provider 层（`createRequestParams`、`processModelResponse`、流式解析）  
+- [x] **P0-01-04** `openai.ts` 瘦身：仅保留 Provider 层（`createRequestParams`、`processModelResponse`、流式解析）  
   - 涉及：`src/servers/openai.ts`  
-  - 验收：文件行数降至 800 行以内；无循环业务逻辑残留
+  - 验收：文件行数降至 800 行以内；无循环业务逻辑残留  
+  - 完成日期：2026-05-21
 
 ---
 
@@ -50,18 +54,21 @@ src/core/agent-harness/
 
 ### 任务
 
-- [ ] **P0-02-01** 实现 `message-normalizer.ts`  
+- [x] **P0-02-01** 实现 `message-normalizer.ts`  
   - 功能：剥离 `_internal` / `_timestamp`；补齐缺失 tool_result（占位 `(cancelled)`）；合并连续同角色消息  
   - 涉及：`src/core/agent-harness/message-normalizer.ts`  
-  - 验收：单元测试覆盖三种约束；取消 mid-tool 后不 400
+  - 验收：单元测试覆盖三种约束；取消 mid-tool 后不 400  
+  - 完成日期：2026-05-21
 
-- [ ] **P0-02-02** 所有 LLM API 调用前统一 `normalizeMessages()`  
+- [x] **P0-02-02** 所有 LLM API 调用前统一 `normalizeMessages()`  
   - 涉及：`agent-loop.ts`、`openai.ts`  
-  - 验收：`grep normalizeMessages` 仅 Harness 一处出口
+  - 验收：`grep normalizeMessages` 仅 Harness 一处出口  
+  - 完成日期：2026-05-21
 
-- [ ] **P0-02-03** 定义内部消息扩展字段规范（文档注释即可）  
+- [x] **P0-02-03** 定义内部消息扩展字段规范（文档注释即可）  
   - 涉及：`types.ts`  
-  - 验收：`IMessageBlock._source?: 'user' | 'tool' | 'reminder' | 'compact'` 等
+  - 验收：`IMessageBlock._source?: 'user' | 'tool' | 'reminder' | 'compact'` 等  
+  - 完成日期：2026-05-21
 
 ---
 
@@ -73,22 +80,26 @@ src/core/agent-harness/
 
 ### 任务
 
-- [ ] **P0-03-01** 扩展前端会话模型，存储完整 turn 结构  
+- [x] **P0-03-01** 扩展前端会话模型，存储完整 turn 结构  
   - 字段：`role`、`content`、`tool_calls[]`、`tool_call_id`、`reasoning_content`  
-  - 涉及：`public/js/ai-data.js`、`public/js/ai-core.js`  
-  - 验收：刷新页面后工具调用卡片可完整回放
+  - 涉及：`public/js/ai-data.js`、`public/js/ai-core.js`、`public/js/ai-turn-collector.js`、`public/js/message-history-builder.js`  
+  - 验收：刷新页面后工具调用卡片可完整回放  
+  - 完成日期：2026-05-21
 
-- [ ] **P0-03-02** 请求体携带完整 `messages` 数组（含 tool 消息）  
+- [x] **P0-03-02** 请求体携带完整 `messages` 数组（含 tool 消息）  
   - 涉及：`public/js/ai-api.js`、`src/api/openai.controller.ts`  
-  - 验收：Network 面板可见 `tool` role 消息
+  - 验收：Network 面板可见 `tool` role 消息  
+  - 完成日期：2026-05-21
 
-- [ ] **P0-03-03** 将 `enableMessageHistory` 默认改为 `true`，条数默认 20（可配置）  
-  - 涉及：`src/config/feature-config.ts`、`settings` UI  
-  - 验收：新会话自动带上文；设置页可调整条数
+- [x] **P0-03-03** 将 `enableMessageHistory` 默认改为 `true`，条数默认 20（可配置）  
+  - 涉及：`src/config/feature-config.ts`、`public/ai.html`、`public/js/ai-ui.js`  
+  - 验收：新会话自动带上文；设置页可调整条数  
+  - 完成日期：2026-05-21
 
-- [ ] **P0-03-04** Harness 构建上下文时保留 reasoning（若模型支持）  
-  - 涉及：`agent-loop.ts`、`openai.ts`  
-  - 验收：DeepSeek reasoning 模型多轮 reasoning 不丢
+- [x] **P0-03-04** Harness 构建上下文时保留 reasoning（若模型支持）  
+  - 涉及：`agent-loop.ts`、`types.ts`（`reasoning_content` 扩展）；跨 turn 由前端 history 回传  
+  - 验收：DeepSeek reasoning 模型多轮 reasoning 不丢  
+  - 完成日期：2026-05-21
 
 ---
 

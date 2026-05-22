@@ -1392,7 +1392,12 @@ window.AIChatUI = {
         sessionMessages.innerHTML = '';
         
         messages.forEach(message => {
-            if (!message.role || (!message.content && !message.toolCalls?.length)) return;
+            if (message.role === 'tool') {
+                return;
+            }
+            if (!message.role || (!message.content && !message.toolCalls?.length && !message.tool_calls?.length)) {
+                return;
+            }
             
             const messageItem = document.createElement('div');
             messageItem.className = 'session-message';
@@ -1410,7 +1415,7 @@ window.AIChatUI = {
                     .join('');
                 extraHtml += `<div class="session-tool-calls">${badges}</div>`;
             }
-            if (!isUser && message.reasoning) {
+            if (!isUser && (message.reasoning_content || message.reasoning)) {
                 extraHtml += `<div class="session-reasoning-badge">思考过程已记录</div>`;
             }
             
@@ -1436,47 +1441,12 @@ window.AIChatUI = {
         
         loadButton.onclick = async () => {
             try {
-                const messages = await window.AIChatData.getSessionMessages(sessionId);
-                
-                if (!Array.isArray(messages)) {
-                    throw new Error('会话数据结构错误');
-                }
-                
-                if (messages.length === 0) {
-                    window.AIChatApp.state.sessionId = sessionId;
-                    window.AIChatApp.clearChat();
-                    window.AIChatApp.updateSessionDisplay();
-                    
-                    const modal = document.getElementById('history-modal');
-                    modal.style.display = 'none';
-                    
-                    this.showTooltip('已加载空会话');
-                    return;
-                }
-                
-                window.AIChatApp.clearChat();
-                window.AIChatApp.state.sessionId = sessionId;
-                window.AIChatApp.updateSessionDisplay();
-                
-                const displayMessages = messages.slice(-10);
-                displayMessages.forEach(msg => {
-                    if (msg.role === 'user') {
-                        this.addUserMessage(msg.content);
-                    } else if (msg.role === 'assistant') {
-                        const aiMessage = this.addAIMessage(msg.content);
-                        if (msg.reasoning) {
-                            window.AIChatRenderers.render('reasoning', msg.reasoning, aiMessage);
-                        }
-                        if (msg.toolCalls?.length > 0) {
-                            window.AIChatRenderers.render('tool-call-group', msg.toolCalls, aiMessage);
-                        }
-                        this.finalizeAIMessage(aiMessage, false);
-                    }
-                });
-                
+                // P0-03：复用 loadSession，同步 messageHistory（含 tool / reasoning）
+                await window.AIChatData.loadSession(sessionId);
+
                 const modal = document.getElementById('history-modal');
                 modal.style.display = 'none';
-                
+
                 this.showTooltip('已加载会话');
             } catch (error) {
                 this.showTooltip('加载会话失败: ' + error.message);
@@ -1613,8 +1583,8 @@ window.AIChatUI = {
         elements.enableMCPTools.checked = true;
         elements.enableParamValidation.checked = false;
         elements.enablePrompts.checked = true;
-        elements.enableMessageHistory.checked = false;
-        elements.messageHistoryCount.value = 3;
+        elements.enableMessageHistory.checked = true;
+        elements.messageHistoryCount.value = 20;
         
         this.saveSettings();
     },

@@ -21,8 +21,8 @@ window.AIChatApp = {
         enablePrompts: true, // 默认开启提示词
         messageHistory: [], // 存储消息历史
         mcpTools: [], // 存储可用的MCP工具
-        enableMessageHistory: false, // 是否启用历史消息
-        messageHistoryCount: 3, // 历史消息数量，默认为3
+        enableMessageHistory: true, // 是否启用历史消息（P0-03 默认开启）
+        messageHistoryCount: 20, // 历史消息条数，默认 20
         sessionId: '', // 当前会话的唯一标识符，每个供应商有自己的会话列表
         isEventsInitialized: false,
         isLoading: false, // 是否正在加载会话，防止快捷消息气泡冲突
@@ -281,7 +281,16 @@ window.AIChatApp = {
                 this.state.enableMessageHistory = e.target.checked;
             });
         }
-        
+        const { messageHistoryCount } = this.elements;
+        if (messageHistoryCount) {
+            messageHistoryCount.addEventListener('change', (e) => {
+                const parsed = parseInt(e.target.value, 10);
+                if (!Number.isNaN(parsed) && parsed > 0) {
+                    this.state.messageHistoryCount = parsed;
+                }
+            });
+        }
+
         // 提示词编辑按钮
         const editPromptsButton = document.getElementById('edit-prompts');
         if (editPromptsButton) {
