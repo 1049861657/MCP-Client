@@ -16,33 +16,82 @@
 
 ### 三层策略
 
-1. **大结果落盘**：超阈值写 `.agent-outputs/`，上下文只留 preview  
+1. **大结果落盘**：超阈值写 `.agent-outputs/`，上下文只留 preview（**待 P1-01-11**：缺 read 闭环）  
 2. **微压缩**：只保留最近 N 个完整 tool_result，旧的改占位  
 3. **摘要压缩**：整体历史超预算时 LLM 摘要，保留目标/文件/决定/下一步
 
 ### 任务
 
-- [ ] **P1-01-01** 新建 `src/core/agent-harness/context-budget.ts`  
+- [x] **P1-01-01** 新建 `src/core/agent-harness/context-budget.ts`  
   - 功能：`estimateTokenCount()`（可用字符/4 启发式或 tiktoken）  
   - 涉及：新建模块  
-  - 验收：每轮 LLM 调用前输出 budget 日志
+  - 验收：每轮 LLM 调用前输出 budget 日志  
+  - 完成日期：2026-05-22
 
-- [ ] **P1-01-02** 实现 `persistLargeOutput(toolUseId, output)` 落盘 + preview 标记  
+- [x] **P1-01-02** 实现 `persistLargeOutput(toolUseId, output)` 落盘 + preview 标记  
   - 阈值建议：8000 字符  
   - 涉及：`context-budget.ts`  
-  - 验收：大 SQL 结果不整段进 messages
+  - 验收：大 SQL 结果不整段进 messages  
+  - 完成日期：2026-05-22
 
-- [ ] **P1-01-03** 实现 `microCompact(messages, keepRecent=3)`  
+- [x] **P1-01-03** 实现 `microCompact(messages, keepRecent=3)`  
   - 涉及：`context-budget.ts`、`agent-loop.ts`  
-  - 验收：20 轮后 prompt token 明显低于无压缩
+  - 验收：20 轮后 prompt token 明显低于无压缩  
+  - 完成日期：2026-05-22
 
-- [ ] **P1-01-04** 实现 `compactHistory(messages)` 摘要压缩  
+- [x] **P1-01-04** 实现 `compactHistory(messages)` 摘要压缩  
   - 涉及：`context-budget.ts`；可复用 LLM Provider  
-  - 验收：摘要含「目标、已完成、修改文件、下一步」四要素
+  - 验收：摘要含「目标、已完成、修改文件、下一步」四要素  
+  - 完成日期：2026-05-22
 
-- [ ] **P1-01-05** 提供手动 `/compact` 或 API 触发入口  
-  - 涉及：`src/api/openai.controller.ts`、前端快捷指令  
-  - 验收：用户可主动压缩当前会话
+- [x] **P1-01-05** 提供手动压缩 API + 前端按钮触发  
+  - 涉及：`src/api/openai.controller.ts`、`routes.ts`、`public/ai.html`、`ai-api.js`  
+  - 验收：用户可点击「压缩会话」主动压缩当前会话  
+  - 完成日期：2026-05-22  
+  > 基线已实现；交互与性能问题由 P1-01-06～09 收口（慢、摘要刷进聊天气泡）
+
+### 上下文面板（追加，P1-01-05 体验改版）
+
+> **背景**：当前压缩约 1 分钟（全量 LLM 摘要 + 对话同款模型），且摘要通过 `addUserMessage` 打印到聊天区。目标：**先看清下次请求上下文，再在面板内可选压缩**；聊天 transcript 与 API payload 分离。
+
+- [x] **P1-01-06** 新增 `POST /api/chat/context-preview`  
+  - 功能：按 `messageHistoryCount` 构建将发送的 `messages`，返回条数分布、`estimateTokenCount`、可选逐条摘要（无 LLM）  
+  - 涉及：`openai.controller.ts`、`routes.ts`、`context-budget.ts`  
+  - 验收：打开面板即可毫秒级看到「下次请求」体量，不触发摘要  
+  - 完成日期：2026-05-22
+
+- [x] **P1-01-07** 前端「上下文」面板（替换工具栏一键压缩为入口）  
+  - 功能：侧栏/弹层展示 preview API 结果；可折叠查看 messages 结构  
+  - 涉及：`public/ai.html`、`ai-ui.js`、`ai-core.js`、`ai-api.js`、样式  
+  - 验收：点击入口先见上下文预览，不自动调用 `/chat/compact`  
+  - 完成日期：2026-05-22
+
+- [x] **P1-01-08** 压缩流程：面板内「生成摘要 → 预览 → 应用」  
+  - 功能：`displayHistory`（界面回放）与 `apiContext`（下次 POST）分离；应用后摘要不 `addUserMessage`，聊天区最多一条系统提示  
+  - 涉及：`ai-api.js`、`message-history-builder.js`、发送路径 `buildApiMessagesFromHistory`  
+  - 验收：压缩结果仅影响后续 API 上下文，不在聊天区出现大段 `[会话已压缩]` 用户气泡  
+  - 完成日期：2026-05-22
+
+- [x] **P1-01-09** 压缩性能与输入治理  
+  - 功能：`ContextConfig.summarizeModel`（与聊天模型分离）；compact 输入遵守 `messageHistoryCount`；送摘要前 tool 大段用 preview/截断  
+  - 涉及：`feature-config.ts`、`openai.ts`、`ai-api.js`  
+  - 验收：典型长会话手动压缩明显快于现网（目标：非 60s 级）；输入 token 与 preview 估算一致  
+  - 完成日期：2026-05-22
+
+- [x] **P1-01-10** 模型设置：启用自动压缩 + 压缩模型；摘要提示词可靠性  
+  - 功能：设置面板开关与 `compactModel`；请求体 `enableAutoCompact` / `compactModel`；摘要前剥离 `reasoning_content`、结构化 payload 与四段式提示词  
+  - 涉及：`feature-config.ts`、`context-budget.ts`、`openai.ts`、`openai.controller.ts`、`ai.html`、`ai-core.js`、`ai-ui.js`、`ai-api.js`  
+  - 验收：关闭自动压缩时不触发 LLM 摘要；手动/自动摘要使用所选压缩模型；摘要含四要素且少编造  
+  - 完成日期：2026-05-22
+
+- [ ] **P1-01-11** 大结果落盘可读闭环（或改为仅截断）  
+  - **背景**：`persistLargeOutput` 将超长 tool 结果写入 `ContextConfig.agentOutputsDir`（`.agent-outputs/`），上下文只留 preview；当前 Harness **无 read 工具**，模型无法按消息中的路径取回全文，落盘对 agent 仅省 token、不可恢复  
+  - **方案（二选一或组合）**：  
+    1. Harness 内置只读工具（如 `read_persisted_output`），路径限定在 `agentOutputsDir` 内，防穿越  
+    2. 接入 MCP filesystem（若环境已配置）并在摘要/系统提示中说明可用  
+    3. 暂不落盘：超长结果仅在 messages 内截断至 `persistPreviewChars`，去掉误导性「已保存至路径」文案  
+  - 涉及：`context-budget.ts`、`agent-loop.ts`、`tool-executor` 或 MCP 工具注册、`feature-config.ts`  
+  - 验收：agent 在需要时能读取已落盘全文，或明确不再写盘且行为与文案一致  
 
 ---
 

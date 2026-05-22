@@ -3,7 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { Logger } from '../utils/logger.js';
 import { openaiService, providerServices, reloadProviders } from '../servers/openai-providers.js';
 import { mcpClient } from '../core/client.js';
-import { resolveMaxToolCallRounds, ToolsConfig } from '../config/feature-config.js';
+import { InternalMessage } from '../core/agent-harness/types.js';
+import {
+  resolveEnableAutoCompact,
+  resolveMaxToolCallRounds,
+  ToolsConfig
+} from '../config/feature-config.js';
 import { ConfigService } from '../services/config.service.js';
 
 /**
@@ -51,11 +56,14 @@ export class OpenAIController {
         enableTools = ToolsConfig.enableMCPTools,  // 使用统一配置
         enableParamValidation = ToolsConfig.enableParamValidation,  // 使用统一配置
         enablePrompts = ToolsConfig.enablePrompts,  // 使用统一配置
-        maxToolCallRounds: maxToolCallRoundsBody
+        maxToolCallRounds: maxToolCallRoundsBody,
+        enableAutoCompact,
+        compactModel
       } = req.body;
 
       const maxToolCallRounds = resolveMaxToolCallRounds(maxToolCallRoundsBody);
       const requestId = randomUUID();
+      const autoCompact = resolveEnableAutoCompact(enableAutoCompact);
       
       // 验证消息
       if (!message && messages.length === 0) {
@@ -77,11 +85,11 @@ export class OpenAIController {
         // 使用提供的消息历史
         processedMessage = messages;
         const toolMessageCount = messages.filter((m: { role?: string }) => m.role === 'tool').length;
-        Logger.info('API', `收到聊天请求, requestId: ${requestId}, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}, 最大工具轮次: ${maxToolCallRounds}`);
+        Logger.info('API', `收到聊天请求, requestId: ${requestId}, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}, 最大工具轮次: ${maxToolCallRounds}, 自动压缩: ${autoCompact}`);
       } else {
         // 使用单条消息
         processedMessage = message;
-        Logger.info('API', `收到聊天请求, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
+        Logger.info('API', `收到聊天请求, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}, 自动压缩: ${autoCompact}`);
       }
       
       // 调用OpenAI服务
@@ -94,7 +102,9 @@ export class OpenAIController {
         enableParamValidation,  // 传递参数校验状态
         enablePrompts,  // 传递提示词状态
         maxToolCallRounds,
-        requestId
+        requestId,
+        autoCompact,
+        compactModel
       );
       
       // 返回响应
@@ -140,10 +150,13 @@ export class OpenAIController {
         enableTools = ToolsConfig.enableMCPTools,  // 使用统一配置
         enableParamValidation = ToolsConfig.enableParamValidation,  // 使用统一配置
         enablePrompts = ToolsConfig.enablePrompts,  // 使用统一配置
-        maxToolCallRounds: maxToolCallRoundsBody
+        maxToolCallRounds: maxToolCallRoundsBody,
+        enableAutoCompact,
+        compactModel
       } = req.body;
 
       const maxToolCallRounds = resolveMaxToolCallRounds(maxToolCallRoundsBody);
+      const autoCompact = resolveEnableAutoCompact(enableAutoCompact);
       
       // 验证消息
       if (!message && messages.length === 0) {
@@ -165,11 +178,11 @@ export class OpenAIController {
         // 使用提供的消息历史
         processedMessage = messages;
         const toolMessageCount = messages.filter((m: { role?: string }) => m.role === 'tool').length;
-        Logger.info('API', `收到流式聊天请求, requestId: ${requestId}, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}, 最大工具轮次: ${maxToolCallRounds}`);
+        Logger.info('API', `收到流式聊天请求, requestId: ${requestId}, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}, 最大工具轮次: ${maxToolCallRounds}, 自动压缩: ${autoCompact}`);
       } else {
         // 使用单条消息
         processedMessage = message;
-        Logger.info('API', `收到流式聊天请求, requestId: ${requestId}, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}`);
+        Logger.info('API', `收到流式聊天请求, requestId: ${requestId}, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}, 自动压缩: ${autoCompact}`);
       }
       
       // 记录开始时间
@@ -194,6 +207,14 @@ export class OpenAIController {
           if (done) {
             return;
           }
+          if (chunk.contextCompacted) {
+            const payload =
+              typeof chunk.summaryContent === 'string' && chunk.summaryContent.length > 0
+                ? { summaryContent: chunk.summaryContent }
+                : {};
+            res.write(`event: context_compacted\ndata: ${JSON.stringify(payload)}\n\n`);
+            return;
+          }
           res.write(`data: ${JSON.stringify({ ...chunk, requestId })}\n\n`);
         },
         model,
@@ -204,7 +225,9 @@ export class OpenAIController {
         enablePrompts,
         abortController.signal,
         maxToolCallRounds,
-        requestId
+        requestId,
+        autoCompact,
+        compactModel
       ).then(result => {
         if (res.writableEnded) return;
         // 计算总耗时
@@ -242,6 +265,102 @@ export class OpenAIController {
       res.write(`event: error\n`);
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.end();
+    }
+  }
+
+  /**
+   * 预览下次请求上下文体量（P1-01-06，无 LLM）
+   */
+  static async contextPreview(req: Request, res: Response): Promise<void> {
+    try {
+      const {
+        messages = [],
+        enableAutoCompact,
+        contextOverride = null
+      } = req.body as {
+        messages?: InternalMessage[];
+        enableAutoCompact?: boolean;
+        contextOverride?: InternalMessage[] | null;
+      };
+
+      if (!Array.isArray(messages)) {
+        res.status(400).json({ error: 'messages 必须为数组' });
+        return;
+      }
+
+      const service = OpenAIController.getServiceForVendor(
+        (req.body as { vendor?: string }).vendor
+      );
+      if (!service) {
+        res.status(500).json({ error: '无法获取 AI 服务' });
+        return;
+      }
+
+      const preview = service.previewMainModelContext(messages, {
+        enableAutoCompact: resolveEnableAutoCompact(enableAutoCompact),
+        contextOverride: Array.isArray(contextOverride) && contextOverride.length > 0
+          ? contextOverride
+          : null
+      });
+      res.json({ success: true, preview });
+    } catch (error: unknown) {
+      const errMessage = error instanceof Error ? error.message : String(error);
+      Logger.error('API', '上下文预览失败:', error);
+      res.status(500).json({ error: errMessage });
+    }
+  }
+
+  /**
+   * 手动压缩会话消息历史（P1-01-05）
+   */
+  static async compact(req: Request, res: Response): Promise<void> {
+    try {
+      const {
+        messages = [],
+        vendor,
+        compactModel
+      } = req.body as {
+        messages?: InternalMessage[];
+        vendor?: string;
+        compactModel?: string;
+      };
+
+      if (!Array.isArray(messages) || messages.length === 0) {
+        res.status(400).json({ error: '缺少 messages 参数或消息为空' });
+        return;
+      }
+
+      const service = OpenAIController.getServiceForVendor(vendor);
+      if (!service) {
+        res.status(500).json({ error: '无法获取 AI 服务' });
+        return;
+      }
+
+      const requestId = randomUUID();
+      const inputChars = messages.reduce((sum, m) => {
+        const c = m.content;
+        return sum + (typeof c === 'string' ? c.length : 0);
+      }, 0);
+      const wallStarted = Date.now();
+      Logger.info(
+        'API',
+        `收到压缩请求 requestId=${requestId} messages=${messages.length} inputChars=${inputChars} ` +
+          `vendor=${vendor || '默认'} compactModel=${compactModel ?? '(默认)'}`
+      );
+
+      const compacted = await service.compactMessages(messages, compactModel);
+      const elapsedMs = Date.now() - wallStarted;
+      Logger.info('API', `压缩完成 requestId=${requestId} elapsedMs=${elapsedMs}`);
+      res.json({
+        success: true,
+        requestId,
+        elapsedMs,
+        messages: compacted
+      });
+    } catch (error: unknown) {
+      const errMessage = error instanceof Error ? error.message : String(error);
+      Logger.error('API', '压缩会话失败:', error);
+      res.status(500).json({ error: errMessage });
     }
   }
 

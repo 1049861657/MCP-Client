@@ -28,7 +28,20 @@ window.AIChatApp = {
         isEventsInitialized: false,
         isLoading: false, // 是否正在加载会话，防止快捷消息气泡冲突
         enabledServerIds: [], // 存储启用的MCP服务器ID列表
-        mcpServers: [] // 存储MCP服务器列表
+        mcpServers: [], // 存储MCP服务器列表
+        /** 覆盖下次 API 的 messages（与界面 messageHistory 分离，P1-01-08） */
+        apiContextOverride: null,
+        contextCompactedActive: false,
+        /**
+         * 压缩消费后的 API 基线：摘要锚点 + 尾部 history 起始下标（对齐 Claude boundary + suffix）
+         */
+        compactedBaseline: null,
+        /** 面板内待应用的摘要草稿 */
+        compactDraft: null,
+        /** 是否在 agent-loop 中启用 LLM 自动摘要（P1-01-10） */
+        enableAutoCompact: false,
+        /** 摘要专用模型 */
+        compactModel: ''
     },
     
     // 数据库引用
@@ -71,11 +84,14 @@ window.AIChatApp = {
             chatMessages: document.getElementById('chat-messages'),
             provider: document.getElementById('provider'),
             model: document.getElementById('model'),
+            enableAutoCompact: document.getElementById('enable-auto-compact'),
+            compactModel: document.getElementById('compact-model'),
             temperature: document.getElementById('temperature'),
             maxTokens: document.getElementById('max-tokens'),
             modeStream: document.getElementById('mode-stream'),
             modeRegular: document.getElementById('mode-regular'),
             clearChat: document.getElementById('clear-chat'),
+            compactChat: document.getElementById('compact-chat'),
             tooltip: document.getElementById('tooltip'),
             result: document.getElementById('result'),
             responseContent: document.getElementById('response-content'),
@@ -188,10 +204,15 @@ window.AIChatApp = {
         }
         
         // 清除和复制按钮
-        const { clearChat } = this.elements;
+        const { clearChat, compactChat } = this.elements;
         if (clearChat) {
             clearChat.addEventListener('click', () => this.clearChat());
         }
+        if (compactChat) {
+            compactChat.addEventListener('click', () => this.handleOpenContextPanel());
+        }
+
+        this._bindContextPanelEvents();
         
         // 发送按钮和回车发送
         const { sendButton, stopButton, message } = this.elements;
@@ -215,7 +236,9 @@ window.AIChatApp = {
         // 切换供应商时更新模型列表
         const { provider } = this.elements;
         if (provider) {
-            provider.addEventListener('change', () => this.updateModelOptions());
+            provider.addEventListener('change', () => {
+                this.updateModelOptions();
+            });
         }
         
         // 历史记录按钮
@@ -440,6 +463,15 @@ window.AIChatApp = {
                         messageHistoryCount: this.state.messageHistoryCount
                     });
                 }
+
+                if (data.config.context) {
+                    if (typeof data.config.context.enableAutoCompact === 'boolean') {
+                        this.state.enableAutoCompact = data.config.context.enableAutoCompact;
+                        if (this.elements.enableAutoCompact) {
+                            this.elements.enableAutoCompact.checked = this.state.enableAutoCompact;
+                        }
+                    }
+                }
             }
         } catch (error) {
             console.error('加载特性配置失败:', error);
@@ -590,6 +622,41 @@ window.AIChatApp = {
             option.textContent = model.label;
             this.elements.model.appendChild(option);
         });
+
+        this.updateCompactModelOptions();
+    },
+
+    updateCompactModelOptions() {
+        if (!this.state.isConfigLoaded || !this.elements.compactModel) {
+            return;
+        }
+        if (!this.elements.provider) {
+            return;
+        }
+
+        const provider = this.elements.provider.value;
+        if (!this.state.providers[provider]) {
+            return;
+        }
+
+        const models = this.state.providers[provider].models;
+        const prev = this.elements.compactModel.value || this.state.compactModel;
+
+        this.elements.compactModel.innerHTML = '';
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.value;
+            option.textContent = model.label;
+            this.elements.compactModel.appendChild(option);
+        });
+
+        if (prev && this.elements.compactModel.querySelector(`option[value="${prev}"]`)) {
+            this.elements.compactModel.value = prev;
+        } else if (models.length > 0) {
+            this.elements.compactModel.value = models[0].value;
+        }
+
+        this.state.compactModel = this.elements.compactModel.value;
     },
     
     // 设置聊天模式（流式/常规）
@@ -776,6 +843,50 @@ window.AIChatApp = {
         }
     },
     
+    _bindContextPanelEvents() {
+        const modal = document.getElementById('context-modal');
+        if (!modal || modal.dataset.bound === '1') {
+            return;
+        }
+        modal.dataset.bound = '1';
+
+        const close = () => { modal.style.display = 'none'; };
+        modal.querySelectorAll('.context-modal-close').forEach(el => {
+            el.addEventListener('click', close);
+        });
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                close();
+            }
+        });
+
+        const genBtn = document.getElementById('context-generate-summary');
+        const applyBtn = document.getElementById('context-apply-summary');
+        const clearBtn = document.getElementById('context-clear-override');
+
+        if (genBtn) {
+            genBtn.addEventListener('click', () => this.API?.generateCompactDraft?.());
+        }
+        if (applyBtn) {
+            applyBtn.addEventListener('click', () => this.API?.applyCompactOverride?.());
+        }
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.API?.clearContextOverride?.());
+        }
+    },
+
+    async handleOpenContextPanel() {
+        if (!this.API?.openContextPanel) {
+            this.UI.showTooltip('上下文面板未就绪');
+            return;
+        }
+        if (this.state.isStreaming) {
+            this.UI.showTooltip('请等待当前回复完成');
+            return;
+        }
+        await this.API.openContextPanel();
+    },
+
     // 清除对话
     clearChat() {
         if (!this.elements.chatMessages) {

@@ -52,6 +52,95 @@ export const ChatConfig = {
 };
 
 /**
+ * 上下文压缩与 budget（P1-01）
+ */
+export const ContextConfig = {
+  /** 拉丁/英文等：约 4 字符 / token */
+  charsPerTokenLatin: 4,
+
+  /** 中文（CJK）等：1 字符 / token（混排时按字种加权，保守不低估） */
+  charsPerTokenCjk: 1,
+
+  /** 超过此字符数的 tool 输出落盘 */
+  persistThresholdChars: 8000,
+
+  /** 落盘后在消息中保留的 preview 字符数 */
+  persistPreviewChars: 2000,
+
+  /** 大结果落盘目录（相对项目根） */
+  agentOutputsDir: '.agent-outputs',
+
+  /** microCompact 保留的最近 tool 消息条数 */
+  microCompactKeepRecent: 3,
+
+  /** 是否在 agent-loop 中启用 LLM 自动摘要（可由前端设置覆盖） */
+  enableAutoCompact: false,
+
+  /** 估算 token 超此值触发 compactHistory */
+  compactThresholdTokens: 32_000,
+
+  /** 摘要 LLM 调用 max_tokens */
+  summarizeMaxTokens: 4096,
+
+  /** 送入摘要模型的对话 JSON 上限（字符） */
+  summarizeInputMaxChars: 40_000,
+
+  /** 摘要专用模型（空字符串则使用请求中的聊天 model） */
+  summarizeModel: '',
+
+  /** 送摘要前单条 tool/assistant 文本截断上限（字符） */
+  summarizeToolContentMaxChars: 3000,
+
+  /** 再压缩时「已有上下文摘要」段落保留上限（字符） */
+  summarizePriorSummaryMaxChars: 20_000,
+
+  /** 短会话摘要 max_tokens（prompt+对话很短时用，降低生成耗时） */
+  summarizeMaxTokensShort: 800,
+
+  /** 判定为短会话的序列化 prompt 字符上限 */
+  summarizeShortPromptChars: 6000
+};
+
+/**
+ * 按摘要 prompt 体量选择 max_tokens，避免短对话也拉满 4096 拖慢
+ */
+export function resolveSummarizeMaxTokens(serializedPromptChars: number): number {
+  if (serializedPromptChars <= ContextConfig.summarizeShortPromptChars) {
+    return ContextConfig.summarizeMaxTokensShort;
+  }
+  if (serializedPromptChars <= 20_000) {
+    return 2000;
+  }
+  return ContextConfig.summarizeMaxTokens;
+}
+
+/**
+ * 解析请求中的 enableAutoCompact
+ */
+export function resolveEnableAutoCompact(requestValue: unknown): boolean {
+  if (typeof requestValue === 'boolean') {
+    return requestValue;
+  }
+  return ContextConfig.enableAutoCompact;
+}
+
+/**
+ * 解析压缩用模型：请求 compactModel > 服务端 summarizeModel > 供应商默认模型
+ */
+export function resolveCompactModel(
+  requestCompactModel: unknown,
+  providerDefaultModel: string
+): string {
+  if (typeof requestCompactModel === 'string' && requestCompactModel.trim().length > 0) {
+    return requestCompactModel.trim();
+  }
+  if (ContextConfig.summarizeModel.trim().length > 0) {
+    return ContextConfig.summarizeModel.trim();
+  }
+  return providerDefaultModel;
+}
+
+/**
  * 历史记录相关配置
  */
 export const HistoryConfig = {
@@ -97,6 +186,7 @@ export const LogConfig = {
 export const FeatureConfig = {
   tools: ToolsConfig,
   chat: ChatConfig,
+  context: ContextConfig,
   history: HistoryConfig,
   log: LogConfig
 };

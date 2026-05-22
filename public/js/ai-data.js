@@ -519,6 +519,8 @@ window.AIChatData = {
         
         // 更新应用状态
         this.app.state.sessionId = sessionId;
+
+        window.AIChatAPI?.resetContextCompressionState?.();
         
         // 清空消息历史
         this.app.state.messageHistory = [];
@@ -557,6 +559,8 @@ window.AIChatData = {
             }
             
             console.log(`正在加载会话 ${sessionId}`);
+
+            window.AIChatAPI?.resetContextCompressionState?.();
             
             // 获取会话的消息
             this.getSessionMessages(sessionId)
@@ -635,7 +639,11 @@ window.AIChatData = {
                         toolCalls: msg.toolCalls,
                         _toolResultsExpanded: msg._toolResultsExpanded
                     }));
-                    
+
+                    if (window.AIChatAPI?.loadCompactedBaselineFromStorage) {
+                        window.AIChatAPI.loadCompactedBaselineFromStorage(this.app);
+                    }
+
                     // 重建聊天界面
                     if (this.app.UI) {
                         let previousUserMessage = null;

@@ -55,6 +55,11 @@
                                 <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
                             </svg>
                         </button>
+                        <button id="compact-chat" class="control-button compact-button" title="查看下次请求上下文">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                            </svg>
+                        </button>
                         <button id="clear-chat" class="control-button clear-button" title="清除对话">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -116,6 +121,40 @@
         <div id="tooltip" class="tooltip"></div>
     </div>
     
+    <!-- 下次请求上下文面板（P1-01-06～08） -->
+    <div id="context-modal" class="modal">
+        <div class="modal-content context-modal-content">
+            <div class="modal-header">
+                <h2>下次请求上下文</h2>
+                <span class="close context-modal-close">&times;</span>
+            </div>
+            <div class="modal-body context-modal-body">
+                <div id="context-status" class="context-status context-status-loading">加载中…</div>
+                <div id="context-metrics" class="context-metrics hidden"></div>
+                <details id="context-details" class="context-details" open>
+                    <summary>消息预览</summary>
+                    <div id="context-messages-list" class="context-messages-list"></div>
+                </details>
+                <section class="context-compact-section">
+                    <div class="context-compact-header">
+                        <h3>摘要压缩</h3>
+                        <span id="context-compact-badge" class="context-compact-badge hidden"></span>
+                    </div>
+                    <p id="context-compact-hint" class="context-compact-hint"></p>
+                    <div class="context-compact-actions">
+                        <button type="button" id="context-generate-summary" class="action-button">生成摘要</button>
+                        <button type="button" id="context-apply-summary" class="action-button action-button-primary" disabled>应用到下次请求</button>
+                        <button type="button" id="context-clear-override" class="action-button secondary">清除覆盖</button>
+                    </div>
+                    <div id="context-compact-draft-wrap" class="context-compact-draft-wrap hidden" hidden>
+                        <div id="context-draft-label" class="context-draft-label"></div>
+                        <pre id="context-compact-draft" class="context-compact-draft"></pre>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
     <!-- 历史记录模态窗口 -->
     <div id="history-modal" class="modal">
         <div class="modal-content">
@@ -182,6 +221,26 @@
                                 </select>
                             </div>
                             <div class="settings-description">选择用于生成回复的AI模型</div>
+                        </div>
+                        <div class="settings-item">
+                            <label for="enable-auto-compact">自动压缩:</label>
+                            <div class="toggle-container">
+                                <label class="toggle">
+                                    <input type="checkbox" id="enable-auto-compact">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span class="toggle-label">启用自动摘要压缩</span>
+                            </div>
+                            <div class="settings-description">上下文估算 token 超阈值时，在发送前自动 LLM 摘要（微压缩仍会执行）</div>
+                        </div>
+                        <div class="settings-item">
+                            <label for="compact-model">压缩模型:</label>
+                            <div class="select-wrapper">
+                                <select id="compact-model" class="settings-select">
+                                    <!-- 与模型列表同步 -->
+                                </select>
+                            </div>
+                            <div class="settings-description">用于自动/手动摘要的模型，可选用更小更快的模型</div>
                         </div>
                     </div>
                     

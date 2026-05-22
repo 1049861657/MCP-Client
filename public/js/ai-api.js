@@ -20,6 +20,133 @@ window.AIChatAPI = {
     _userAborted: false,
     // 当前 SSE 请求的后端 requestId（begin 事件赋值）
     _requestId: null,
+    /** 本轮发送若需消费压缩：记录触发本条 user 在 messageHistory 中的下标 */
+    _compactConsumeMarker: null,
+    /** 本轮 SSE 自动压缩返回的摘要正文 */
+    _autoCompactSummaryFromStream: null,
+
+    _compactBaselineStorageKey(sessionId) {
+        return `aiCompactBaseline:${sessionId || ''}`;
+    },
+
+    saveCompactedBaselineToStorage(app) {
+        if (!app?.state?.sessionId) {
+            return;
+        }
+        const key = this._compactBaselineStorageKey(app.state.sessionId);
+        if (app.state.compactedBaseline) {
+            localStorage.setItem(key, JSON.stringify(app.state.compactedBaseline));
+        } else {
+            localStorage.removeItem(key);
+        }
+    },
+
+    loadCompactedBaselineFromStorage(app) {
+        if (!app?.state?.sessionId) {
+            return;
+        }
+        try {
+            const raw = localStorage.getItem(this._compactBaselineStorageKey(app.state.sessionId));
+            app.state.compactedBaseline = raw ? JSON.parse(raw) : null;
+        } catch {
+            app.state.compactedBaseline = null;
+        }
+    },
+
+    /**
+     * 构建 API 上下文：override（一次性）> compactedBaseline（摘要+尾部）> 完整 history
+     */
+    buildApiContextMessages(app, newUserContent) {
+        let messages = [];
+
+        if (app.state.apiContextOverride?.length) {
+            messages = app.state.apiContextOverride.map(m => ({ ...m }));
+        } else if (app.state.compactedBaseline) {
+            const { summaryContent, historyStartIndex } = app.state.compactedBaseline;
+            const tail = app.state.messageHistory.slice(historyStartIndex);
+            const tailApi = window.AIChatMessageHistoryBuilder.buildApiMessagesFromHistory(
+                tail,
+                Math.max(tail.length, app.state.messageHistoryCount || tail.length)
+            );
+            messages = [{ role: 'user', content: summaryContent }, ...tailApi];
+        } else if (app.state.enableMessageHistory && app.state.messageHistory.length > 0) {
+            messages = window.AIChatMessageHistoryBuilder.buildApiMessagesFromHistory(
+                app.state.messageHistory,
+                app.state.messageHistoryCount
+            );
+        }
+
+        if (newUserContent) {
+            messages.push({ role: 'user', content: newUserContent });
+        }
+        return messages;
+    },
+
+    beginCompactConsumeTracking(app) {
+        const hadOverride = !!app.state.apiContextOverride?.length;
+        const overrideContent = hadOverride && app.state.apiContextOverride[0]?.content;
+        this._compactConsumeMarker = {
+            userMessageIndex: app.state.messageHistory.length,
+            hadOverride,
+            summaryContent: typeof overrideContent === 'string' ? overrideContent : null
+        };
+        this._autoCompactSummaryFromStream = null;
+    },
+
+    /**
+     * 发送成功后固化压缩基线（摘要锚点 + 保留尾部），并清除一次性压缩态
+     */
+    consumeContextCompression(app) {
+        const UI = window.AIChatUI;
+        const marker = this._compactConsumeMarker;
+        const autoSummary = this._autoCompactSummaryFromStream;
+
+        let summaryContent = null;
+        let historyStartIndex = null;
+
+        if (marker?.hadOverride && marker.summaryContent) {
+            summaryContent = marker.summaryContent;
+            historyStartIndex = marker.userMessageIndex;
+        } else if (typeof autoSummary === 'string' && autoSummary.trim() && marker) {
+            summaryContent = autoSummary;
+            historyStartIndex = marker.userMessageIndex;
+        }
+
+        this._compactConsumeMarker = null;
+        this._autoCompactSummaryFromStream = null;
+
+        if (!summaryContent || historyStartIndex === null || historyStartIndex < 0) {
+            return;
+        }
+
+        app.state.compactedBaseline = { summaryContent, historyStartIndex };
+        app.state.apiContextOverride = null;
+        app.state.compactDraft = null;
+        app.state.contextCompactedActive = false;
+
+        const notice = app.elements?.chatMessages?.querySelector('.chat-context-notice');
+        if (notice) {
+            notice.remove();
+        }
+        if (UI?.updateContextCompactControls) {
+            UI.updateContextCompactControls(false);
+        }
+        if (UI?.syncContextDraftPreview) {
+            UI.syncContextDraftPreview();
+        }
+
+        this.saveCompactedBaselineToStorage(app);
+    },
+
+    shouldConsumeAfterSuccessfulSend() {
+        if (this._userAborted) {
+            return false;
+        }
+        if (this._compactConsumeMarker?.hadOverride && this._compactConsumeMarker.summaryContent) {
+            return true;
+        }
+        return !!(this._autoCompactSummaryFromStream && this._compactConsumeMarker);
+    },
 
     /**
      * 取消当前流式请求
@@ -270,25 +397,24 @@ window.AIChatAPI = {
                 enableTools,
                 enableParamValidation,
                 enablePrompts,
-                maxToolCallRounds: app.state.maxToolCallRounds
+                maxToolCallRounds: app.state.maxToolCallRounds,
+                enableAutoCompact: app.state.enableAutoCompact,
+                compactModel: app.state.compactModel || app.elements.compactModel?.value
             };
             
-            // P0-03：携带完整 messages（含 tool_calls / tool / reasoning_content）
-            if (app.state.enableMessageHistory && app.state.messageHistory.length > 0) {
-                const messages = window.AIChatMessageHistoryBuilder.buildApiMessagesFromHistory(
-                    app.state.messageHistory,
-                    app.state.messageHistoryCount
-                );
-                messages.push({ role: 'user', content: message });
-                requestBody.messages = messages;
+            this.beginCompactConsumeTracking(app);
+
+            const outgoing = this.buildOutgoingMessages(app, message);
+            if (outgoing.length > 0) {
+                requestBody.messages = outgoing;
             }
-            
+
             // 添加用户消息到历史记录（必须在响应处理前添加，这样AI回复才能紧跟用户消息）
             app.state.messageHistory.push({
                 role: 'user',
                 content: message
             });
-            
+
             // 发送请求
             const response = await fetch(`/api/chat/stream`, {
                 method: 'POST',
@@ -362,17 +488,14 @@ window.AIChatAPI = {
                 enableTools,
                 enableParamValidation,
                 enablePrompts,
-                maxToolCallRounds: app.state.maxToolCallRounds
+                maxToolCallRounds: app.state.maxToolCallRounds,
+                enableAutoCompact: app.state.enableAutoCompact,
+                compactModel: app.state.compactModel || app.elements.compactModel?.value
             };
             
-            // P0-03：携带完整 messages（含 tool_calls / tool / reasoning_content）
-            if (app.state.enableMessageHistory && app.state.messageHistory.length > 0) {
-                const messages = window.AIChatMessageHistoryBuilder.buildApiMessagesFromHistory(
-                    app.state.messageHistory,
-                    app.state.messageHistoryCount
-                );
-                messages.push({ role: 'user', content: message });
-                requestBody.messages = messages;
+            const outgoing = this.buildOutgoingMessages(app, message);
+            if (outgoing.length > 0) {
+                requestBody.messages = outgoing;
             }
             
             // 发送请求
@@ -583,12 +706,17 @@ window.AIChatAPI = {
                 if (last?.role === 'user') {
                     app.state.messageHistory.pop();
                 }
+                this._compactConsumeMarker = null;
+                this._autoCompactSummaryFromStream = null;
             } else if (fullText) {
                 // 正常完成且有内容：保存完整 turn（assistant + tool + reasoning）
                 const turnEntries = this._turnCollector?.toHistoryEntries(fullText)
                     ?? [{ role: 'assistant', content: fullText }];
                 for (const entry of turnEntries) {
                     app.state.messageHistory.push(entry);
+                }
+                if (this.shouldConsumeAfterSuccessfulSend()) {
+                    this.consumeContextCompression(app);
                 }
                 window.AIChatData.saveMessageHistory();
             }
@@ -618,6 +746,20 @@ window.AIChatAPI = {
                 }
             }
             window.parent.postMessage({ type: 'ai_tool_call_begin', requestId: this._requestId }, '*');
+        }
+        else if (eventName === 'context_compacted') {
+            if (eventData) {
+                try {
+                    const compactData = JSON.parse(eventData);
+                    if (typeof compactData.summaryContent === 'string' && compactData.summaryContent.length > 0) {
+                        this._autoCompactSummaryFromStream = compactData.summaryContent;
+                    }
+                } catch (e) {
+                    console.warn('解析 context_compacted 失败:', e);
+                }
+            }
+            UI.addContextNotice();
+            return fullText;
         }
         else if (eventName === 'usage' && eventData) {
             try {
@@ -763,6 +905,226 @@ window.AIChatAPI = {
         } catch (error) {
             console.error('保存启用的MCP服务器列表失败:', error);
             throw error;
+        }
+    },
+
+    /**
+     * 构建下次 API 将发送的 messages（P1-01-08）
+     */
+    buildOutgoingMessages(app, newUserContent) {
+        return this.buildApiContextMessages(app, newUserContent);
+    },
+
+    buildBaseContextMessages(app) {
+        return this.buildApiContextMessages(app, null);
+    },
+
+    async refreshContextPanelPreview(options = {}) {
+        const app = window.AIChatApp;
+        const UI = window.AIChatUI;
+        const { showLoading = true, loadingText = '正在刷新…' } = options;
+
+        const messages = this.buildBaseContextMessages(app);
+        if (messages.length === 0) {
+            return;
+        }
+
+        if (showLoading) {
+            const statusEl = document.getElementById('context-status');
+            const metricsEl = document.getElementById('context-metrics');
+            if (statusEl) {
+                statusEl.className = 'context-status context-status-loading';
+                statusEl.textContent = loadingText;
+                statusEl.classList.remove('hidden');
+            }
+            if (metricsEl) {
+                metricsEl.classList.add('hidden');
+            }
+        }
+
+        try {
+            const vendor = app.elements.provider.value;
+            const response = await fetch('/api/chat/context-preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages,
+                    vendor,
+                    enableAutoCompact: app.state.enableAutoCompact,
+                    contextOverride: app.state.apiContextOverride?.length
+                        ? app.state.apiContextOverride
+                        : null
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP ${response.status}`);
+            }
+
+            app.state._lastContextPreview = data.preview;
+            UI.renderContextPreview(data.preview, {
+                hasOverride: !!app.state.apiContextOverride?.length,
+                hasDraft: !!app.state.compactDraft
+            });
+            if (UI.syncContextDraftPreview) {
+                UI.syncContextDraftPreview();
+            }
+        } catch (error) {
+            console.error('上下文预览失败:', error);
+            UI.showTooltip(`预览失败: ${error.message || '未知错误'}`);
+        }
+    },
+
+    async openContextPanel() {
+        const app = window.AIChatApp;
+        const UI = window.AIChatUI;
+
+        if (!app.state.isConfigLoaded) {
+            UI.showTooltip('配置尚未加载完成');
+            return;
+        }
+
+        const messages = this.buildBaseContextMessages(app);
+        if (messages.length === 0) {
+            UI.showTooltip('当前没有可预览的历史消息');
+            return;
+        }
+
+        UI.showContextModal();
+        await this.refreshContextPanelPreview({
+            showLoading: true,
+            loadingText: '正在计算下次请求的上下文…'
+        });
+    },
+
+    async generateCompactDraft() {
+        const app = window.AIChatApp;
+        const UI = window.AIChatUI;
+        const genBtn = document.getElementById('context-generate-summary');
+
+        const messages = this.buildBaseContextMessages(app);
+        if (messages.length === 0) {
+            UI.showTooltip('没有可压缩的消息');
+            return;
+        }
+
+        const vendor = app.elements.provider.value;
+        const compactModel = app.state.compactModel || app.elements.compactModel?.value;
+        if (!compactModel) {
+            UI.showTooltip('请先在设置中选择压缩模型');
+            return;
+        }
+
+        if (genBtn) {
+            genBtn.disabled = true;
+        }
+        UI.showTooltip('正在生成摘要，请稍候…');
+
+        try {
+            const response = await fetch('/api/chat/compact', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages, vendor, compactModel })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP ${response.status}`);
+            }
+
+            const summaryMsg = data.messages?.[0];
+            const content = typeof summaryMsg?.content === 'string' ? summaryMsg.content : '';
+            if (!content) {
+                throw new Error('摘要为空');
+            }
+
+            app.state.compactDraft = summaryMsg;
+            UI.setCompactDraft(content);
+            const sec = typeof data.elapsedMs === 'number' ? `（${(data.elapsedMs / 1000).toFixed(1)}s）` : '';
+            UI.showTooltip(`摘要已生成${sec}，请确认后点击「应用到下次请求」`);
+        } catch (error) {
+            console.error('生成摘要失败:', error);
+            UI.showTooltip(`生成失败: ${error.message || '未知错误'}`);
+        } finally {
+            if (genBtn) {
+                const compacted = !!(
+                    app.state.apiContextOverride?.length ||
+                    app.state.contextCompactedActive
+                );
+                genBtn.disabled = compacted;
+            }
+        }
+    },
+
+    async applyCompactOverride() {
+        const app = window.AIChatApp;
+        const UI = window.AIChatUI;
+
+        if (!app.state.compactDraft) {
+            UI.showTooltip('请先生成摘要');
+            return;
+        }
+
+        app.state.compactedBaseline = null;
+        this.saveCompactedBaselineToStorage(app);
+        app.state.apiContextOverride = [app.state.compactDraft];
+        UI.addContextNotice();
+
+        const applyBtn = document.getElementById('context-apply-summary');
+        if (applyBtn) {
+            applyBtn.disabled = true;
+        }
+
+        await this.refreshContextPanelPreview({ showLoading: true });
+        UI.showTooltip(UI.CONTEXT_COMPACTED_LABEL);
+    },
+
+    /**
+     * 清除摘要覆盖（绑定当前会话；切换会话 / 新建会话时必须调用）
+     */
+    resetContextCompressionState(options = {}) {
+        const app = window.AIChatApp;
+        const UI = window.AIChatUI;
+        const { showTooltip = false, clearBaseline = true } = options;
+
+        app.state.apiContextOverride = null;
+        app.state.compactDraft = null;
+        app.state._lastContextPreview = null;
+        app.state.contextCompactedActive = false;
+        this._compactConsumeMarker = null;
+        this._autoCompactSummaryFromStream = null;
+
+        if (clearBaseline) {
+            app.state.compactedBaseline = null;
+            this.saveCompactedBaselineToStorage(app);
+        }
+
+        if (UI?.updateContextCompactControls) {
+            UI.updateContextCompactControls(false);
+        }
+        if (UI?.syncContextDraftPreview) {
+            UI.syncContextDraftPreview();
+        } else if (UI?.setCompactDraft) {
+            UI.setCompactDraft('');
+        }
+        const notice = app.elements?.chatMessages?.querySelector('.chat-context-notice');
+        if (notice) {
+            notice.remove();
+        }
+
+        if (showTooltip) {
+            UI.showTooltip('已清除上下文覆盖');
+        }
+    },
+
+    async clearContextOverride() {
+        const app = window.AIChatApp;
+        const UI = window.AIChatUI;
+
+        this.resetContextCompressionState({ showTooltip: true });
+
+        const modal = document.getElementById('context-modal');
+        if (modal && modal.style.display === 'block') {
+            await this.refreshContextPanelPreview({ showLoading: true });
         }
     }
 }; 

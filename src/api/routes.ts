@@ -12,6 +12,8 @@ const router = express.Router();
 // OpenAI聊天路由 - 使用静态方法
 router.post('/chat', OpenAIController.chat);
 router.post('/chat/stream', OpenAIController.chatStream);
+router.post('/chat/context-preview', OpenAIController.contextPreview);
+router.post('/chat/compact', OpenAIController.compact);
 
 // 配置路由
 router.get('/config/features', ConfigController.getFeatureConfig);

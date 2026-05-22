@@ -170,6 +170,14 @@
     background-color: #f57c00;
 }
 
+.compact-button {
+    background-color: #607d8b; /* 蓝灰 */
+}
+
+.compact-button:hover {
+    background-color: #455a64;
+}
+
 .control-button svg {
     width: 18px;
     height: 18px;

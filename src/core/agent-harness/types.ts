@@ -1,7 +1,7 @@
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
 
 /** 内部消息来源（Harness 上下文构建 / 审计，不发送给 LLM API） */
-export type MessageSource = 'user' | 'tool' | 'reminder' | 'compact' | 'system';
+export type MessageSource = 'user' | 'tool' | 'reminder' | 'compact' | 'system' | 'summary';
 
 /**
  * 内部消息扩展字段规范（P0-02）
@@ -86,6 +86,10 @@ export interface ChunkResponse {
     level: 'info' | 'warning' | 'error';
   };
   error?: string;
+  /** 自动上下文摘要已执行（SSE 侧栏展示「已压缩」） */
+  contextCompacted?: boolean;
+  /** 自动压缩生成的摘要正文（供客户端固化基线） */
+  summaryContent?: string;
   [key: string]: unknown;
 }
 

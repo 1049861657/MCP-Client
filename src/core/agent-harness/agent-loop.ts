@@ -3,6 +3,11 @@ import { ToolsConfig } from '../../config/feature-config.js';
 import { mcpClient } from '../client.js';
 import { logToolCallAudit } from './audit.js';
 import {
+  applyContextBeforeLlm,
+  isContextSummaryMessage,
+  persistLargeOutput
+} from './context-budget.js';
+import {
   buildPartialResults,
   createLoopState,
   emitMaxToolCallsReached,
@@ -75,6 +80,10 @@ export interface RunAgentLoopParams {
   stream?: boolean;
   signal?: AbortSignal;
   requestId?: string;
+  /** 超阈时由 Provider 注入的摘要压缩 */
+  summarizeFn?: (messages: InternalMessage[]) => Promise<InternalMessage[]>;
+  /** 本轮 LLM 前触发自动摘要压缩时回调（用于 SSE / UI） */
+  onContextCompacted?: (summaryContent: string) => void;
   onChunk: (chunk: ChunkResponse, done: boolean) => void;
   provider: AgentLoopProvider;
 }
@@ -93,9 +102,21 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     stream = true,
     signal,
     requestId = '',
+    summarizeFn,
+    onContextCompacted,
     onChunk,
     provider
   } = params;
+
+  const prepareContext = async (round: number): Promise<void> => {
+    const compacted = await applyContextBeforeLlm(messages, { requestId, round, summarizeFn });
+    if (compacted) {
+      const summary = messages.find(m => isContextSummaryMessage(m));
+      const summaryContent =
+        summary && typeof summary.content === 'string' ? summary.content : '';
+      onContextCompacted?.(summaryContent);
+    }
+  };
 
   const toolManager = new ToolCallManager(provider.providerName, onChunk);
   const loopState = createLoopState(messages);
@@ -184,13 +205,14 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         );
 
         const resultText = provider.formatToolResult(toolResult);
+        const persistedContent = await persistLargeOutput(toolCall.id, resultText);
         logToolCallAudit({
           ...auditBase,
           durationMs: Date.now() - startedAt,
           success: true
         });
-        toolManager.setToolResult(globalIndex, resultText, false, undefined, usage);
-        return { tool_call_id: toolCall.id, content: resultText };
+        toolManager.setToolResult(globalIndex, persistedContent, false, undefined, usage);
+        return { tool_call_id: toolCall.id, content: persistedContent };
       } catch (error) {
         if (error instanceof Error && (error.name === 'AbortError' || error.name === 'APIUserAbortError')) {
           throw error;
@@ -217,6 +239,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     }
 
     try {
+      await prepareContext(round);
       const nextRequestParams = provider.createRequestParams(
         messages,
         model,
@@ -290,6 +313,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     return { shouldContinue: false, nextAssistantReasoning: '' };
   };
 
+  await prepareContext(0);
   const requestParams = provider.createRequestParams(
     messages,
     model,

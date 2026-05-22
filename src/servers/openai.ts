@@ -13,7 +13,21 @@ import {
   OpenAITool,
   UsageInfo
 } from '../core/agent-harness/types.js';
-import { ChatConfig, ToolsConfig } from '../config/feature-config.js';
+import {
+  buildMainModelContextPreview,
+  compactHistory,
+  type CompactSummarizeResult,
+  ContextPreviewResult,
+  type MainModelContextPreviewOptions
+} from '../core/agent-harness/context-budget.js';
+import {
+  ChatConfig,
+  ContextConfig,
+  resolveCompactModel,
+  resolveEnableAutoCompact,
+  resolveSummarizeMaxTokens,
+  ToolsConfig
+} from '../config/feature-config.js';
 import { mcpClient } from '../core/client.js';
 import { ConfigService } from '../services/config.service.js';
 import { AIProvider } from '../types/config.types.js';
@@ -343,7 +357,9 @@ export class OpenAI {
     enableParamValidation: boolean = this.toolsConfig.enableParamValidation,
     enablePrompts: boolean = this.toolsConfig.enablePrompts,
     maxToolCallRounds: number = ToolsConfig.maxToolCallRounds,
-    requestId: string = ''
+    requestId: string = '',
+    enableAutoCompact?: boolean,
+    compactModel?: string
   ): Promise<ChatResponse> {
     try {
       if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
@@ -352,6 +368,7 @@ export class OpenAI {
 
       const messages = await this.formatMessages(message, enableTools, enablePrompts);
       const openAITools = await this.getToolDefinitions(enableTools);
+      const summarizeFn = this.resolveSummarizeFn(enableAutoCompact, compactModel);
 
       return await runAgentLoop({
         messages,
@@ -362,6 +379,7 @@ export class OpenAI {
         maxToolCallRounds,
         stream: false,
         requestId,
+        summarizeFn,
         onChunk: () => {},
         provider: this.getAgentLoopProvider()
       });
@@ -370,6 +388,87 @@ export class OpenAI {
       Logger.error('OPENAI', `[${this.providerName}] 聊天API调用失败:`, error);
       throw new Error(`${this.providerName} API错误: ${errMessage}`);
     }
+  }
+
+  /**
+   * 为 compactHistory 调用 LLM 生成摘要文本
+   */
+  private async summarizeForCompact(
+    serialized: string,
+    model: string,
+    signal?: AbortSignal
+  ): Promise<CompactSummarizeResult> {
+    const maxTokens = resolveSummarizeMaxTokens(serialized.length);
+    const started = Date.now();
+    const response = await this.client.chat.completions.create(
+      {
+        model,
+        messages: [{ role: 'user', content: serialized }],
+        max_tokens: maxTokens,
+        temperature: 0.3
+      },
+      { signal }
+    );
+    const choice = response.choices[0];
+    const finishReason = choice?.finish_reason ?? null;
+    const content = choice?.message?.content;
+    const elapsedMs = Date.now() - started;
+    Logger.info(
+      'CONTEXT',
+      `摘要 LLM 完成 model=${model} max_tokens=${maxTokens} finish_reason=${finishReason ?? '-'} ` +
+        `promptChars=${serialized.length} outChars=${typeof content === 'string' ? content.length : 0} ` +
+        `llmMs=${elapsedMs}`
+    );
+    if (typeof content === 'string' && content.length > 0) {
+      return { text: content, finishReason };
+    }
+    return { text: '（摘要生成失败）', finishReason };
+  }
+
+  private resolveSummarizeFn(
+    enableAutoCompact?: boolean,
+    compactModel?: string,
+    signal?: AbortSignal
+  ): ((messages: InternalMessage[]) => Promise<InternalMessage[]>) | undefined {
+    if (!resolveEnableAutoCompact(enableAutoCompact)) {
+      return undefined;
+    }
+    const summarizeModel = resolveCompactModel(compactModel, this.config.defaultModel);
+    return this.buildSummarizeFn(summarizeModel, signal);
+  }
+
+  private buildSummarizeFn(
+    model: string,
+    signal?: AbortSignal
+  ): (messages: InternalMessage[]) => Promise<InternalMessage[]> {
+    return async (messages: InternalMessage[]) =>
+      compactHistory(messages, async (serialized) =>
+        this.summarizeForCompact(serialized, model, signal)
+      );
+  }
+
+  /**
+   * 上下文预览（P1-01-06，无 LLM）
+   */
+  previewMainModelContext(
+    messages: InternalMessage[],
+    options: MainModelContextPreviewOptions
+  ): ContextPreviewResult {
+    return buildMainModelContextPreview(messages, options);
+  }
+
+  /**
+   * 手动压缩会话消息（P1-01-05 / P1-01-09）
+   */
+  async compactMessages(
+    messages: InternalMessage[],
+    compactModel?: string,
+    signal?: AbortSignal
+  ): Promise<InternalMessage[]> {
+    const summarizeModel = resolveCompactModel(compactModel, this.config.defaultModel);
+    return compactHistory(messages, async (serialized) =>
+      this.summarizeForCompact(serialized, summarizeModel, signal)
+    );
   }
 
   /**
@@ -610,7 +709,9 @@ export class OpenAI {
     enablePrompts: boolean = this.toolsConfig.enablePrompts,
     signal?: AbortSignal,
     maxToolCallRounds: number = ToolsConfig.maxToolCallRounds,
-    requestId: string = ''
+    requestId: string = '',
+    enableAutoCompact?: boolean,
+    compactModel?: string
   ): Promise<ChatResponse> {
     try {
       if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
@@ -619,6 +720,7 @@ export class OpenAI {
 
       const messages = await this.formatMessages(message, enableTools, enablePrompts);
       const openAITools = await this.getToolDefinitions(enableTools);
+      const summarizeFn = this.resolveSummarizeFn(enableAutoCompact, compactModel, signal);
 
       return await runAgentLoop({
         messages,
@@ -629,6 +731,10 @@ export class OpenAI {
         maxToolCallRounds,
         signal,
         requestId,
+        summarizeFn,
+        onContextCompacted: (summaryContent: string) => {
+          onChunk({ contextCompacted: true, summaryContent }, false);
+        },
         onChunk,
         provider: this.getAgentLoopProvider()
       });

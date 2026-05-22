@@ -31,5 +31,8 @@ yarn-error.log*
 src/generated/
 prisma/dev.db
 
+# Agent 大工具输出落盘（P1-01）
+.agent-outputs/
+
 #demo
 public/tool-event-demo.html

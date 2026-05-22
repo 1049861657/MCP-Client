@@ -1547,6 +1547,13 @@ window.AIChatUI = {
         app.state.model = elements.model.value;
         app.state.temperature = parseFloat(elements.temperature.value);
         app.state.maxTokens = parseInt(elements.maxTokens.value);
+
+        if (elements.enableAutoCompact) {
+            app.state.enableAutoCompact = elements.enableAutoCompact.checked;
+        }
+        if (elements.compactModel) {
+            app.state.compactModel = elements.compactModel.value;
+        }
         
         app.state.enableMCPTools = elements.enableMCPTools.checked;
         app.state.enableParamValidation = elements.enableParamValidation.checked;
@@ -1565,6 +1572,8 @@ window.AIChatUI = {
             const settings = {
                 isStreamMode: app.state.isStreamMode,
                 model: app.state.model,
+                enableAutoCompact: app.state.enableAutoCompact,
+                compactModel: app.state.compactModel,
                 temperature: app.state.temperature,
                 maxTokens: app.state.maxTokens,
                 enableMCPTools: app.state.enableMCPTools,
@@ -1595,6 +1604,10 @@ window.AIChatUI = {
         if (elements.maxToolCallRounds) {
             elements.maxToolCallRounds.value = 25;
         }
+        if (elements.enableAutoCompact) {
+            elements.enableAutoCompact.checked = app.state.enableAutoCompact;
+        }
+        app.updateCompactModelOptions();
         
         this.saveSettings();
     },
@@ -1622,6 +1635,18 @@ window.AIChatUI = {
             // 应用设置
             if (settings.model && elements.model.querySelector(`option[value="${settings.model}"]`)) {
                 elements.model.value = settings.model;
+            }
+
+            app.updateCompactModelOptions();
+
+            if (typeof settings.enableAutoCompact === 'boolean' && elements.enableAutoCompact) {
+                elements.enableAutoCompact.checked = settings.enableAutoCompact;
+                app.state.enableAutoCompact = settings.enableAutoCompact;
+            }
+
+            if (settings.compactModel && elements.compactModel?.querySelector(`option[value="${settings.compactModel}"]`)) {
+                elements.compactModel.value = settings.compactModel;
+                app.state.compactModel = settings.compactModel;
             }
             
             if (typeof settings.temperature === 'number') {
@@ -1898,4 +1923,320 @@ window.AIChatUI = {
             mcpButton.appendChild(counter);
         }
     },
+
+    /** 手动应用摘要 / 自动压缩后统一展示 */
+    CONTEXT_COMPACTED_LABEL: '已压缩',
+
+    formatContextRoleLabel(role) {
+        const map = {
+            user: '用户',
+            assistant: '助手',
+            tool: '工具',
+            system: '系统'
+        };
+        return map[role] || role;
+    },
+
+    formatContextMsgMeta(m) {
+        const chars = typeof m.charLength === 'number' ? m.charLength : 0;
+        const tokens = m.estimatedTokens || 0;
+        if (chars > 0) {
+            return `${chars} 字 · 约 ${tokens} tokens`;
+        }
+        return `约 ${tokens} tokens`;
+    },
+
+    /** 待消费的一次性压缩（override / 自动压缩提示） */
+    isContextCompacted() {
+        const app = window.AIChatApp;
+        return !!(
+            app?.state?.apiContextOverride?.length ||
+            app?.state?.contextCompactedActive
+        );
+    },
+
+    /** 是否可「清除覆盖」：含已固化基线 */
+    hasContextCompactState() {
+        const app = window.AIChatApp;
+        return (
+            this.isContextCompacted() ||
+            !!app?.state?.compactedBaseline ||
+            !!app?.state?.compactDraft
+        );
+    },
+
+    updateContextCompactControls(isPendingCompacted) {
+        const genBtn = document.getElementById('context-generate-summary');
+        const applyBtn = document.getElementById('context-apply-summary');
+        const clearBtn = document.getElementById('context-clear-override');
+        const hasDraft = !!window.AIChatApp?.state?.compactDraft;
+        const canClear = this.hasContextCompactState();
+
+        if (genBtn) {
+            genBtn.disabled = isPendingCompacted;
+        }
+        if (applyBtn) {
+            applyBtn.disabled = isPendingCompacted || !hasDraft;
+        }
+        if (clearBtn) {
+            clearBtn.disabled = !canClear;
+        }
+    },
+
+    showContextModal() {
+        const modal = document.getElementById('context-modal');
+        if (modal) {
+            modal.style.display = 'block';
+        }
+    },
+
+    escapeHtml(text) {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    },
+
+    renderContextPreview(preview, options = {}) {
+        const statusEl = document.getElementById('context-status');
+        const metricsEl = document.getElementById('context-metrics');
+        const listEl = document.getElementById('context-messages-list');
+        const hintEl = document.getElementById('context-compact-hint');
+        const badgeEl = document.getElementById('context-compact-badge');
+        const detailsEl = document.getElementById('context-details');
+
+        if (!statusEl || !preview) {
+            return;
+        }
+
+        const threshold = preview.compactThresholdTokens;
+        const tokens = preview.estimatedTokens || 0;
+        const pct =
+            threshold > 0 ? Math.min(100, (tokens / threshold) * 100) : 0;
+        const barClass = pct >= 80 ? 'context-token-bar-fill context-token-bar-warn' : 'context-token-bar-fill';
+
+        const isPendingCompacted =
+            preview.contextOverrideActive ||
+            options.hasOverride ||
+            this.isContextCompacted();
+        const hasBaseline = !!window.AIChatApp?.state?.compactedBaseline;
+
+        const needsStatus =
+            preview.pendingAutoCompact ||
+            preview.wouldAutoCompact;
+
+        if (needsStatus) {
+            let statusClass = 'context-status-warn';
+            let statusText = '上下文较长，建议生成摘要并应用。';
+
+            if (preview.pendingAutoCompact) {
+                statusClass = 'context-status-danger';
+                statusText =
+                    '将自动摘要：建议先「生成并应用」，或在设置中关闭自动压缩。';
+            }
+
+            statusEl.className = `context-status ${statusClass}`;
+            statusEl.textContent = statusText;
+            statusEl.classList.remove('hidden');
+        } else {
+            statusEl.classList.add('hidden');
+        }
+
+        const compactedChip = isPendingCompacted
+            ? `<span class="context-metrics-sep">·</span>` +
+              `<span class="context-compacted-chip">${this.CONTEXT_COMPACTED_LABEL}</span>`
+            : '';
+
+        const toolSegment =
+            preview.compactedToolCount > 0
+                ? `<span class="context-metrics-sep">·</span><span><strong>${preview.compactedToolCount}</strong> tool 已占位</span>`
+                : '';
+
+        metricsEl.innerHTML =
+            `<div class="context-metrics-inline">` +
+            `<span><strong>${preview.messageCount}</strong> 条</span>` +
+            `<span class="context-metrics-sep">·</span>` +
+            `<span><strong>${tokens.toLocaleString()}</strong> / ${threshold.toLocaleString()} tokens（中英混排估算）</span>` +
+            `${compactedChip}` +
+            `${toolSegment}` +
+            `</div>` +
+            `<div class="context-token-bar"><div class="${barClass}" style="width:${pct}%"></div></div>`;
+        metricsEl.classList.remove('hidden');
+
+        if (listEl && Array.isArray(preview.messages)) {
+            listEl.innerHTML = preview.messages.map(m => {
+                const role = m.role || 'unknown';
+                const roleLabel = this.formatContextRoleLabel(role);
+                const isPlaceholder = typeof m.preview === 'string' &&
+                    m.preview.includes('自动执行') &&
+                    m.preview.includes('compactHistory');
+                const roleClass = isPlaceholder ? 'context-msg-placeholder' : `context-msg-${role}`;
+                return (
+                    `<div class="context-msg ${roleClass}">` +
+                    `<div class="context-msg-head">` +
+                    `<span class="context-role">${this.escapeHtml(roleLabel)}</span>` +
+                    `<span class="context-msg-meta">${this.escapeHtml(this.formatContextMsgMeta(m))}</span>` +
+                    `</div>` +
+                    `<div class="context-msg-body">${this.escapeHtml(m.preview || '')}</div>` +
+                    `</div>`
+                );
+            }).join('');
+        }
+
+        if (detailsEl) {
+            detailsEl.open = preview.messageCount <= 6;
+        }
+
+        if (hintEl) {
+            if (isPendingCompacted) {
+                hintEl.textContent = '点击「清除覆盖」可恢复完整历史。';
+            } else if (hasBaseline) {
+                hintEl.textContent = '当前以压缩基线继续；点击「清除覆盖」恢复完整历史。';
+            } else if (preview.pendingAutoCompact) {
+                hintEl.textContent = '流程：生成摘要 → 检查预览 → 应用到下次请求。';
+            } else if (preview.wouldAutoCompact) {
+                hintEl.textContent = '可选：用更小更快的「压缩模型」生成摘要，再应用。';
+            } else {
+                hintEl.textContent = '当前体量较小，通常无需摘要。';
+            }
+        }
+
+        if (badgeEl) {
+            if (isPendingCompacted) {
+                badgeEl.textContent = this.CONTEXT_COMPACTED_LABEL;
+                badgeEl.className = 'context-compact-badge context-compact-badge-compacted';
+                badgeEl.classList.remove('hidden');
+            } else if (hasBaseline) {
+                badgeEl.textContent = '压缩基线';
+                badgeEl.className = 'context-compact-badge context-compact-badge-compacted';
+                badgeEl.classList.remove('hidden');
+            } else if (options.hasDraft) {
+                badgeEl.textContent = '草稿待应用';
+                badgeEl.className = 'context-compact-badge';
+                badgeEl.classList.remove('hidden');
+            } else {
+                badgeEl.className = 'context-compact-badge hidden';
+            }
+        }
+
+        this.updateContextCompactControls(isPendingCompacted);
+
+        this.syncContextDraftPreview();
+    },
+
+    resolveCompactPreviewText() {
+        const state = window.AIChatApp?.state;
+        if (!state) {
+            return '';
+        }
+        const sources = [
+            state.apiContextOverride?.[0]?.content,
+            state.compactDraft?.content,
+            state.compactedBaseline?.summaryContent
+        ];
+        for (const item of sources) {
+            if (typeof item === 'string' && item.trim().length > 0) {
+                return item;
+            }
+        }
+        return '';
+    },
+
+    syncContextDraftPreview() {
+        const wrapEl = document.getElementById('context-compact-draft-wrap');
+        const draftEl = document.getElementById('context-compact-draft');
+        const labelEl = document.getElementById('context-draft-label');
+        if (!wrapEl || !draftEl) {
+            return;
+        }
+
+        const text = this.resolveCompactPreviewText();
+        const hasText = text.trim().length > 0;
+        const isPending = this.isContextCompacted();
+        const hasBaseline = !!window.AIChatApp?.state?.compactedBaseline;
+
+        draftEl.textContent = hasText ? text : '';
+        wrapEl.classList.toggle('hidden', !hasText);
+        wrapEl.hidden = !hasText;
+
+        if (labelEl) {
+            if (!hasText) {
+                labelEl.textContent = '';
+                labelEl.classList.add('hidden');
+            } else if (isPending) {
+                labelEl.textContent = '摘要（已应用）';
+                labelEl.classList.remove('hidden');
+            } else if (hasBaseline) {
+                labelEl.textContent = '摘要（当前基线）';
+                labelEl.classList.remove('hidden');
+            } else {
+                labelEl.textContent = '摘要预览';
+                labelEl.classList.remove('hidden');
+            }
+        }
+    },
+
+    setCompactDraft(text) {
+        const badgeEl = document.getElementById('context-compact-badge');
+        const hasOverride = !!window.AIChatApp?.state?.apiContextOverride?.length;
+
+        if (typeof text === 'string' && text.trim()) {
+            window.AIChatApp.state.compactDraft = {
+                role: 'user',
+                content: text
+            };
+        }
+        this.syncContextDraftPreview();
+        this.updateContextCompactControls(this.isContextCompacted());
+        if (badgeEl) {
+            if (hasOverride) {
+                badgeEl.textContent = this.CONTEXT_COMPACTED_LABEL;
+                badgeEl.className = 'context-compact-badge context-compact-badge-compacted';
+                badgeEl.classList.remove('hidden');
+            } else if (text) {
+                badgeEl.textContent = '草稿待应用';
+                badgeEl.className = 'context-compact-badge';
+                badgeEl.classList.remove('hidden');
+            } else {
+                badgeEl.className = 'context-compact-badge hidden';
+            }
+        }
+    },
+
+    addContextNotice(text) {
+        const app = window.AIChatApp;
+        const container = app?.elements?.chatMessages;
+        if (!container) {
+            return;
+        }
+        if (app?.state) {
+            app.state.contextCompactedActive = true;
+        }
+        this.updateContextCompactControls(true);
+
+        const label = text || this.CONTEXT_COMPACTED_LABEL;
+        const existing = container.querySelector('.chat-context-notice');
+        if (existing) {
+            existing.remove();
+        }
+        const notice = document.createElement('div');
+        notice.className = 'chat-context-notice chat-context-notice-compacted';
+        notice.setAttribute('role', 'status');
+        notice.innerHTML =
+            `<span class="chat-context-notice-text">${this.escapeHtml(label)}</span>`;
+
+        const chatMessages = container.querySelectorAll('.chat-message');
+        const lastMsg = chatMessages[chatMessages.length - 1];
+        const beforeAnchor = container.querySelector(
+            '.quick-message-bubbles, .appended-quick-bubbles'
+        );
+        if (lastMsg) {
+            lastMsg.insertAdjacentElement('afterend', notice);
+        } else if (beforeAnchor) {
+            container.insertBefore(notice, beforeAnchor);
+        } else {
+            container.appendChild(notice);
+        }
+    }
 };
