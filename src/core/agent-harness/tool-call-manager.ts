@@ -1,5 +1,6 @@
 import { ToolNameCodec } from '../../utils/tool-name-codec.js';
 import { isSystemTool } from './system-tools/system-tool-registry.js';
+import { StreamingToolExecuteFn, StreamingToolScheduler } from './streaming-tool-scheduler.js';
 import { ChunkResponse, IToolCallRecord } from './types.js';
 
 function resolveToolCallSource(codeName: string): 'system' | 'mcp' {
@@ -16,10 +17,34 @@ export class ToolCallManager {
   private providerName: string;
   private onChunk: (chunk: ChunkResponse, done: boolean) => void;
   private reachedMaxRounds = false;
+  private readonly streamingScheduler = new StreamingToolScheduler();
 
   constructor(providerName: string, onChunk: (chunk: ChunkResponse, done: boolean) => void) {
     this.providerName = providerName;
     this.onChunk = onChunk;
+  }
+
+  attachStreamingExecutor(executor: StreamingToolExecuteFn | null): void {
+    this.streamingScheduler.attachExecutor(executor);
+  }
+
+  getToolCall(globalIndex: number): IToolCallRecord | undefined {
+    return this.indexMap.get(globalIndex);
+  }
+
+  async awaitToolExecution(globalIndex: number): Promise<void> {
+    await this.streamingScheduler.awaitExecution(globalIndex);
+  }
+
+  async awaitToolExecutions(globalIndices: number[]): Promise<void> {
+    await this.streamingScheduler.awaitAll(globalIndices);
+  }
+
+  markExecutionStart(globalIndex: number): void {
+    const toolCall = this.indexMap.get(globalIndex);
+    if (toolCall?.meta) {
+      toolCall.meta.executionStartedAt = new Date().toISOString();
+    }
   }
 
   setReachedMaxRounds(reached: boolean): void {
@@ -84,6 +109,7 @@ export class ToolCallManager {
           tool_call_id: toolCall.id
         }
       }, false);
+      this.streamingScheduler.trySchedule(toolCall);
     }
   }
 
@@ -113,7 +139,8 @@ export class ToolCallManager {
     result: unknown,
     error: boolean = false,
     errorMessage?: string,
-    tokenUsage?: unknown
+    tokenUsage?: unknown,
+    executionTimeMs?: number
   ): void {
     const toolCall = this.indexMap.get(globalIndex);
     if (!toolCall) return;
@@ -127,7 +154,13 @@ export class ToolCallManager {
         toolCall.meta.errorMessage = errorMessage;
       }
 
-      if (toolCall.meta.createdAt) {
+      if (executionTimeMs !== undefined) {
+        toolCall.meta.executionTime = executionTimeMs;
+      } else if (toolCall.meta.executionStartedAt) {
+        const startTime = new Date(toolCall.meta.executionStartedAt).getTime();
+        const endTime = new Date(toolCall.meta.completedAt).getTime();
+        toolCall.meta.executionTime = endTime - startTime;
+      } else if (toolCall.meta.createdAt) {
         const startTime = new Date(toolCall.meta.createdAt).getTime();
         const endTime = new Date(toolCall.meta.completedAt).getTime();
         toolCall.meta.executionTime = endTime - startTime;
@@ -193,7 +226,7 @@ export class ToolCallManager {
     let pendingFound = false;
 
     this.toolCalls.forEach((tc) => {
-      if (tc.meta && tc.meta.status === 'pending') {
+      if (tc.meta && (tc.meta.status === 'pending' || tc.meta.status === 'executing')) {
         pendingFound = true;
         tc.meta.status = 'interrupted';
         tc.meta.completedAt = new Date().toISOString();

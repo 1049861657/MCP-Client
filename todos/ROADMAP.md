@@ -1,6 +1,6 @@
 # MCP-Client Agent Harness 改造总路线图
 
-> 最后更新：2026-05-21  
+> 最后更新：2026-05-26  
 > 定位：从「LLM + MCP 工具网关 + Web UI」升级为「具备控制面的 Agent Client」  
 > 参考文档：章节完整 URL 见 [REFERENCES.md](./REFERENCES.md)
 
@@ -11,7 +11,7 @@
 | 模块 | 现状 | 对应文档章节 |
 |------|------|-------------|
 | Agent Loop | `chatStream` 多轮工具循环（上限 10 轮），assistant/tool 消息写回 | [s01 Agent Loop](https://learn.shareai.run/zh/s01/) |
-| 工具路由 | 多 MCP 服聚合、`OpenAINameCodec`、`MCPClientManager` | [s02 Tool Use](https://learn.shareai.run/zh/s02/)、[s19 MCP](https://learn.shareai.run/zh/s19/) |
+| 工具路由 | 多 MCP 服聚合、`ToolNameCodec`、`MCPClientManager` | [s02 Tool Use](https://learn.shareai.run/zh/s02/)、[s19 MCP](https://learn.shareai.run/zh/s19/) |
 | 进度通知 | `supportsProgress` + MCP `notifications/progress` + UI 时间线 | [s13 Background Tasks](https://learn.shareai.run/zh/s13/)（部分） |
 | 连接治理 | stdio / Streamable HTTP、断线重连、工具列表缓存 TTL | [s19 MCP](https://learn.shareai.run/zh/s19/)（部分） |
 | Prompt 基础 | `mcpToolPrompt` + 服务端 `instructions` 合并 | [s10 Prompt Pipeline](https://learn.shareai.run/zh/s10/)（部分） |
@@ -27,7 +27,7 @@
 | 无错误分类恢复 | 截断/溢出/瞬态错误直接失败 | Agents SDK Harness：continuation / compact / backoff |
 | MCP 仅 tools-first | 无法暴露 Resources/Prompts | MCP 2025–2026 完整能力面 |
 | 无权限门 | 工具调用裸执行 | 生产 MCP：OAuth + least privilege + ask |
-| `openai.ts` 单体 1500+ 行 | Harness 与 Provider 耦合 | 控制面与执行面分离 |
+| Provider 与 Harness 已分离 | ✅ T0 + P0 已完成 | 控制面与执行面分离 |
 
 ## 二、目标架构（2026 Harness 模式）
 
@@ -44,7 +44,7 @@
 └────────────────────────┬────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────┐
-│  Agent Harness (新建 src/core/agent-harness/)  ← 控制面   │
+│  Agent Harness (src/core/agent-harness/)  ← 控制面   │
 │  ┌─────────────┐ ┌──────────────┐ ┌──────────────────┐  │
 │  │ LoopState   │ │ MessageNorm  │ │ RecoveryManager  │  │
 │  │ 轮次/续行   │ │ 规范化/配对  │ │ continue/compact │  │
@@ -58,12 +58,13 @@
         ┌────────────────┼────────────────┐
         ▼                ▼                ▼
 ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│ LLM Provider │ │ ToolRouter   │ │ SessionStore │
-│ openai.ts    │ │ MCP + native │ │ SQLite/IDB   │
+│ AiProvider   │ │ ToolRouter   │ │ SessionStore │
+│ ai-provider  │ │ MCP + System │ │ SQLite/IDB   │
 └──────────────┘ └──────┬───────┘ └──────────────┘
                         │
                ┌────────▼────────┐
-               │ MCPClientManager │
+               │ core/mcp/       │
+               │ MCPClientManager│
                │ tools/resources  │
                │ prompts/oauth    │
                └─────────────────┘
@@ -145,7 +146,7 @@ P3-* 可在 P1 完成后按需启动
 
 ### M1 — Harness 可用（P0 完成）
 
-- [ ] 新建 `src/core/agent-harness/` 目录，Loop 从 `openai.ts` 抽出
+- [x] 新建 `src/core/agent-harness/` 目录，Loop 从 Provider 层抽出（T0 + P0）
 - [x] 前端历史默认开启，含 tool_calls / tool / reasoning
 - [ ] 非流式 `chat()` 支持完整多轮工具循环
 - [ ] `temperature` / `max_tokens` 正确传给 API

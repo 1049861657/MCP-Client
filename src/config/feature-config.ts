@@ -64,10 +64,10 @@ export const ContextConfig = {
   /** 中文（CJK）等：1 字符 / token（混排时按字种加权，保守不低估） */
   charsPerTokenCjk: 1,
 
-  /** 超过此字符数的 tool 输出落盘 */
-  persistThresholdChars: 8000,
+  /** 超过此字符数的 tool 输出落盘（对齐 Claude Code ~30K 落盘阈值） */
+  persistThresholdChars: 30_000,
 
-  /** 落盘后在消息中保留的 preview 字符数 */
+  /** 落盘后在消息中保留的 preview 字符数（对齐 Claude Code 2K preview） */
   persistPreviewChars: 2000,
 
   /** 大结果落盘目录（相对项目根） */

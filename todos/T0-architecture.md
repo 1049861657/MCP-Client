@@ -1,5 +1,6 @@
 # T0 — 个人任务：目录架构（精简版）
 
+> **状态**：✅ **已全部完成**（2026-05-26）  
 > **T0 说明**：`T*` 为个人补充任务轨（与 P0–P3 正交）。本文件经调研后**合并原 33 子项为 5 项**，只保留**价值/成本比最高**的目录调整。  
 > **约束**：只改路径、文件名、import、scripts、文档；**不改业务逻辑**。  
 > **预估**：**1.5–2.5 人日**，**1–2 个 PR**（可选第 3 PR 做类型收敛）。
@@ -69,7 +70,8 @@ src/
 │   └── feature-config.ts
 ├── types/
 │   ├── config.types.ts
-│   └── mcp.types.ts              # （可选 T0-04）
+│   ├── mcp.types.ts              # T0-04 已完成
+│   └── api.types.ts
 ├── lib/prisma.ts
 ├── services/config.service.ts
 ├── providers/
@@ -121,6 +123,7 @@ mcp-servers → （独立进程，无 src 内依赖）
 合并原 T0-01 + T0-02 + T0-01-03 + T0-04-02。
 
 - [x] **T0-01** 迁移并更新全仓 import / `package.json` scripts / **ai 命名**  
+  - **完成日期**：2026-05-26
   - **providers/**：`openai.ts` → `ai-provider.ts`（`AiProvider`）；`openai-providers.ts` → `ai-providers.ts`（`aiService`、`reloadAiProviders`）  
   - **api/**：`openai.controller.ts` → `ai.controller.ts`（`AiController`）  
   - **utils/**：`openai-util.ts` → `tool-name-codec.ts`（`ToolNameCodec`）；harness types 中 `OpenAITool` → `ChatTool`（含 re-export 过渡可选）  
@@ -139,6 +142,7 @@ mcp-servers → （独立进程，无 src 内依赖）
 合并原 T0-03-01 + T0-04-03（可选部分）。
 
 - [x] **T0-02** `agent-harness/tools/` → `system-tools/`；`tool-executor.ts` → `tool-call-manager.ts`  
+  - **完成日期**：2026-05-26
   - **涉及**：3 个 system-tools 文件 + `agent-loop.ts`、`ai-provider.ts` 等 ~**6** 处 import  
   - **同步**：`todos/P3-agent-runtime.md` 中新工具路径改为 `system-tools/`  
   - **验收**：build 通过；grep 无 `agent-harness/tools`、`tool-executor`  
@@ -151,6 +155,7 @@ mcp-servers → （独立进程，无 src 内依赖）
 合并原 T0-04-01 + T0-08-01（若仍存在 default export）。
 
 - [x] **T0-03** 清理 `utils/Json-Utils .ts`（**当前全仓零 import** → 删除或改为 `json-utils.ts`）；移除 `feature-config.ts` 的 `export default`（若仍存在）  
+  - **完成日期**：2026-05-26
   - **验收**：grep 无 `Json-Utils`；无 default import FeatureConfig  
   - **估时**：0.1 人日
 
@@ -161,6 +166,7 @@ mcp-servers → （独立进程，无 src 内依赖）
 合并原 T0-09 全部。
 
 - [x] **T0-04** `interfaces/mcp.interfaces.ts` → `types/mcp.types.ts`；删 Deepseek 遗留 DTO；`ErrorResponse` 一并迁入 `types/api.types.ts` 或 `mcp.types.ts`  
+  - **完成日期**：2026-05-26
   - **涉及**：**4** 处 import（`client`、`server-connection`、`info.controller` 等）  
   - **验收**：`interfaces/` 可删除；build 通过  
   - **估时**：0.25–0.5 人日
@@ -171,11 +177,11 @@ mcp-servers → （独立进程，无 src 内依赖）
 
 合并原 T0-C + T0-02-02 + T0-12-03。
 
-- [ ] **T0-05** 全仓回归 + 文档  
-  - `npm run build`  
-  - 手动：一轮流式 chat + 一次 MCP 工具调用 + 一次 system `read_persisted_output`  
-  - 更新 `todos/README.md` 代码入口、`ROADMAP.md` 架构图路径  
-  - **估时**：0.25 人日
+- [x] **T0-05** 全仓回归 + 文档  
+  - `npm run build` ✅  
+  - 手动：一轮流式 chat + 一次 MCP 工具调用 + 一次 system `read_persisted_output` ✅  
+  - 更新 `todos/README.md` 代码入口、`ROADMAP.md` 架构图路径 ✅  
+  - **完成日期**：2026-05-26
 
 ---
 

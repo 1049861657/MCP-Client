@@ -146,7 +146,7 @@ export const readPersistedOutputSchema = {
     },
     limit: {
       type: 'number',
-      description: '最多读取行数；单片段须小于落盘阈值（默认 8000 字符）'
+      description: '最多读取行数；单片段须小于落盘阈值（默认 30000 字符）'
     }
   },
   required: ['path'] as string[]

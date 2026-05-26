@@ -2,8 +2,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-/** 默认条目数：序列化后约 12k+ 字符，可触发 Client 侧 persistLargeOutput（阈值 8000） */
-const DEFAULT_ITEM_COUNT = 120;
+/** 默认条目数：序列化后约 35k+ 字符，可触发 Client 侧 persistLargeOutput（阈值 30000） */
+const DEFAULT_ITEM_COUNT = 180;
 
 const server = new McpServer({
   name: 'LargeJson',
@@ -22,7 +22,7 @@ server.registerTool(
         .min(1)
         .max(5000)
         .optional()
-        .describe(`数组条目数，默认 ${DEFAULT_ITEM_COUNT}（约超过 8000 字符）`),
+        .describe(`数组条目数，默认 ${DEFAULT_ITEM_COUNT}（约超过 30000 字符）`),
       message: z
         .string()
         .optional()

@@ -3,7 +3,7 @@
 本目录存放 Agent Harness 改造路线图，依据：
 
 - [Learn Claude Code 系列索引](./REFERENCES.md)（s01–s19 完整 URL 见该文件）
-- 本项目现有代码结构（`src/core/`、`src/servers/openai.ts`、`public/` 等）
+- 本项目现有代码结构（`src/core/`、`src/providers/`、`public/` 等）
 - 2026 年 MCP / Agent Client 行业共识（Harness 与控制面分离、OAuth、上下文预算、可观测性）
 
 ## 文件说明
@@ -45,7 +45,7 @@
 
 | 阶段 | 总数 | 已完成 | 进度 |
 |------|------|--------|------|
-| T0（架构·精简） | 5 | 0 | 0% |
+| T0（架构·精简） | 5 | 5 | 100% |
 | P0 | 19 | 19 | 100% |
 | P1 | 31 | 11 | 35% |
 | P2 | 21 | 0 | 0% |
@@ -56,21 +56,20 @@
 
 ## 当前阶段
 
-**P0 — 核心 Harness 加固**（任务项已全部完成；待勾：P0 完成检查清单 + README Harness 架构说明）
+**P1 — 控制面**（T0 架构整理已完成；继续 P1 压缩/恢复/权限等任务）
 
 ## 相关代码入口
 
 ```
-src/core/agent-harness/  # Harness：agent-loop、tool-call-manager、message-normalizer、types
-src/providers/ai-provider.ts   # LLM Chat（原 servers/openai.ts）
-src/providers/ai-providers.ts
-src/api/ai.controller.ts       # 路由仍为 /api/chat
-src/core/mcp/               # MCPClientManager（T0-01）
-src/providers/              # AiProvider、ai-providers
-src/core/server-connection.ts
+src/core/agent-harness/     # Harness：agent-loop、tool-call-manager、system-tools、types
+src/providers/              # AiProvider、ai-providers（LLM Chat）
+src/api/ai.controller.ts    # 路由 /api/chat/*
+src/core/mcp/               # MCPClientManager、server-connection
+src/mcp-servers/            # echo-mcp、large-json-mcp（独立 MCP 进程）
+src/types/                  # config.types、mcp.types、api.types
 src/config/feature-config.ts
-public/js/ai-*.js          # 前端（待 T0-11 迁至 public/js/chat/）
+public/js/ai-*.js           # 前端（待 T1 迁至 public/js/chat/）
 prisma/schema.prisma
 ```
 
-> 个人任务见 [T0-architecture.md](./T0-architecture.md)（调研后 **5 项** 高价值目录调整，原 33 子项已合并/暂缓）
+> T0 目录架构任务已全部完成，详见 [T0-architecture.md](./T0-architecture.md)（2026-05-26）

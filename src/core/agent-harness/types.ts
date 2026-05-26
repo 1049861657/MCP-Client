@@ -124,7 +124,9 @@ export interface IToolCallRecord {
     globalIndex?: number;
     source?: 'system' | 'mcp';
     createdAt?: string;
-    status?: 'pending' | 'completed' | 'error' | 'interrupted';
+    status?: 'pending' | 'executing' | 'completed' | 'error' | 'interrupted';
+    /** 实际 execute 开始时刻（流式参数齐后立即执行） */
+    executionStartedAt?: string;
     completedAt?: string;
     errorMessage?: string;
     interruptReason?: string;

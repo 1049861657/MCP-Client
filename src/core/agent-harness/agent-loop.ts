@@ -123,6 +123,100 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   };
 
   const toolManager = new ToolCallManager(provider.providerName, onChunk);
+
+  const executeOneToolCall = async (
+    toolCall: IToolCallRecord
+  ): Promise<{ tool_call_id: string; content: string }> => {
+    const globalIndex = toolCall.meta?.globalIndex as number;
+    const current = toolManager.getToolCall(globalIndex) ?? toolCall;
+
+    if (current.meta?.status === 'completed') {
+      return { tool_call_id: current.id, content: String(current.result ?? '') };
+    }
+    if (current.meta?.status === 'error') {
+      const errContent = String(current.result ?? current.meta.errorMessage ?? '');
+      return { tool_call_id: current.id, content: errContent };
+    }
+
+    const round = toolManager.getCurrentRound();
+    const auditBase = {
+      requestId,
+      round,
+      toolName: current.name,
+      codeName: current.codeName,
+      serverId: isSystemTool(current.codeName)
+        ? null
+        : mcpClient.getServerIdForTool(current.codeName) ?? null
+    };
+
+    toolManager.markExecutionStart(globalIndex);
+    const startedAt = Date.now();
+
+    try {
+      const validation = await provider.verifyToolArguments(current.name, current.arguments);
+
+      if (!validation.isValid) {
+        const errorMessage = `参数验证失败: ${validation.message}`;
+        Logger.warn('OPENAI', errorMessage);
+        const durationMs = Date.now() - startedAt;
+        logToolCallAudit({
+          ...auditBase,
+          durationMs,
+          success: false,
+          error: errorMessage
+        });
+        toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, usage, durationMs);
+        return { tool_call_id: current.id, content: errorMessage };
+      }
+
+      const isExecuteApi = current.name === 'executeApi';
+      const toolResult = isSystemTool(current.codeName)
+        ? await executeSystemTool(current.codeName, current.arguments, { signal })
+        : await mcpClient.callTool<unknown>(
+          current.codeName,
+          current.arguments,
+          {
+            signal,
+            ...(isExecuteApi ? {
+              supportsProgress: true,
+              onProgress: (progress, total, message, elapsed_ms) => {
+                toolManager.setToolProgress(globalIndex, progress, total, message, elapsed_ms);
+              }
+            } : {})
+          }
+        );
+
+      const resultText = isSystemTool(current.codeName)
+        ? (typeof toolResult === 'string' ? toolResult : String(toolResult))
+        : provider.formatToolResult(toolResult);
+      const persistedContent = await persistLargeOutput(current.id, resultText);
+      const durationMs = Date.now() - startedAt;
+      logToolCallAudit({
+        ...auditBase,
+        durationMs,
+        success: true
+      });
+      toolManager.setToolResult(globalIndex, persistedContent, false, undefined, usage, durationMs);
+      return { tool_call_id: current.id, content: persistedContent };
+    } catch (error) {
+      if (error instanceof Error && (error.name === 'AbortError' || error.name === 'APIUserAbortError')) {
+        throw error;
+      }
+      const errorMessage = `工具${current.name}执行失败: ${error instanceof Error ? error.message : String(error)}`;
+      const durationMs = Date.now() - startedAt;
+      logToolCallAudit({
+        ...auditBase,
+        durationMs,
+        success: false,
+        error: errorMessage
+      });
+      toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, usage, durationMs);
+      return { tool_call_id: current.id, content: errorMessage };
+    }
+  };
+
+  toolManager.attachStreamingExecutor(executeOneToolCall);
+
   const loopState = createLoopState(messages);
 
   let fullContent = '';
@@ -166,77 +260,21 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
 
     messages.push(assistantMessage);
 
+    const globalIndices = toolCalls.map(tc => tc.meta?.globalIndex as number);
+    await toolManager.awaitToolExecutions(globalIndices);
+
     const toolResultMessages = await Promise.all(toolCalls.map(async (toolCall) => {
       const globalIndex = toolCall.meta?.globalIndex as number;
-      const auditBase = {
-        requestId,
-        round,
-        toolName: toolCall.name,
-        codeName: toolCall.codeName,
-        serverId: isSystemTool(toolCall.codeName)
-          ? null
-          : mcpClient.getServerIdForTool(toolCall.codeName) ?? null
-      };
-      const startedAt = Date.now();
+      const current = toolManager.getToolCall(globalIndex) ?? toolCall;
 
-      try {
-        const validation = await provider.verifyToolArguments(toolCall.name, toolCall.arguments);
-
-        if (!validation.isValid) {
-          const errorMessage = `参数验证失败: ${validation.message}`;
-          Logger.warn('OPENAI', errorMessage);
-          logToolCallAudit({
-            ...auditBase,
-            durationMs: Date.now() - startedAt,
-            success: false,
-            error: errorMessage
-          });
-          toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage);
-          return { tool_call_id: toolCall.id, content: errorMessage };
-        }
-
-        const isExecuteApi = toolCall.name === 'executeApi';
-        const toolResult = isSystemTool(toolCall.codeName)
-          ? await executeSystemTool(toolCall.codeName, toolCall.arguments, { signal })
-          : await mcpClient.callTool<unknown>(
-            toolCall.codeName,
-            toolCall.arguments,
-            {
-              signal,
-              ...(isExecuteApi ? {
-                supportsProgress: true,
-                onProgress: (progress, total, message, elapsed_ms) => {
-                  toolManager.setToolProgress(globalIndex, progress, total, message, elapsed_ms);
-                }
-              } : {})
-            }
-          );
-
-        const resultText = isSystemTool(toolCall.codeName)
-          ? (typeof toolResult === 'string' ? toolResult : String(toolResult))
-          : provider.formatToolResult(toolResult);
-        const persistedContent = await persistLargeOutput(toolCall.id, resultText);
-        logToolCallAudit({
-          ...auditBase,
-          durationMs: Date.now() - startedAt,
-          success: true
-        });
-        toolManager.setToolResult(globalIndex, persistedContent, false, undefined, usage);
-        return { tool_call_id: toolCall.id, content: persistedContent };
-      } catch (error) {
-        if (error instanceof Error && (error.name === 'AbortError' || error.name === 'APIUserAbortError')) {
-          throw error;
-        }
-        const errorMessage = `工具${toolCall.name}执行失败: ${error instanceof Error ? error.message : String(error)}`;
-        logToolCallAudit({
-          ...auditBase,
-          durationMs: Date.now() - startedAt,
-          success: false,
-          error: errorMessage
-        });
-        toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage);
-        return { tool_call_id: toolCall.id, content: errorMessage };
+      if (current.meta?.status === 'completed' || current.meta?.status === 'error') {
+        return {
+          tool_call_id: current.id,
+          content: String(current.result ?? current.meta?.errorMessage ?? '')
+        };
       }
+
+      return executeOneToolCall(current);
     }));
 
     for (const result of toolResultMessages) {

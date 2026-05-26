@@ -29,7 +29,7 @@
   - 完成日期：2026-05-22
 
 - [x] **P1-01-02** 实现 `persistLargeOutput(toolUseId, output)` 落盘 + preview 标记  
-  - 阈值建议：8000 字符  
+  - 阈值：30000 字符落盘 / 2000 字符 preview（对齐 Claude Code）  
   - 涉及：`context-budget.ts`  
   - 验收：大 SQL 结果不整段进 messages  
   - 完成日期：2026-05-22
