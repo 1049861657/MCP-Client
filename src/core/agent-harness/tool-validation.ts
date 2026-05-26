@@ -1,6 +1,6 @@
 import { OpenAI as OpenAIClient } from 'openai';
 import { Logger } from '../../utils/logger.js';
-import { mcpClient } from '../client.js';
+import { mcpClient } from '../mcp/index.js';
 
 export interface ToolValidationContext {
   enableParamValidation: boolean;

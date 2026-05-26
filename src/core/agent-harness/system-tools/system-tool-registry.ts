@@ -1,4 +1,4 @@
-import { OpenAITool } from '../types.js';
+import { ChatTool } from '../types.js';
 import {
   executeReadPersistedOutput,
   READ_PERSISTED_OUTPUT_CODE_NAME,
@@ -48,7 +48,7 @@ export function getSystemToolOutputPolicy(codeName: string): SystemToolOutputPol
 }
 
 /** 转为 OpenAI tools[]（enableSystemTools 为 true 时注入） */
-export function getSystemToolSchemas(): OpenAITool[] {
+export function getSystemToolSchemas(): ChatTool[] {
   return REGISTRY.map(tool => ({
     type: 'function' as const,
     function: {

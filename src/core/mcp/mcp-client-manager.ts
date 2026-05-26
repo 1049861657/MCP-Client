@@ -1,11 +1,11 @@
-import { ConfigService } from "../services/config.service.js";
-import { Logger } from "../utils/logger.js";
-import { CallToolOptions, ClientInfo, MCPServerInfo, ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
+import { ConfigService } from "../../services/config.service.js";
+import { Logger } from "../../utils/logger.js";
+import { CallToolOptions, ClientInfo, MCPServerInfo, ServerInfo, ToolInfo } from "../../types/mcp.types.js";
 import { ServerConnection } from "./server-connection.js";
-import { ConnectionType } from '../generated/prisma/client.js';
-import { MCPClientIdentity } from "../config/app.config.js";
-import { MCPConfigType, MCPServer } from "../types/config.types.js";
-import { OpenAINameCodec } from "../utils/openai-util.js";
+import { ConnectionType } from '../../generated/prisma/client.js';
+import { MCPClientIdentity } from "../../config/app.config.js";
+import { MCPConfigType, MCPServer } from "../../types/config.types.js";
+import { ToolNameCodec } from "../../utils/tool-name-codec.js";
 /**
  * MCP客户端管理器类
  * 负责管理多个MCP服务器连接
@@ -321,7 +321,7 @@ export class MCPClientManager {
    */
   public findCodeNameByToolName(toolName: string): string | undefined {
     for (const codeName of this.toolServerMap.keys()) {
-      if (OpenAINameCodec.decode(codeName) === toolName) {
+      if (ToolNameCodec.decode(codeName) === toolName) {
         return codeName;
       }
     }
@@ -362,7 +362,7 @@ export class MCPClientManager {
    */
   async callTool<T>(codeName: string, args: any, options?: CallToolOptions): Promise<T> {
     const connection = this.findServerForTool(codeName);
-    const toolName = OpenAINameCodec.decode(codeName);
+    const toolName = ToolNameCodec.decode(codeName);
     if (!connection) {
       throw new Error(`找不到工具 ${toolName} 所属的服务器或所有服务器都未连接`);
     }

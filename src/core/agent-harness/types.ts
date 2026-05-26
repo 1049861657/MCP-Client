@@ -153,8 +153,8 @@ export interface ChatResponse {
   usage: UsageInfo;
 }
 
-/** OpenAI 工具函数定义 */
-export interface OpenAIFunctionDefinition {
+/** Chat Completions 兼容的工具函数定义 */
+export interface ChatFunctionDefinition {
   name: string;
   description: string;
   parameters: {
@@ -164,10 +164,10 @@ export interface OpenAIFunctionDefinition {
   };
 }
 
-/** OpenAI 工具定义 */
-export interface OpenAITool {
+/** Chat Completions 兼容的工具定义 */
+export interface ChatTool {
   type: 'function';
-  function: OpenAIFunctionDefinition;
+  function: ChatFunctionDefinition;
 }
 
 /** processModelResponse 返回结构 */

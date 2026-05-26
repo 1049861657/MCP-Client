@@ -1,7 +1,7 @@
 import { OpenAI as OpenAIClient } from 'openai';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
 import { AgentLoopProvider, runAgentLoop } from '../core/agent-harness/agent-loop.js';
-import { ToolCallManager } from '../core/agent-harness/tool-executor.js';
+import { ToolCallManager } from '../core/agent-harness/tool-call-manager.js';
 import { normalizeMessages } from '../core/agent-harness/message-normalizer.js';
 import {
   ChatResponse,
@@ -10,7 +10,7 @@ import {
   InternalMessage,
   IToolCallRecord,
   ModelResponseResult,
-  OpenAITool,
+  ChatTool,
   UsageInfo
 } from '../core/agent-harness/types.js';
 import {
@@ -28,7 +28,7 @@ import {
   resolveSummarizeMaxTokens,
   ToolsConfig
 } from '../config/feature-config.js';
-import { mcpClient } from '../core/client.js';
+import { mcpClient } from '../core/mcp/index.js';
 import { ConfigService } from '../services/config.service.js';
 import { AIProvider } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';
@@ -36,12 +36,12 @@ import { verifyToolArguments as verifyToolArgumentsImpl } from '../core/agent-ha
 import {
   buildSystemToolsPromptHint,
   getSystemToolSchemas
-} from '../core/agent-harness/tools/system-tool-registry.js';
+} from '../core/agent-harness/system-tools/system-tool-registry.js';
 
 /**
- * OpenAI API客户端包装类（Provider 层：模型 I/O + 流式解析）
+ * AI 提供商客户端（Provider 层：模型 I/O + 流式解析，OpenAI SDK 兼容 Chat Completions）
  */
-export class OpenAI {
+export class AiProvider {
   // 公共属性
   public client: OpenAIClient;
   public config: AIProvider;
@@ -101,7 +101,7 @@ export class OpenAI {
    * 将MCP工具转换为OpenAI函数定义
    * @returns OpenAI工具定义列表
    */
-  private async convertMcpToolsToOpenAIFunctions(): Promise<OpenAITool[]> {
+  private async convertMcpToolsToChatFunctions(): Promise<ChatTool[]> {
     try {
       // 获取MCP服务器上可用的工具
       const serverInfo = await mcpClient.getServerInfo();
@@ -235,13 +235,13 @@ export class OpenAI {
    * @param enableTools 是否启用工具调用
    * @returns 工具定义列表
    */
-  private async getToolDefinitions(enableTools: boolean): Promise<OpenAITool[]> {
+  private async getToolDefinitions(enableTools: boolean): Promise<ChatTool[]> {
     if (!enableTools) return [];
 
     const systemTools = ToolsConfig.enableSystemTools ? getSystemToolSchemas() : [];
 
     try {
-      const mcpTools = await this.convertMcpToolsToOpenAIFunctions();
+      const mcpTools = await this.convertMcpToolsToChatFunctions();
       if (systemTools.length > 0) {
         Logger.info('OPENAI', `使用 ${systemTools.length} 个 System 内置工具`);
       }
@@ -267,7 +267,7 @@ export class OpenAI {
     model: string,
     temperature: number,
     maxTokens: number,
-    tools: OpenAITool[] = [],
+    tools: ChatTool[] = [],
     stream: boolean = false
   ) {
     const params = {
@@ -333,7 +333,7 @@ export class OpenAI {
     toolName: string,
     args: Record<string, unknown>
   ): Promise<{ isValid: boolean; message: string }> {
-    const { providerServices } = await import('./openai-providers.js');
+    const { providerServices } = await import('./ai-providers.js');
     return verifyToolArgumentsImpl({
       enableParamValidation: this.toolsConfig.enableParamValidation,
       fallbackClient: this.client,
@@ -381,12 +381,12 @@ export class OpenAI {
       }
 
       const messages = await this.formatMessages(message, enableTools, enablePrompts);
-      const openAITools = await this.getToolDefinitions(enableTools);
+      const chatTools = await this.getToolDefinitions(enableTools);
       const summarizeFn = this.resolveSummarizeFn(enableAutoCompact, compactModel);
 
       return await runAgentLoop({
         messages,
-        openAITools,
+        chatTools,
         model,
         temperature,
         maxTokens,
@@ -733,12 +733,12 @@ export class OpenAI {
       }
 
       const messages = await this.formatMessages(message, enableTools, enablePrompts);
-      const openAITools = await this.getToolDefinitions(enableTools);
+      const chatTools = await this.getToolDefinitions(enableTools);
       const summarizeFn = this.resolveSummarizeFn(enableAutoCompact, compactModel, signal);
 
       return await runAgentLoop({
         messages,
-        openAITools,
+        chatTools,
         model,
         temperature,
         maxTokens,

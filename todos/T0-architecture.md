@@ -120,7 +120,7 @@ mcp-servers → （独立进程，无 src 内依赖）
 
 合并原 T0-01 + T0-02 + T0-01-03 + T0-04-02。
 
-- [ ] **T0-01** 迁移并更新全仓 import / `package.json` scripts / **ai 命名**  
+- [x] **T0-01** 迁移并更新全仓 import / `package.json` scripts / **ai 命名**  
   - **providers/**：`openai.ts` → `ai-provider.ts`（`AiProvider`）；`openai-providers.ts` → `ai-providers.ts`（`aiService`、`reloadAiProviders`）  
   - **api/**：`openai.controller.ts` → `ai.controller.ts`（`AiController`）  
   - **utils/**：`openai-util.ts` → `tool-name-codec.ts`（`ToolNameCodec`）；harness types 中 `OpenAITool` → `ChatTool`（含 re-export 过渡可选）  
@@ -138,7 +138,7 @@ mcp-servers → （独立进程，无 src 内依赖）
 
 合并原 T0-03-01 + T0-04-03（可选部分）。
 
-- [ ] **T0-02** `agent-harness/tools/` → `system-tools/`；`tool-executor.ts` → `tool-call-manager.ts`  
+- [x] **T0-02** `agent-harness/tools/` → `system-tools/`；`tool-executor.ts` → `tool-call-manager.ts`  
   - **涉及**：3 个 system-tools 文件 + `agent-loop.ts`、`ai-provider.ts` 等 ~**6** 处 import  
   - **同步**：`todos/P3-agent-runtime.md` 中新工具路径改为 `system-tools/`  
   - **验收**：build 通过；grep 无 `agent-harness/tools`、`tool-executor`  
@@ -150,7 +150,7 @@ mcp-servers → （独立进程，无 src 内依赖）
 
 合并原 T0-04-01 + T0-08-01（若仍存在 default export）。
 
-- [ ] **T0-03** 清理 `utils/Json-Utils .ts`（**当前全仓零 import** → 删除或改为 `json-utils.ts`）；移除 `feature-config.ts` 的 `export default`（若仍存在）  
+- [x] **T0-03** 清理 `utils/Json-Utils .ts`（**当前全仓零 import** → 删除或改为 `json-utils.ts`）；移除 `feature-config.ts` 的 `export default`（若仍存在）  
   - **验收**：grep 无 `Json-Utils`；无 default import FeatureConfig  
   - **估时**：0.1 人日
 
@@ -160,7 +160,7 @@ mcp-servers → （独立进程，无 src 内依赖）
 
 合并原 T0-09 全部。
 
-- [ ] **T0-04** `interfaces/mcp.interfaces.ts` → `types/mcp.types.ts`；删 Deepseek 遗留 DTO；`ErrorResponse` 一并迁入 `types/api.types.ts` 或 `mcp.types.ts`  
+- [x] **T0-04** `interfaces/mcp.interfaces.ts` → `types/mcp.types.ts`；删 Deepseek 遗留 DTO；`ErrorResponse` 一并迁入 `types/api.types.ts` 或 `mcp.types.ts`  
   - **涉及**：**4** 处 import（`client`、`server-connection`、`info.controller` 等）  
   - **验收**：`interfaces/` 可删除；build 通过  
   - **估时**：0.25–0.5 人日

@@ -1,6 +1,6 @@
 import express from 'express';
 import { InfoController } from './info.controller.js';
-import { OpenAIController } from './openai.controller.js';
+import { AiController } from './ai.controller.js';
 import { ConfigController } from './config.controller.js';
 import { SettingsController } from './settings.controller.js';
 
@@ -10,10 +10,10 @@ import { SettingsController } from './settings.controller.js';
 const router = express.Router();
 
 // OpenAI聊天路由 - 使用静态方法
-router.post('/chat', OpenAIController.chat);
-router.post('/chat/stream', OpenAIController.chatStream);
-router.post('/chat/context-preview', OpenAIController.contextPreview);
-router.post('/chat/compact', OpenAIController.compact);
+router.post('/chat', AiController.chat);
+router.post('/chat/stream', AiController.chatStream);
+router.post('/chat/context-preview', AiController.contextPreview);
+router.post('/chat/compact', AiController.compact);
 
 // 配置路由
 router.get('/config/features', ConfigController.getFeatureConfig);
@@ -43,12 +43,12 @@ router.delete('/server/delete/:serverId', InfoController.deleteServer);
 router.post('/server/reload-config', InfoController.reloadConfig);
 
 // 工具列表路由
-router.get('/tools/list', OpenAIController.getAvailableTools);
+router.get('/tools/list', AiController.getAvailableTools);
 
 // MCP服务器列表路由
-router.get('/mcp/servers', OpenAIController.getMCPServers);
+router.get('/mcp/servers', AiController.getMCPServers);
 
 // 更新MCP服务器启用状态
-router.post('/mcp/servers/enabled', OpenAIController.updateEnabledServers);
+router.post('/mcp/servers/enabled', AiController.updateEnabledServers);
 
 export default router; 

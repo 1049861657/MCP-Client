@@ -1,6 +1,6 @@
 import { Logger } from '../../utils/logger.js';
 import { ToolsConfig } from '../../config/feature-config.js';
-import { mcpClient } from '../client.js';
+import { mcpClient } from '../mcp/index.js';
 import { logToolCallAudit } from './audit.js';
 import {
   applyContextBeforeLlm,
@@ -13,18 +13,18 @@ import {
   emitMaxToolCallsReached,
   recordTurnEnd
 } from './loop-state.js';
-import { ToolCallManager } from './tool-executor.js';
+import { ToolCallManager } from './tool-call-manager.js';
 import {
   executeSystemTool,
   isSystemTool
-} from './tools/system-tool-registry.js';
+} from './system-tools/system-tool-registry.js';
 import {
   ChatResponse,
   ChunkResponse,
   InternalMessage,
   IToolCallRecord,
   ModelResponseResult,
-  OpenAITool,
+  ChatTool,
   UsageInfo
 } from './types.js';
 
@@ -36,7 +36,7 @@ export interface AgentLoopProvider {
     model: string,
     temperature: number,
     maxTokens: number,
-    tools: OpenAITool[],
+    tools: ChatTool[],
     stream: boolean
   ): Record<string, unknown>;
   createCompletionStream(
@@ -76,7 +76,7 @@ export interface AgentLoopProvider {
 
 export interface RunAgentLoopParams {
   messages: InternalMessage[];
-  openAITools: OpenAITool[];
+  chatTools: ChatTool[];
   model: string;
   temperature: number;
   maxTokens: number;
@@ -98,7 +98,7 @@ export interface RunAgentLoopParams {
 export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResponse> {
   const {
     messages,
-    openAITools,
+    chatTools,
     model,
     temperature,
     maxTokens,
@@ -255,7 +255,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         model,
         temperature,
         maxTokens,
-        openAITools,
+        chatTools,
         stream
       );
 
@@ -329,7 +329,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     model,
     temperature,
     maxTokens,
-    openAITools,
+    chatTools,
     stream
   );
 

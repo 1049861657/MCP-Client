@@ -1,5 +1,5 @@
 /**
- * OpenAI 工具名称编解码工具类
+ * MCP 工具名称编解码（Chat Completions function name 兼容格式）
  *
  * ## 编码格式
  *   `mcp__h{serverHash6}__{toolName}`
@@ -16,7 +16,7 @@
  * ## 性能
  *   encode / decode 均为纯同步函数，O(1)，零 DB 依赖，零 I/O
  */
-export class OpenAINameCodec {
+export class ToolNameCodec {
   private static readonly PREFIX = 'mcp';
   // 64（OpenAI 上限） - len('mcp__h000000__') = 64 - 14 = 50
   private static readonly TOOL_MAX_LEN = 50;

@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
 import { Logger } from '../utils/logger.js';
-import { openaiService, providerServices, reloadProviders } from '../servers/openai-providers.js';
-import { mcpClient } from '../core/client.js';
+import { aiService, providerServices, reloadAiProviders } from '../providers/ai-providers.js';
+import { mcpClient } from '../core/mcp/index.js';
 import { InternalMessage } from '../core/agent-harness/types.js';
 import {
   resolveEnableAutoCompact,
@@ -12,10 +12,9 @@ import {
 import { ConfigService } from '../services/config.service.js';
 
 /**
- * OpenAI API控制器
- * 处理OpenAI相关的API请求
+ * AI Chat API 控制器
  */
-export class OpenAIController {
+export class AiController {
   /**
    * 获取服务实例
    * @param vendorId 供应商ID
@@ -24,7 +23,7 @@ export class OpenAIController {
   private static getServiceForVendor(vendorId?: string) {
     if (!vendorId) {
       // 使用默认服务
-      return openaiService;
+      return aiService;
     }
     
     // 查找供应商服务
@@ -35,7 +34,7 @@ export class OpenAIController {
     
     // 如果找不到，返回默认服务
     Logger.warn('API', `找不到供应商服务: ${vendorId}，使用默认服务`);
-    return openaiService;
+    return aiService;
   }
 
   /**
@@ -74,7 +73,7 @@ export class OpenAIController {
       }
       
       // 获取对应供应商的服务
-      const service = OpenAIController.getServiceForVendor(vendor);
+      const service = AiController.getServiceForVendor(vendor);
       
       // 检查服务是否有效
       if (!service) { return;}
@@ -167,7 +166,7 @@ export class OpenAIController {
       }
       
       // 获取对应供应商的服务
-      const service = OpenAIController.getServiceForVendor(vendor);
+      const service = AiController.getServiceForVendor(vendor);
       
       // 检查服务是否有效
       if (!service) {return;}
@@ -288,7 +287,7 @@ export class OpenAIController {
         return;
       }
 
-      const service = OpenAIController.getServiceForVendor(
+      const service = AiController.getServiceForVendor(
         (req.body as { vendor?: string }).vendor
       );
       if (!service) {
@@ -330,7 +329,7 @@ export class OpenAIController {
         return;
       }
 
-      const service = OpenAIController.getServiceForVendor(vendor);
+      const service = AiController.getServiceForVendor(vendor);
       if (!service) {
         res.status(500).json({ error: '无法获取 AI 服务' });
         return;

@@ -3,13 +3,13 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { ClientCapabilities } from "@modelcontextprotocol/sdk/types.js";
 import { McpError, ErrorCode, ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
-import { MCPClientIdentity } from "../config/app.config.js";
-import { Logger } from "../utils/logger.js";
-import { ConnectionType } from '../generated/prisma/client.js';
-import { CallToolOptions, ServerInfo, ToolInfo } from "../interfaces/mcp.interfaces.js";
-import { ConfigService } from "../services/config.service.js";
-import { MCPConfigType, MCPServer } from "../types/config.types.js";
-import { OpenAINameCodec } from "../utils/openai-util.js";
+import { MCPClientIdentity } from "../../config/app.config.js";
+import { Logger } from "../../utils/logger.js";
+import { ConnectionType } from '../../generated/prisma/client.js';
+import { CallToolOptions, ServerInfo, ToolInfo } from "../../types/mcp.types.js";
+import { ConfigService } from "../../services/config.service.js";
+import { MCPConfigType, MCPServer } from "../../types/config.types.js";
+import { ToolNameCodec } from "../../utils/tool-name-codec.js";
 
 /**
  * 服务器连接类
@@ -324,7 +324,7 @@ export class ServerConnection {
         .map(async (tool: any) => {
           const toolName = tool?.name || "未命名工具";
           const toolDesc = tool?.description || `${toolName}工具`;
-          const codeName = OpenAINameCodec.encode(toolName, this.id);
+          const codeName = ToolNameCodec.encode(toolName, this.id);
           const parameters = this.extractParameters(tool);
           
           return {

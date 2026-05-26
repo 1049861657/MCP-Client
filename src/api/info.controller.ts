@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { mcpClient, reloadMCPConfig } from '../core/client.js';
-import { ErrorResponse } from '../interfaces/mcp.interfaces.js';
+import { mcpClient, reloadMCPConfig } from '../core/mcp/index.js';
+import { ErrorResponse } from '../types/api.types.js';
 import { ConfigService } from '../services/config.service.js';
 import { ConnectionType } from '../generated/prisma/client.js';
 import { MCPServer } from '../types/config.types.js';

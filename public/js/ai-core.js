@@ -496,7 +496,7 @@ window.AIChatApp = {
             this.state.providers = {};
             config.providers.forEach(provider => {
                 // 根据provider.type确定apiPath
-                let apiPath = '/api/openai'; // 默认路径
+                let apiPath = '/api/chat'; // 默认路径
                 
                 this.state.providers[provider.name] = {
                     name: provider.name,

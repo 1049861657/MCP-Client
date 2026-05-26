@@ -198,6 +198,4 @@ export const FeatureConfig = {
   context: ContextConfig,
   history: HistoryConfig,
   log: LogConfig
-};
-
-export default FeatureConfig; 
+}; 

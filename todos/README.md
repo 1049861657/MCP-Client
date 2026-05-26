@@ -61,11 +61,12 @@
 ## 相关代码入口
 
 ```
-src/core/agent-harness/  # Harness：agent-loop、tool-executor、message-normalizer、types
+src/core/agent-harness/  # Harness：agent-loop、tool-call-manager、message-normalizer、types
 src/providers/ai-provider.ts   # LLM Chat（原 servers/openai.ts）
 src/providers/ai-providers.ts
 src/api/ai.controller.ts       # 路由仍为 /api/chat
-src/core/client.ts         # MCPClientManager（待 T0-02 迁至 src/core/mcp/）
+src/core/mcp/               # MCPClientManager（T0-01）
+src/providers/              # AiProvider、ai-providers
 src/core/server-connection.ts
 src/config/feature-config.ts
 public/js/ai-*.js          # 前端（待 T0-11 迁至 public/js/chat/）

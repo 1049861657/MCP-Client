@@ -1,5 +1,5 @@
-import { OpenAINameCodec } from '../../utils/openai-util.js';
-import { isSystemTool } from './tools/system-tool-registry.js';
+import { ToolNameCodec } from '../../utils/tool-name-codec.js';
+import { isSystemTool } from './system-tools/system-tool-registry.js';
 import { ChunkResponse, IToolCallRecord } from './types.js';
 
 function resolveToolCallSource(codeName: string): 'system' | 'mcp' {
@@ -38,7 +38,7 @@ export class ToolCallManager {
     const toolCall: IToolCallRecord = {
       id: toolCallId,
       codeName: name,
-      name: name.startsWith('mcp__') ? OpenAINameCodec.decode(name) : name,
+      name: name.startsWith('mcp__') ? ToolNameCodec.decode(name) : name,
       arguments: {},
       meta: {
         round: this.currentRound,

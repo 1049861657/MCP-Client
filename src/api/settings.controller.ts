@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { Logger } from '../utils/logger.js';
 import { ProviderTypes } from '../config/app.config.js';
 // 导入提供商重载功能
-import { reloadProviders } from '../servers/openai-providers.js';
+import { reloadAiProviders } from '../providers/ai-providers.js';
 import { ConfigService } from '../services/config.service.js';
 import { ToolsConfig } from '../config/feature-config.js';
 
@@ -83,7 +83,7 @@ export class SettingsController {
   static async reloadProviders(req: Request, res: Response): Promise<void> {
     try {
       // 调用提供商服务的重载方法
-      const result = await reloadProviders();
+      const result = await reloadAiProviders();
       
       res.json({ 
         success: true, 
