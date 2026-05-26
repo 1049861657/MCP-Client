@@ -102,6 +102,8 @@ gantt
 
 ## 四、阶段依赖
 
+> **T\***（个人补充任务，见 [T0-architecture.md](./T0-architecture.md)）与 P 路线图正交，不列入下图依赖。
+
 ```
 P0-01 Harness 模块拆分
   └─► P0-02 消息规范化

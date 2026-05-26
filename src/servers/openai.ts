@@ -33,6 +33,10 @@ import { ConfigService } from '../services/config.service.js';
 import { AIProvider } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';
 import { verifyToolArguments as verifyToolArgumentsImpl } from '../core/agent-harness/tool-validation.js';
+import {
+  buildSystemToolsPromptHint,
+  getSystemToolSchemas
+} from '../core/agent-harness/tools/system-tool-registry.js';
 
 /**
  * OpenAI API客户端包装类（Provider 层：模型 I/O + 流式解析）
@@ -209,6 +213,10 @@ export class OpenAI {
         ).trim();
         if (serverInstructions) parts.push(serverInstructions);
 
+        if (ToolsConfig.enableSystemTools) {
+          parts.push(buildSystemToolsPromptHint());
+        }
+
         if (parts.length > 0) {
           messages.unshift({
             role: 'system',
@@ -229,12 +237,18 @@ export class OpenAI {
    */
   private async getToolDefinitions(enableTools: boolean): Promise<OpenAITool[]> {
     if (!enableTools) return [];
-    
+
+    const systemTools = ToolsConfig.enableSystemTools ? getSystemToolSchemas() : [];
+
     try {
-      return await this.convertMcpToolsToOpenAIFunctions();
+      const mcpTools = await this.convertMcpToolsToOpenAIFunctions();
+      if (systemTools.length > 0) {
+        Logger.info('OPENAI', `使用 ${systemTools.length} 个 System 内置工具`);
+      }
+      return [...systemTools, ...mcpTools];
     } catch (error) {
       Logger.warn('OPENAI', `[${this.providerName}] 获取MCP工具失败: ${error instanceof Error ? error.message : String(error)}`);
-      return [];
+      return systemTools;
     }
   }
 

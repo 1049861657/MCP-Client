@@ -15,6 +15,10 @@ import {
 } from './loop-state.js';
 import { ToolCallManager } from './tool-executor.js';
 import {
+  executeSystemTool,
+  isSystemTool
+} from './tools/system-tool-registry.js';
+import {
   ChatResponse,
   ChunkResponse,
   InternalMessage,
@@ -169,7 +173,9 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         round,
         toolName: toolCall.name,
         codeName: toolCall.codeName,
-        serverId: mcpClient.getServerIdForTool(toolCall.codeName) ?? null
+        serverId: isSystemTool(toolCall.codeName)
+          ? null
+          : mcpClient.getServerIdForTool(toolCall.codeName) ?? null
       };
       const startedAt = Date.now();
 
@@ -190,21 +196,25 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         }
 
         const isExecuteApi = toolCall.name === 'executeApi';
-        const toolResult = await mcpClient.callTool<unknown>(
-          toolCall.codeName,
-          toolCall.arguments,
-          {
-            signal,
-            ...(isExecuteApi ? {
-              supportsProgress: true,
-              onProgress: (progress, total, message, elapsed_ms) => {
-                toolManager.setToolProgress(globalIndex, progress, total, message, elapsed_ms);
-              }
-            } : {})
-          }
-        );
+        const toolResult = isSystemTool(toolCall.codeName)
+          ? await executeSystemTool(toolCall.codeName, toolCall.arguments, { signal })
+          : await mcpClient.callTool<unknown>(
+            toolCall.codeName,
+            toolCall.arguments,
+            {
+              signal,
+              ...(isExecuteApi ? {
+                supportsProgress: true,
+                onProgress: (progress, total, message, elapsed_ms) => {
+                  toolManager.setToolProgress(globalIndex, progress, total, message, elapsed_ms);
+                }
+              } : {})
+            }
+          );
 
-        const resultText = provider.formatToolResult(toolResult);
+        const resultText = isSystemTool(toolCall.codeName)
+          ? (typeof toolResult === 'string' ? toolResult : String(toolResult))
+          : provider.formatToolResult(toolResult);
         const persistedContent = await persistLargeOutput(toolCall.id, resultText);
         logToolCallAudit({
           ...auditBase,

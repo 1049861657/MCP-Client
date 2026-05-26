@@ -9,7 +9,9 @@
     "build": "pnpm run clean && prisma generate && tsc",
     "db:migrate": "prisma migrate deploy",
     "start": "pnpm run build && node dist/app.js",
-    "server": "node dist/app.js"
+    "server": "node dist/app.js",
+    "mcp:echo": "node dist/servers/echo-MCP.js",
+    "mcp:large-json": "node dist/servers/large-json-MCP.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

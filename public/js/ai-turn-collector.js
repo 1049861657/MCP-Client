@@ -7,6 +7,7 @@
  * 数据结构（StoredToolCall）：
  *   id            string    - tool_call_id
  *   name          string    - 工具名
+ *   source        string?   - system | mcp（UI 样式区分）
  *   args          object    - 调用参数（接收完整参数后覆盖初始值）
  *   result        unknown   - 工具返回值（超 64KB 自动截断为摘要）
  *   isError       boolean   - 是否执行失败
@@ -46,12 +47,13 @@ class TurnCollector {
      * 工具调用开始事件
      * @param {{id: string, name: string, args: unknown}} toolInfo
      */
-    onToolCall({ id, name, args }) {
+    onToolCall({ id, name, args, source }) {
         if (!id) return;
         this._toolCallsOrder.push(id);
         this._toolCallsMap.set(id, {
             id,
             name,
+            source: source ?? window.AIChatRenderers?.resolveToolSource?.(name) ?? 'mcp',
             args: args ?? {},
             result: null,
             isError: false,

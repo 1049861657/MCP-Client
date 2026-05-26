@@ -771,8 +771,16 @@ window.AIChatUI = {
         const chatBubble = messageDiv.querySelector('.chat-bubble');
         if (!chatBubble) return null;
         
+        const R = window.AIChatRenderers;
+        const source = R?.resolveToolSource?.(toolInfo) ?? 'mcp';
+
         const toolCall = document.createElement('div');
         toolCall.className = 'tool-call collapsed';
+        if (R?.decorateToolCallElement) {
+            R.decorateToolCallElement(toolCall, source);
+        } else {
+            toolCall.classList.add(source === 'system' ? 'tool-call--system' : 'tool-call--mcp');
+        }
         toolCall.dataset.toolName = toolInfo.name;
         if (toolInfo.id) {
             toolCall.dataset.toolId = toolInfo.id;
@@ -783,17 +791,9 @@ window.AIChatUI = {
         
         const toolTitle = document.createElement('div');
         toolTitle.className = 'tool-call-title';
-        toolTitle.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-            </svg>
-            调用工具: <strong>${toolInfo.name}</strong>
-            <div class="tool-call-toggle" title="折叠/展开结果">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-            </div>
-        `;
+        toolTitle.innerHTML = R?.buildToolCallTitleHtml
+            ? R.buildToolCallTitleHtml(toolInfo.name, source)
+            : `<strong>${toolInfo.name}</strong>`;
         
         const toolStatus = document.createElement('div');
         toolStatus.className = 'tool-call-status';
@@ -853,7 +853,9 @@ window.AIChatUI = {
         }
         
         const toggleButton = toolCall.querySelector('.tool-call-toggle');
-        if (toggleButton) {
+        if (R?.attachToolCallHeaderToggle) {
+            R.attachToolCallHeaderToggle(toolCall);
+        } else if (toggleButton) {
             toggleButton.addEventListener('click', (e) => {
                 e.stopPropagation();
                 toolCall.classList.toggle('collapsed');
@@ -1411,7 +1413,10 @@ window.AIChatUI = {
             let extraHtml = '';
             if (!isUser && message.toolCalls?.length > 0) {
                 const badges = message.toolCalls
-                    .map(tc => `<span class="session-tool-badge${tc.isError ? ' error' : ''}">${tc.name}</span>`)
+                    .map(tc => {
+                        const source = window.AIChatRenderers?.resolveToolSource?.(tc) ?? 'mcp';
+                        return `<span class="session-tool-badge session-tool-badge--${source}${tc.isError ? ' error' : ''}">${tc.name}</span>`;
+                    })
                     .join('');
                 extraHtml += `<div class="session-tool-calls">${badges}</div>`;
             }

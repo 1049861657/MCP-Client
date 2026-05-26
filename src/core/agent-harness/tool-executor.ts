@@ -1,5 +1,10 @@
 import { OpenAINameCodec } from '../../utils/openai-util.js';
+import { isSystemTool } from './tools/system-tool-registry.js';
 import { ChunkResponse, IToolCallRecord } from './types.js';
+
+function resolveToolCallSource(codeName: string): 'system' | 'mcp' {
+  return isSystemTool(codeName) ? 'system' : 'mcp';
+}
 
 /**
  * 工具调用管理器 - 负责工具调用的生命周期管理与 SSE 事件推送
@@ -29,6 +34,7 @@ export class ToolCallManager {
     const toolCallId = id || `tool-call-round-${this.currentRound}-${Date.now()}-${index}`;
     const globalIndex = this.toolCalls.length;
 
+    const source = resolveToolCallSource(name);
     const toolCall: IToolCallRecord = {
       id: toolCallId,
       codeName: name,
@@ -38,6 +44,7 @@ export class ToolCallManager {
         round: this.currentRound,
         localIndex: index,
         globalIndex,
+        source,
         status: 'pending',
         createdAt: new Date().toISOString()
       }
@@ -50,7 +57,8 @@ export class ToolCallManager {
       tool_call: {
         index: globalIndex,
         id: toolCallId,
-        name: toolCall.name
+        name: toolCall.name,
+        source
       }
     }, false);
 

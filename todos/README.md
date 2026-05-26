@@ -17,12 +17,26 @@
 | [P2-mcp-platform.md](./P2-mcp-platform.md) | **P2** MCP 平台化（Resources/Prompts/OAuth/连接治理） |
 | [P3-agent-runtime.md](./P3-agent-runtime.md) | **P3** Agent 运行时进阶（规划、Memory、Hook、任务系统） |
 | [BACKLOG.md](./BACKLOG.md) | 远期可选（多 Agent、Worktree、CLI/SDK） |
+| [T0-architecture.md](./T0-architecture.md) | **T0** 个人任务：本文件主题为「目录与命名架构整理」 |
 
 > AI 改造任务：启用项目 Skill `.cursor/skills/roadmap/`（薄路由，正文以本目录为准）
 
+## P 与 T 两套编号
+
+| 前缀 | 含义 | 谁维护 | 示例 |
+|------|------|--------|------|
+| **P0–P3** | 路线图阶段：Harness / 控制面 / MCP 平台 / Agent 运行时 | 路线图 SSOT | `P1-01-11` 大结果落盘 |
+| **T0、T1…** | **个人补充任务**（与 P 正交，主题任意） | 按需新建 `T{n}-*.md` | `T0-01-01`（架构）；未来可有 `T1-ui.md` 等 |
+
+约定：
+
+- `T{n}` = 第 n 个个人任务文件/主题批次；**不等于**路线图阶段，**不限于架构**。
+- 任务 ID：`T{n}-{章节}-{序号}`，如 `T0-01-01`。
+- 新主题新建文件，如 `T1-frontend.md`，并在下表增加一行进度。
+
 ## 如何使用
 
-1. 按 **P0 → P1 → P2 → P3** 顺序推进，同阶段内任务可并行
+1. **P0 → P1 → P2 → P3** 为路线图主序；**T\*** 个人任务可并行，不阻塞 P 阶段勾选
 2. 完成一项后将 `- [ ]` 改为 `- [x]`，并在任务末尾补 `完成日期：YYYY-MM-DD`
 3. 阻塞项在任务下追加 `> 阻塞：原因`
 4. 大改前先更新 ROADMAP 中的「当前阶段」字段
@@ -31,8 +45,9 @@
 
 | 阶段 | 总数 | 已完成 | 进度 |
 |------|------|--------|------|
+| T0（架构·精简） | 5 | 0 | 0% |
 | P0 | 19 | 19 | 100% |
-| P1 | 31 | 10 | 32% |
+| P1 | 31 | 11 | 35% |
 | P2 | 21 | 0 | 0% |
 | P3 | 26 | 0 | 0% |
 | Backlog | 24 | 0 | — |
@@ -47,11 +62,14 @@
 
 ```
 src/core/agent-harness/  # Harness：agent-loop、tool-executor、message-normalizer、types
-src/servers/openai.ts      # Provider 层（chat / chatStream 入口）
-src/servers/openai-providers.ts  # 多提供商实例注册
-src/core/client.ts         # MCPClientManager 多服聚合
-src/core/server-connection.ts  # 单服连接、callTool、重连
-src/config/feature-config.ts # 特性开关（历史、工具、校验）
-public/js/ai-*.js          # 前端会话与 SSE 消费
-prisma/schema.prisma       # 持久化 Schema
+src/providers/ai-provider.ts   # LLM Chat（原 servers/openai.ts）
+src/providers/ai-providers.ts
+src/api/ai.controller.ts       # 路由仍为 /api/chat
+src/core/client.ts         # MCPClientManager（待 T0-02 迁至 src/core/mcp/）
+src/core/server-connection.ts
+src/config/feature-config.ts
+public/js/ai-*.js          # 前端（待 T0-11 迁至 public/js/chat/）
+prisma/schema.prisma
 ```
+
+> 个人任务见 [T0-architecture.md](./T0-architecture.md)（调研后 **5 项** 高价值目录调整，原 33 子项已合并/暂缓）

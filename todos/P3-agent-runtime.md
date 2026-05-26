@@ -19,7 +19,7 @@
 - [ ] **P3-01-01** Harness 内置 `todo` 工具（或 MCP 原生 todo 工具注册）  
   - Schema：`items[{ content, status, activeForm }]`  
   - 约束：最多 1 个 `in_progress`  
-  - 涉及：`agent-harness/tools/todo-tool.ts`  
+  - 涉及：`agent-harness/system-tools/todo-tool.ts`  
   - 验收：模型可读写计划状态
 
 - [ ] **P3-01-02** `PlanningState` 独立于 messages 存储  
@@ -56,7 +56,7 @@
   - 验收：CRUD + 按 type 过滤（user/feedback/project/reference）
 
 - [ ] **P3-02-02** Harness 工具 `save_memory` / `list_memory`  
-  - 涉及：`agent-harness/tools/memory-tool.ts`  
+  - 涉及：`agent-harness/system-tools/memory-tool.ts`  
   - 验收：模型可写入跨会话事实
 
 - [ ] **P3-02-03** `SystemPromptBuilder._buildMemory()` 会话开始时加载  
@@ -92,7 +92,7 @@
   - 验收：prompt 体积不随 skill 数量线性爆炸
 
 - [ ] **P3-03-03** Harness 工具 `load_skill(name)` → tool_result 注入正文  
-  - 涉及：`agent-harness/tools/skill-tool.ts`  
+  - 涉及：`agent-harness/system-tools/skill-tool.ts`  
   - 验收：模型按需加载 `dynamic-api-gateway` 等 skill
 
 - [ ] **P3-03-04** settings 页配置 Skill 扫描路径  

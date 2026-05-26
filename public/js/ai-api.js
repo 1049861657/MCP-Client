@@ -217,7 +217,8 @@ window.AIChatAPI = {
             const toolInfo = {
                 name: jsonData.tool_call.name || '未命名工具',
                 id: jsonData.tool_call.id,
-                args: jsonData.tool_call.arguments || {}
+                args: jsonData.tool_call.arguments || {},
+                source: jsonData.tool_call.source
             };
             UI.addToolCall(aiMessageDiv, toolInfo);
             collector?.onToolCall(toolInfo);
@@ -526,20 +527,28 @@ window.AIChatAPI = {
             if (data.tool_calls && data.tool_calls.length > 0) {
                 // 为每个工具调用创建UI区块
                 for (const toolCall of data.tool_calls) {
+                    const R = window.AIChatRenderers;
+                    const source = R?.resolveToolSource?.({
+                        source: toolCall.meta?.source,
+                        name: toolCall.name
+                    }) ?? 'mcp';
+                    const sourceClass = source === 'system' ? 'tool-call--system' : 'tool-call--mcp';
+                    const titleHtml = R?.buildToolCallTitleHtml
+                        ? R.buildToolCallTitleHtml(toolCall.name, source)
+                        : `<code class="tool-call-name">${toolCall.name}</code>`;
                     const argsStr = JSON.stringify(toolCall.arguments, null, 2);
                     const resultStr = JSON.stringify(toolCall.result, null, 2);
                     
                     toolCallsHtml += `
-                        <div class="tool-call">
+                        <div class="tool-call collapsed ${sourceClass}" data-tool-source="${source}">
                             <div class="tool-call-header">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-                                </svg>
-                                调用工具: <strong>${toolCall.name}</strong>
+                                <div class="tool-call-title">${titleHtml}</div>
                             </div>
-                            <div class="tool-call-args">${argsStr}</div>
-                            <div class="tool-call-result">
-                                <strong>结果:</strong><pre>${resultStr}</pre>
+                            <div class="tool-call-content">
+                                <div class="tool-call-args">${argsStr}</div>
+                                <div class="tool-call-result">
+                                    <strong>结果:</strong><pre>${resultStr}</pre>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -580,6 +589,7 @@ window.AIChatAPI = {
                     const storedToolCalls = data.tool_calls.map((tc, i) => ({
                         id: tc.id ?? `tc-${Date.now()}-${i}`,
                         name: tc.name,
+                        source: tc.meta?.source ?? window.AIChatRenderers?.resolveToolSource?.(tc.name) ?? 'mcp',
                         args: tc.arguments ?? {},
                         result: tc.result,
                         isError: false,

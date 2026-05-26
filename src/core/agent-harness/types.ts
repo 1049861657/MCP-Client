@@ -57,6 +57,8 @@ export interface ChunkResponse {
     index: number;
     id: string;
     name?: string;
+    /** system 内置工具 vs MCP 远程工具（UI 区分样式） */
+    source?: 'system' | 'mcp';
   };
   tool_call_update?: {
     index: number;
@@ -120,6 +122,7 @@ export interface IToolCallRecord {
     round?: number;
     localIndex?: number;
     globalIndex?: number;
+    source?: 'system' | 'mcp';
     createdAt?: string;
     status?: 'pending' | 'completed' | 'error' | 'interrupted';
     completedAt?: string;

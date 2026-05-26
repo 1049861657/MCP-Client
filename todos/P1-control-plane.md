@@ -16,7 +16,7 @@
 
 ### 三层策略
 
-1. **大结果落盘**：超阈值写 `.agent-outputs/`，上下文只留 preview（**待 P1-01-11**：缺 read 闭环）  
+1. **大结果落盘**：超阈值写 `.agent-outputs/`，上下文只留 preview；`read_persisted_output` 可读回（P1-01-11）  
 2. **微压缩**：只保留最近 N 个完整 tool_result，旧的改占位  
 3. **摘要压缩**：整体历史超预算时 LLM 摘要，保留目标/文件/决定/下一步
 
@@ -84,14 +84,12 @@
   - 验收：关闭自动压缩时不触发 LLM 摘要；手动/自动摘要使用所选压缩模型；摘要含四要素且少编造  
   - 完成日期：2026-05-22
 
-- [ ] **P1-01-11** 大结果落盘可读闭环（或改为仅截断）  
-  - **背景**：`persistLargeOutput` 将超长 tool 结果写入 `ContextConfig.agentOutputsDir`（`.agent-outputs/`），上下文只留 preview；当前 Harness **无 read 工具**，模型无法按消息中的路径取回全文，落盘对 agent 仅省 token、不可恢复  
-  - **方案（二选一或组合）**：  
-    1. Harness 内置只读工具（如 `read_persisted_output`），路径限定在 `agentOutputsDir` 内，防穿越  
-    2. 接入 MCP filesystem（若环境已配置）并在摘要/系统提示中说明可用  
-    3. 暂不落盘：超长结果仅在 messages 内截断至 `persistPreviewChars`，去掉误导性「已保存至路径」文案  
-  - 涉及：`context-budget.ts`、`agent-loop.ts`、`tool-executor` 或 MCP 工具注册、`feature-config.ts`  
-  - 验收：agent 在需要时能读取已落盘全文，或明确不再写盘且行为与文案一致  
+- [x] **P1-01-11** 大结果落盘可读闭环 + Harness ToolRouter  
+  - 背景：`persistLargeOutput` 已落盘，Harness 无 read、执行全走 MCP；行业惯例（Claude Code / Gemini CLI）为落盘 + **Harness 内置 Read** 读回，非 MCP filesystem 主路径  
+  - 功能：ToolRouter（registry 内置工具本地执行，`mcp__*` 走 MCP）；内置 `read_persisted_output`（限定 `agentOutputsDir`，防路径穿越，可选 offset/limit）  
+  - 涉及：`agent-loop.ts`、`openai.ts`、`context-budget.ts`、`feature-config.ts`；`agent-harness/system-tools/`  
+  - 验收：agent 能读回已落盘全文；路径穿越返回明确错误  
+  - 完成日期：2026-05-26
 
 ---
 

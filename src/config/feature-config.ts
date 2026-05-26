@@ -9,6 +9,9 @@
 export const ToolsConfig = {
   // 默认启用MCP工具
   enableMCPTools: true,
+
+  /** System 内置工具（P1-01-11：read_persisted_output 等） */
+  enableSystemTools: true,
   
   // 默认关闭参数校验
   enableParamValidation: false,
@@ -69,6 +72,12 @@ export const ContextConfig = {
 
   /** 大结果落盘目录（相对项目根） */
   agentOutputsDir: '.agent-outputs',
+
+  /** 落盘文件保留天数；0 表示不自动清理 */
+  agentOutputsTtlDays: 7,
+
+  /** read_persisted_output 无 offset/limit 时 PARTIAL 默认行数（对齐 Claude Read 分页） */
+  readPartialDefaultLines: 80,
 
   /** microCompact 保留的最近 tool 消息条数 */
   microCompactKeepRecent: 3,
