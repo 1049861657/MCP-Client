@@ -13,6 +13,7 @@ import {
   emitMaxToolCallsReached,
   recordTurnEnd
 } from './loop-state.js';
+import { withLlmRetry } from './llm-retry.js';
 import { ToolCallManager } from './tool-call-manager.js';
 import {
   executeSystemTool,
@@ -224,6 +225,46 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   let usage: UsageInfo | null = null;
   let finishReasonResult: string | undefined | null = null;
 
+  const invokeModelRound = async (
+    round: number,
+    requestParams: Record<string, unknown>
+  ): Promise<ModelResponseResult> => {
+    return withLlmRetry(
+      async () => {
+        if (stream) {
+          const responseStream = await provider.createCompletionStream(requestParams, signal);
+          return provider.processModelResponse(
+            responseStream,
+            round,
+            toolManager,
+            fullContent,
+            fullReasoningContent,
+            usage,
+            finishReasonResult,
+            onChunk
+          );
+        }
+
+        const response = await provider.createCompletion(requestParams, signal);
+        return provider.processNonStreamResponse(
+          response,
+          round,
+          toolManager,
+          fullContent,
+          fullReasoningContent,
+          usage,
+          finishReasonResult,
+          onChunk
+        );
+      },
+      {
+        label: `round${round}`,
+        providerName: provider.providerName,
+        signal
+      }
+    );
+  };
+
   interface ToolRoundResult {
     shouldContinue: boolean;
     nextAssistantReasoning: string;
@@ -298,33 +339,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       );
 
       const reasoningBeforeResponse = fullReasoningContent.length;
-      let result: ModelResponseResult;
-
-      if (stream) {
-        const nextStream = await provider.createCompletionStream(nextRequestParams, signal);
-        result = await provider.processModelResponse(
-          nextStream,
-          round,
-          toolManager,
-          fullContent,
-          fullReasoningContent,
-          usage,
-          finishReasonResult,
-          onChunk
-        );
-      } else {
-        const nextResponse = await provider.createCompletion(nextRequestParams, signal);
-        result = await provider.processNonStreamResponse(
-          nextResponse,
-          round,
-          toolManager,
-          fullContent,
-          fullReasoningContent,
-          usage,
-          finishReasonResult,
-          onChunk
-        );
-      }
+      const result = await invokeModelRound(round, nextRequestParams);
 
       fullContent = result.fullContent;
       fullReasoningContent = result.fullReasoningContent;
@@ -371,33 +386,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     stream
   );
 
-  let initialResult: ModelResponseResult;
-
-  if (stream) {
-    const responseStream = await provider.createCompletionStream(requestParams, signal);
-    initialResult = await provider.processModelResponse(
-      responseStream,
-      0,
-      toolManager,
-      fullContent,
-      fullReasoningContent,
-      usage,
-      finishReasonResult,
-      onChunk
-    );
-  } else {
-    const response = await provider.createCompletion(requestParams, signal);
-    initialResult = await provider.processNonStreamResponse(
-      response,
-      0,
-      toolManager,
-      fullContent,
-      fullReasoningContent,
-      usage,
-      finishReasonResult,
-      onChunk
-    );
-  }
+  const initialResult = await invokeModelRound(0, requestParams);
 
   fullContent = initialResult.fullContent;
   fullReasoningContent = initialResult.fullReasoningContent;

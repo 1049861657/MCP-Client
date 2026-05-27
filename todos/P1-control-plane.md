@@ -97,35 +97,17 @@
 
 > 参考：[s11 Error Recovery](https://learn.shareai.run/zh/s11/)（中文页慢时可读 [英文版](https://learn.shareai.run/en/s11/)）
 
-**背景**：当前 tool 失败仅 catch 返回错误文本；`max_tokens` 截断、context overflow、MCP 瞬态断连无分类恢复。
+**背景**：工具轮内 LLM 调用失败会终止整轮 loop；429/timeout 等瞬态错误无重试。context overflow 由 P1-01 预防（microCompact + 可选自动摘要）；MCP 断连由 `server-connection` 重连 + 单次 tool 重试。
 
-### 三类 recoverable + 一类 terminal
-
-| 类型 | 触发 | 动作 |
-|------|------|------|
-| continuation | `finish_reason: length` | 注入「从断点继续」reminder |
-| compact | prompt too long / context 错误 | 触发 P1-01 压缩后重试 |
-| backoff | timeout / rate limit / ECONNRESET | 指数退避 + jitter |
-| fail | 未知 / 超预算 | 终止并告知用户 |
+**Client 定位**：个人 demo → **仅做 LLM 瞬态退避重试**。失败可见化、overflow 引导手动压缩、continuation / reactive compact / `recovery-manager` 暂不实施。
 
 ### 任务
 
-- [ ] **P1-02-01** 新建 `src/core/agent-harness/recovery-manager.ts`  
-  - 功能：`chooseRecovery(stopReason, errorText) -> IRecoveryDecision`  
-  - 涉及：新建模块  
-  - 验收：单元测试覆盖四类分类
-
-- [ ] **P1-02-02** 实现 `RecoveryState` 计数器（每类独立 budget，默认 max 3）  
-  - 涉及：`recovery-manager.ts`、`loop-state.ts`  
-  - 验收：超 budget 不再重试，reason 可见
-
-- [ ] **P1-02-03** 在 agent-loop 中接入 recovery 分支（LLM 调用 + MCP callTool 两层）  
-  - 涉及：`agent-loop.ts`、`server-connection.ts`  
-  - 验收：模拟 rate limit 可自动退避成功
-
-- [ ] **P1-02-04** MCP 连接瞬态错误映射到 backoff（`-32000` 系列已有重连，补 Harness 层重试）  
-  - 涉及：`server-connection.ts`、`recovery-manager.ts`  
-  - 验收：单次断连不终止整轮 Agent
+- [x] **P1-02-01** LLM 瞬态错误退避重试  
+  - 功能：`withLlmRetry()` 包装 agent-loop 内两处 LLM 调用；429/timeout/ECONNRESET/503/529 最多 1 次重试，退避 1s；401/400/context 类 fail-fast  
+  - 涉及：`agent-loop.ts`、`llm-retry.ts`、`feature-config.ts`  
+  - 验收：模拟 rate limit 可恢复；401 不重试  
+  - 完成日期：2026-05-26
 
 ---
 
@@ -260,7 +242,7 @@ core + tools + skills_catalog + memory + project_rules + dynamic(date/cwd/mode)
 
 ## P1 完成检查清单
 
-- [ ] 40+ 轮会话可通过压缩 + 恢复继续
+- [x] LLM 瞬态错误可退避重试（P1-02）
 - [ ] 工具权限 ask/deny 流程可用
 - [ ] Prompt 分段可维护、可测试
 - [ ] Hook 可插拔至少 1 个自定义脚本

@@ -111,6 +111,17 @@ export const ContextConfig = {
 };
 
 /**
+ * LLM 错误恢复（P1-02）
+ */
+export const RecoveryConfig = {
+  /** 首次失败后额外重试次数（不含首次调用） */
+  llmMaxRetries: 1,
+
+  /** 各次重试前等待毫秒（第 1 次重试） */
+  llmRetryDelaysMs: [1000] as const
+};
+
+/**
  * 按摘要 prompt 体量选择 max_tokens，避免短对话也拉满 4096 拖慢
  */
 export function resolveSummarizeMaxTokens(serializedPromptChars: number): number {
@@ -196,6 +207,7 @@ export const FeatureConfig = {
   tools: ToolsConfig,
   chat: ChatConfig,
   context: ContextConfig,
+  recovery: RecoveryConfig,
   history: HistoryConfig,
   log: LogConfig
 }; 
