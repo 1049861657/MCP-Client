@@ -1,8 +1,8 @@
-import { IToolCallRecord } from './types.js';
+import { ToolCallRecord } from './types.js';
 
 /** 单工具执行器：由 agent-loop 注入，参数齐即可被调度 */
 export type StreamingToolExecuteFn = (
-  toolCall: IToolCallRecord
+  toolCall: ToolCallRecord
 ) => Promise<{ tool_call_id: string; content: string }>;
 
 /**
@@ -19,7 +19,7 @@ export class StreamingToolScheduler {
   }
 
   /** arguments 解析完成时尝试调度（幂等） */
-  trySchedule(toolCall: IToolCallRecord): void {
+  trySchedule(toolCall: ToolCallRecord): void {
     if (!this.executor) {
       return;
     }
@@ -62,7 +62,7 @@ export class StreamingToolScheduler {
     await Promise.all(globalIndices.map(index => this.awaitExecution(index)));
   }
 
-  private hasCompleteArguments(toolCall: IToolCallRecord): boolean {
+  private hasCompleteArguments(toolCall: ToolCallRecord): boolean {
     const text = toolCall.argumentsText?.trim() ?? '';
     if (!text) {
       return false;

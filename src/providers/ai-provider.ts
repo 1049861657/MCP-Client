@@ -8,7 +8,7 @@ import {
   ChunkResponse,
   ExtendedDelta,
   InternalMessage,
-  IToolCallRecord,
+  ToolCallRecord,
   ModelResponseResult,
   ChatTool,
   UsageInfo
@@ -545,7 +545,7 @@ export class AiProvider {
     let updatedContent = fullContent;
     let updatedReasoningContent = fullReasoningContent;
     let hasNewToolCalls = false;
-    const newToolCalls: IToolCallRecord[] = [];
+    const newToolCalls: ToolCallRecord[] = [];
 
     const content = message?.content || '';
     const reasoningContent = message?.reasoning_content || '';
@@ -613,7 +613,7 @@ export class AiProvider {
     onChunk: (chunk: ChunkResponse, done: boolean) => void
   ): Promise<ModelResponseResult> {
     let hasNewToolCalls = false;
-    let newToolCalls: IToolCallRecord[] = [];
+    let newToolCalls: ToolCallRecord[] = [];
     let updatedContent = fullContent;
     let updatedReasoningContent = fullReasoningContent;
     let updatedUsage = usage;

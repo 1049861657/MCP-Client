@@ -115,7 +115,7 @@
   - 涉及：新建模块  
   - 验收：单元测试覆盖四类分类
 
-- [ ] **P1-02-02** 实现 `IRecoveryState` 计数器（每类独立 budget，默认 max 3）  
+- [ ] **P1-02-02** 实现 `RecoveryState` 计数器（每类独立 budget，默认 max 3）  
   - 涉及：`recovery-manager.ts`、`loop-state.ts`  
   - 验收：超 budget 不再重试，reason 可见
 

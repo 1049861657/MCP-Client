@@ -2,14 +2,14 @@ import { Logger } from '../../utils/logger.js';
 import {
   ChunkResponse,
   InternalMessage,
-  ILoopState,
-  IPartialToolResult,
-  IToolCallRecord,
-  ITransitionReason
+  LoopState,
+  PartialToolResult,
+  ToolCallRecord,
+  TransitionReason
 } from './types.js';
 
 /** 创建 Agent Loop 显式状态 */
-export function createLoopState(messages: InternalMessage[]): ILoopState {
+export function createLoopState(messages: InternalMessage[]): LoopState {
   return {
     messages,
     turnCount: 0,
@@ -19,9 +19,9 @@ export function createLoopState(messages: InternalMessage[]): ILoopState {
 
 /** 每轮结束后更新续行原因并打结构化日志 */
 export function recordTurnEnd(
-  state: ILoopState,
+  state: LoopState,
   turn: number,
-  reason: ITransitionReason,
+  reason: TransitionReason,
   toolCount: number,
   providerName: string
 ): void {
@@ -34,14 +34,14 @@ export function recordTurnEnd(
 export function logTurnSummary(
   providerName: string,
   turn: number,
-  reason: ITransitionReason,
+  reason: TransitionReason,
   toolCount: number
 ): void {
   Logger.info('HARNESS', `[${providerName}] loop turn end ${JSON.stringify({ turn, reason, toolCount })}`);
 }
 
 /** 从工具记录提取触顶时的未完成/中断摘要 */
-export function buildPartialResults(toolCalls: IToolCallRecord[]): IPartialToolResult[] {
+export function buildPartialResults(toolCalls: ToolCallRecord[]): PartialToolResult[] {
   return toolCalls
     .filter(tc => tc.meta?.status === 'pending' || tc.meta?.status === 'interrupted')
     .map(tc => ({
@@ -57,7 +57,7 @@ export function buildPartialResults(toolCalls: IToolCallRecord[]): IPartialToolR
 export function emitMaxToolCallsReached(
   onChunk: (chunk: ChunkResponse, done: boolean) => void,
   round: number,
-  partialResults: IPartialToolResult[]
+  partialResults: PartialToolResult[]
 ): void {
   onChunk({
     type: 'max_tool_calls_reached',

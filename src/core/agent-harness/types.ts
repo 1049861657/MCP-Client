@@ -22,12 +22,10 @@ export interface InternalMessageExtensions {
 /** Harness 内部消息块（可含扩展字段） */
 export type InternalMessage = ChatCompletionMessageParam & InternalMessageExtensions;
 
-/** @deprecated 文档别名，等同 InternalMessage */
-export type IMessageBlock = InternalMessage;
-export type ITransitionReason = 'tool_result' | 'end' | 'max_rounds' | null;
+export type TransitionReason = 'tool_result' | 'end' | 'max_rounds' | null;
 
 /** 触顶时未完成/中断的工具摘要（P0-05-02 SSE partialResults） */
-export interface IPartialToolResult {
+export interface PartialToolResult {
   id: string;
   name: string;
   codeName: string;
@@ -36,14 +34,14 @@ export interface IPartialToolResult {
 }
 
 /** Agent Loop 运行时状态 */
-export interface ILoopState {
+export interface LoopState {
   messages: InternalMessage[];
   turnCount: number;
-  transitionReason: ITransitionReason;
+  transitionReason: TransitionReason;
 }
 
 /** 中断/恢复状态骨架（P1 控制面扩展） */
-export interface IRecoveryState {
+export interface RecoveryState {
   interruptedAtTurn: number;
   pendingToolCallIds: string[];
   reason: string;
@@ -111,7 +109,7 @@ export interface ExtendedDelta {
 }
 
 /** 工具调用记录 */
-export interface IToolCallRecord {
+export interface ToolCallRecord {
   id: string;
   codeName: string;
   name: string;
@@ -135,9 +133,6 @@ export interface IToolCallRecord {
   };
 }
 
-/** @deprecated 兼容旧名，等同 IToolCallRecord */
-export type ToolCallInfo = IToolCallRecord;
-
 /** 使用量统计 */
 export interface UsageInfo {
   promptTokens: number;
@@ -149,7 +144,7 @@ export interface UsageInfo {
 export interface ChatResponse {
   content: string;
   model: string;
-  tool_calls?: IToolCallRecord[];
+  tool_calls?: ToolCallRecord[];
   reasoning_content?: string;
   finish_reason?: string;
   usage: UsageInfo;
@@ -179,5 +174,5 @@ export interface ModelResponseResult {
   usage: UsageInfo | null;
   finishReasonResult: string | undefined | null;
   hasNewToolCalls: boolean;
-  newToolCalls: IToolCallRecord[];
+  newToolCalls: ToolCallRecord[];
 }

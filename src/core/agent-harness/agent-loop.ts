@@ -22,7 +22,7 @@ import {
   ChatResponse,
   ChunkResponse,
   InternalMessage,
-  IToolCallRecord,
+  ToolCallRecord,
   ModelResponseResult,
   ChatTool,
   UsageInfo
@@ -125,7 +125,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   const toolManager = new ToolCallManager(provider.providerName, onChunk);
 
   const executeOneToolCall = async (
-    toolCall: IToolCallRecord
+    toolCall: ToolCallRecord
   ): Promise<{ tool_call_id: string; content: string }> => {
     const globalIndex = toolCall.meta?.globalIndex as number;
     const current = toolManager.getToolCall(globalIndex) ?? toolCall;
@@ -230,7 +230,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   }
 
   const processToolCalls = async (
-    toolCalls: IToolCallRecord[],
+    toolCalls: ToolCallRecord[],
     assistantReasoning: string
   ): Promise<ToolRoundResult> => {
     if (toolCalls.length === 0) {

@@ -1,7 +1,7 @@
 import { ToolNameCodec } from '../../utils/tool-name-codec.js';
 import { isSystemTool } from './system-tools/system-tool-registry.js';
 import { StreamingToolExecuteFn, StreamingToolScheduler } from './streaming-tool-scheduler.js';
-import { ChunkResponse, IToolCallRecord } from './types.js';
+import { ChunkResponse, ToolCallRecord } from './types.js';
 
 function resolveToolCallSource(codeName: string): 'system' | 'mcp' {
   return isSystemTool(codeName) ? 'system' : 'mcp';
@@ -11,8 +11,8 @@ function resolveToolCallSource(codeName: string): 'system' | 'mcp' {
  * 工具调用管理器 - 负责工具调用的生命周期管理与 SSE 事件推送
  */
 export class ToolCallManager {
-  private toolCalls: IToolCallRecord[] = [];
-  private indexMap: Map<number, IToolCallRecord> = new Map();
+  private toolCalls: ToolCallRecord[] = [];
+  private indexMap: Map<number, ToolCallRecord> = new Map();
   private currentRound = 0;
   private providerName: string;
   private onChunk: (chunk: ChunkResponse, done: boolean) => void;
@@ -28,7 +28,7 @@ export class ToolCallManager {
     this.streamingScheduler.attachExecutor(executor);
   }
 
-  getToolCall(globalIndex: number): IToolCallRecord | undefined {
+  getToolCall(globalIndex: number): ToolCallRecord | undefined {
     return this.indexMap.get(globalIndex);
   }
 
@@ -60,7 +60,7 @@ export class ToolCallManager {
     const globalIndex = this.toolCalls.length;
 
     const source = resolveToolCallSource(name);
-    const toolCall: IToolCallRecord = {
+    const toolCall: ToolCallRecord = {
       id: toolCallId,
       codeName: name,
       name: name.startsWith('mcp__') ? ToolNameCodec.decode(name) : name,
@@ -202,7 +202,7 @@ export class ToolCallManager {
     }, false);
   }
 
-  getToolCallsByRound(round: number): IToolCallRecord[] {
+  getToolCallsByRound(round: number): ToolCallRecord[] {
     return this.toolCalls.filter(tc => tc.meta && tc.meta.round === round);
   }
 
@@ -218,7 +218,7 @@ export class ToolCallManager {
     this.currentRound = round;
   }
 
-  getAllToolCalls(): IToolCallRecord[] {
+  getAllToolCalls(): ToolCallRecord[] {
     return [...this.toolCalls];
   }
 
