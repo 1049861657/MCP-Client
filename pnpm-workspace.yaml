@@ -10,3 +10,4 @@ allowBuilds:
   prisma: true
   '@prisma/client': true
   '@prisma/engines': true
+  msgpackr-extract: false

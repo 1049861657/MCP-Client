@@ -18,6 +18,7 @@
 | [P3-agent-runtime.md](./P3-agent-runtime.md) | **P3** Agent 运行时进阶（规划、Memory、Hook、任务系统） |
 | [BACKLOG.md](./BACKLOG.md) | 远期可选（多 Agent、Worktree、CLI/SDK） |
 | [T0-architecture.md](./T0-architecture.md) | **T0** 个人任务：本文件主题为「目录与命名架构整理」 |
+| [T1-channel-bus.md](./T1-channel-bus.md) | **T1** 个人任务：渠道层 + 消息总线层（**当前仅 Web**） |
 
 > AI 改造任务：启用项目 Skill `.cursor/skills/roadmap/`（薄路由，正文以本目录为准）
 
@@ -26,7 +27,7 @@
 | 前缀 | 含义 | 谁维护 | 示例 |
 |------|------|--------|------|
 | **P0–P3** | 路线图阶段：Harness / 控制面 / MCP 平台 / Agent 运行时 | 路线图 SSOT | `P1-01-11` 大结果落盘 |
-| **T0、T1…** | **个人补充任务**（与 P 正交，主题任意） | 按需新建 `T{n}-*.md` | `T0-01-01`（架构）；未来可有 `T1-ui.md` 等 |
+| **T0、T1…** | **个人补充任务**（与 P 正交，主题任意） | 按需新建 `T{n}-*.md` | `T0-01-01`（架构）；`T1-01-01`（渠道+总线） |
 
 约定：
 
@@ -46,6 +47,7 @@
 | 阶段 | 总数 | 已完成 | 进度 |
 |------|------|--------|------|
 | T0（架构·精简） | 5 | 5 | 100% |
+| T1（渠道+总线·Web） | 20 | 0 | 0% |
 | P0 | 19 | 19 | 100% |
 | P1 | 31 | 12 | 39% |
 | P2 | 21 | 0 | 0% |
@@ -56,19 +58,21 @@
 
 ## 当前阶段
 
-**P1 — 控制面**（T0 架构整理已完成；继续 P1 压缩/恢复/权限等任务）
+**P1 — 控制面** + **T1 — 渠道层/消息总线（Web MVP）** 并行（T0 已完成；T1 见 [T1-channel-bus.md](./T1-channel-bus.md)）
 
 ## 相关代码入口
 
 ```
+src/channels/               # T1：Web Adapter（待建）
+src/message-bus/            # T1：Inbound Queue、Worker、OutboundRouter（待建）
 src/core/agent-harness/     # Harness：agent-loop、tool-call-manager、system-tools、types
 src/providers/              # AiProvider、ai-providers（LLM Chat）
-src/api/ai.controller.ts    # 路由 /api/chat/*
+src/api/ai.controller.ts    # 路由 /api/chat/*（T1 瘦身为入队）
 src/core/mcp/               # MCPClientManager、server-connection
 src/mcp-servers/            # echo-mcp、large-json-mcp（独立 MCP 进程）
 src/types/                  # config.types、mcp.types、api.types
 src/config/feature-config.ts
-public/js/ai-*.js           # 前端（待 T1 迁至 public/js/chat/）
+public/js/ai-*.js           # 前端（T1 目标零改动；目录迁移另开 T 主题）
 prisma/schema.prisma
 ```
 

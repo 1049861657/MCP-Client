@@ -1,6 +1,6 @@
 # MCP-Client Agent Harness 改造总路线图
 
-> 最后更新：2026-05-26  
+> 最后更新：2026-05-27  
 > 定位：从「LLM + MCP 工具网关 + Web UI」升级为「具备控制面的 Agent Client」  
 > 参考文档：章节完整 URL 见 [REFERENCES.md](./REFERENCES.md)
 
@@ -100,21 +100,28 @@ gantt
 | **P2** | 2 周 | Resources/Prompts/OAuth/连接状态机 | MCP 能力面完整；远程服可 OAuth |
 | **P3** | 3 周 | Todo/Memory/Hook/服务端会话 | 跨会话偏好保留；Hook 可扩展 |
 | **Backlog** | 按需 | 多 Agent、Worktree、CLI | 视产品方向决定 |
+| **T1** | 2–3 周 | 渠道层 + 消息总线（**Web 单渠道**） | Web 全链路走 Envelope + Inbound Queue；Harness 无渠道分支 |
+
+> **T1** 为个人任务轨，与 P 正交，详见 [T1-channel-bus.md](./T1-channel-bus.md)。飞书/钉钉留 T2，依赖 T1 + P3-04。
 
 ## 四、阶段依赖
 
-> **T\***（个人补充任务，见 [T0-architecture.md](./T0-architecture.md)）与 P 路线图正交，不列入下图依赖。
+> **T\***（个人补充任务，见 [T0-architecture.md](./T0-architecture.md)、[T1-channel-bus.md](./T1-channel-bus.md)）与 P 路线图正交，不列入下图依赖。
 
 ```
 P0-01 Harness 模块拆分
   └─► P0-02 消息规范化
         └─► P0-03 完整历史链（tool_calls + tool results）
-              └─► P1-01 上下文压缩（依赖完整 messages）
-                    └─► P1-02 错误恢复（compact 分支）
-                          └─► P1-03 权限门（工具执行前）
-                                └─► P2-01 MCP OAuth
+              ├─► P1-01 上下文压缩（依赖完整 messages）
+              │     └─► P1-02 错误恢复（compact 分支）
+              │           └─► P1-03 权限门（工具执行前）
+              │                 └─► P2-01 MCP OAuth
+              └─► T1-01 Envelope 契约（可与 P1 并行）
+                    └─► T1-02 Inbound Queue
+                          └─► T1-03 Web Adapter → T1-04 Worker → T1-05 Outbound
 P2-02 Resources/Prompts（可与 P1 后期并行）
 P3-* 可在 P1 完成后按需启动
+T2 飞书/钉钉：T1 完成 + P3-04 Session Store
 ```
 
 ## 五、不建议做的（避免过度工程）

@@ -20,7 +20,7 @@
 | T0-08 拆 feature-config | **暂缓**；仅去 default export 若有 | `config.controller` 已用命名 import；拆文件无即时收益 |
 | T0-09 合并 interfaces | **保留为可选项** | 仅 **4 处** import，可与 T0-03 同 PR 或下一 PR |
 | T0-10 去 I 前缀 | **暂缓** | 纯风格，5 文件 ~27 处；与功能无关，单独 PR 性价比低 |
-| T0-11 前端 public/js/chat | **暂缓 → T1** | 零后端架构价值；动态 loader 路径易白屏，测试成本高 |
+| T0-11 前端 public/js/chat | **暂缓 → 独立 T 主题** | 零后端架构价值；动态 loader 路径易白屏，测试成本高 |
 | T0-12 杂项文档 | **并入验收** | ROADMAP 图在 T0-01 完成后改一次即可 |
 | T0-03-02 system-tools 提升到 core | **暂缓** | 当前 3 个工具，嵌在 harness 内合理；≥5 再考虑 |
 
@@ -195,7 +195,7 @@ mcp-servers → （独立进程，无 src 内依赖）
 | bootstrap/ 目录 | 不做 | `app.ts` 启动副作用仍 <30 行 |
 | `types/agent-api.types.ts` | 不做 | API 深 import harness 仍 ≤2 处 |
 | 去 `I` 前缀 | T1 或规范 PR | 大规模改 types 时顺带 |
-| `public/js/chat/` | **T1-frontend** | 前端模块化/refactor 专项 |
+| `public/js/chat/` | **独立 T 主题** | 前端模块化/refactor 专项 |
 | `system-tools` 提升到 `core/` | T1 | 注册工具 ≥5 或出现跨 harness 复用 |
 | `OpenAI` 类 → `OpenAIProvider` | **已否决** → 改为 `AiProvider`（见命名原则） |
 

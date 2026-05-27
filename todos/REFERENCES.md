@@ -122,6 +122,33 @@
 
 ---
 
+## 渠道层 · 消息总线
+
+| 主题 | 说明 | 完整 URL |
+|------|------|----------|
+| BullMQ 官方文档 | Queue / Worker / 重试 / 生产配置 | https://docs.bullmq.io/ |
+| BullMQ — ioredis 连接 | `maxRetriesPerRequest: null` 等约束 | https://docs.bullmq.io/guide/connections |
+| ioredis | Node Redis 客户端（BullMQ 底层） | https://github.com/redis/ioredis |
+| Redis Streams — LLM 流式输出 | Stream 推浏览器（模式参考） | https://redis.io/tutorials/howtos/solutions/streams/streaming-llm-output/ |
+| CloudEvents 规范 | Envelope 字段约定（id / source / type / time） | https://github.com/cloudevents/spec |
+| EIP — Channel Adapter | 渠道适配器模式 | https://www.enterpriseintegrationpatterns.com/patterns/messaging/ChannelAdapter.html |
+| EIP — Message Broker | 消息总线 / 解耦模式 | https://www.enterpriseintegrationpatterns.com/patterns/messaging/MessageBroker.html |
+| MessagingGateway — ARCHITECTURE | Ports：Inbound / Messaging / Connection | https://github.com/vgpastor/MessagingGateway/blob/main/ARCHITECTURE.md |
+| MessagingGateway 仓库 | 统一 API + EventBus 参考实现 | https://github.com/vgpastor/MessagingGateway |
+| OpenClaw — Channel Plugin 开发 | ChannelAdapter 接口与扩展机制 | https://www.openclawbook.xyz/en/ch13-channel-extension-mechanism/13.4-developing-custom-extensions |
+| OpenClaw 仓库 | 多渠道 Gateway 参考实现 | https://github.com/openclaw/openclaw |
+| unified-channel-js | 多 Channel Adapter 中间件 | https://github.com/gambletan/unified-channel-js |
+| Hermes Agent — DingTalk | Stream Mode 接入模式参考 | https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/messaging/dingtalk.md |
+| 飞书 Node SDK | `@larksuiteoapi/node-sdk` | https://github.com/larksuite/node-sdk |
+| 飞书 npm | `@larksuiteoapi/node-sdk` | https://www.npmjs.com/package/@larksuiteoapi/node-sdk |
+| 飞书 — 长连接接收事件 | 3s ACK、集群推送、至少一次投递 | https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/event-subscription-guide/long-connection-mode |
+| 飞书 — 事件概述 | 有序事件、重复消息说明 | https://open.feishu.cn/document/ukTMukTMukTM/uUTNz4SN1MjL1UzM |
+| 钉钉 Stream SDK | `dingtalk-stream` Node 官方包 | https://github.com/open-dingtalk/dingtalk-stream-sdk-nodejs |
+| 钉钉 npm | `dingtalk-stream` | https://www.npmjs.com/package/dingtalk-stream |
+| 钉钉 — Stream 模式配置 | 企业内部 / ISV 应用 Stream 推送 | https://developers.dingtalk.com/document/isvapp/stream |
+
+---
+
 ## 本仓库改造路线文件
 
 | 文件 | 路径 |
@@ -131,6 +158,8 @@
 | P1 控制面 | [todos/P1-control-plane.md](./P1-control-plane.md) |
 | P2 MCP 平台化 | [todos/P2-mcp-platform.md](./P2-mcp-platform.md) |
 | P3 Agent 运行时 | [todos/P3-agent-runtime.md](./P3-agent-runtime.md) |
+| T0 目录架构 | [todos/T0-architecture.md](./T0-architecture.md) |
+| T1 渠道+总线（Web） | [todos/T1-channel-bus.md](./T1-channel-bus.md) |
 | 远期 Backlog | [todos/BACKLOG.md](./BACKLOG.md) |
 
 ---
