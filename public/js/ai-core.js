@@ -659,11 +659,15 @@ window.AIChatApp = {
         this.state.compactModel = this.elements.compactModel.value;
     },
     
-    // 设置聊天模式（流式/常规）
+    // 设置聊天模式（流式/常规；标准模式已废弃，仅调试区可切换）
     setMode(mode) {
         this.state.isStreamMode = mode === 'stream';
         this.UI.updateUIForMode();
-        this.UI.showTooltip(`已切换到${this.state.isStreamMode ? '流式' : '标准'}响应模式`);
+        if (this.state.isStreamMode) {
+            this.UI.showTooltip('已切换到流式响应模式');
+        } else {
+            this.UI.showTooltip('已切换到标准响应（已废弃，不经过消息总线，仅调试用）');
+        }
     },
 
     

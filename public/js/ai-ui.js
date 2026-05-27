@@ -1627,13 +1627,11 @@ window.AIChatUI = {
             const app = window.AIChatApp;
             const elements = app.elements;
             
-            // 应用响应模式设置
+            // 应用响应模式设置（标准模式已废弃，启动时强制流式）
             if (typeof settings.isStreamMode === 'boolean') {
-                elements.modeStream.checked = settings.isStreamMode;
-                elements.modeRegular.checked = !settings.isStreamMode;
-                app.state.isStreamMode = settings.isStreamMode;
-                
-                // 更新UI以反映加载的模式设置
+                app.state.isStreamMode = true;
+                elements.modeStream.checked = true;
+                elements.modeRegular.checked = false;
                 app.UI.updateUIForMode();
             }
             

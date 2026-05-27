@@ -444,7 +444,7 @@ window.AIChatAPI = {
         }
     },
     
-    // 发送常规请求
+    // 发送常规请求（已废弃：不经过消息总线，仅调试区启用）
     async sendRegularRequest(message, model, temperature, maxTokens, enableTools = false) {
         const app = window.AIChatApp;
         const UI = window.AIChatUI;

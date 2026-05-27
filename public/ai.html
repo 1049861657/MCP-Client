@@ -262,17 +262,20 @@
                         <h3>响应设置</h3>
                         <div class="settings-item">
                             <label>响应模式:</label>
-                            <div class="settings-radio-group">
-                                <label class="settings-radio">
-                                    <input type="radio" name="response-mode" id="mode-stream" checked>
-                                    <span class="radio-label">流式响应</span>
-                                </label>
-                                <label class="settings-radio">
-                                    <input type="radio" name="response-mode" id="mode-regular">
-                                    <span class="radio-label">标准响应</span>
-                                </label>
-                            </div>
-                            <div class="settings-description">流式响应可实时查看AI回复，标准响应等待完整回复后显示</div>
+                            <div class="settings-description">流式响应（生产路径，实时显示 AI 回复与工具调用）</div>
+                            <details class="settings-item" style="margin-top: 0.5rem;">
+                                <summary style="cursor: pointer; color: #888; font-size: 0.9em;">开发者 / 调试</summary>
+                                <div class="settings-radio-group" style="margin-top: 0.5rem;">
+                                    <label class="settings-radio">
+                                        <input type="radio" name="response-mode" id="mode-stream" checked>
+                                        <span class="radio-label">流式响应</span>
+                                    </label>
+                                    <label class="settings-radio">
+                                        <input type="radio" name="response-mode" id="mode-regular">
+                                        <span class="radio-label">标准响应（已废弃，不经过消息总线）</span>
+                                    </label>
+                                </div>
+                            </details>
                         </div>
                         <div class="settings-item">
                             <label for="enable-message-history">历史消息:</label>

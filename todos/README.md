@@ -47,7 +47,7 @@
 | 阶段 | 总数 | 已完成 | 进度 |
 |------|------|--------|------|
 | T0（架构·精简） | 5 | 5 | 100% |
-| T1（渠道+总线·Web） | 20 | 0 | 0% |
+| T1（渠道+总线·Web） | 20 | 20 | 100% |
 | P0 | 19 | 19 | 100% |
 | P1 | 31 | 12 | 39% |
 | P2 | 21 | 0 | 0% |
@@ -58,13 +58,13 @@
 
 ## 当前阶段
 
-**P1 — 控制面** + **T1 — 渠道层/消息总线（Web MVP）** 并行（T0 已完成；T1 见 [T1-channel-bus.md](./T1-channel-bus.md)）
+**P1 — 控制面**（T0、T1 已完成；T1 见 [T1-channel-bus.md](./T1-channel-bus.md)）
 
 ## 相关代码入口
 
 ```
-src/channels/               # T1：Web Adapter（待建）
-src/message-bus/            # T1：Inbound Queue、Worker、OutboundRouter（待建）
+src/channels/               # T1：Web Adapter、bootstrap、envelope-mapper
+src/message-bus/            # T1：Inbound Queue、Worker、OutboundRouter、幂等
 src/core/agent-harness/     # Harness：agent-loop、tool-call-manager、system-tools、types
 src/providers/              # AiProvider、ai-providers（LLM Chat）
 src/api/ai.controller.ts    # 路由 /api/chat/*（T1 瘦身为入队）

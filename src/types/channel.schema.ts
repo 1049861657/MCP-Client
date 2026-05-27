@@ -1,0 +1,125 @@
+import { z } from 'zod';
+import type {
+  AgentMessageEnvelopeSerialized,
+  AgentOutboundEnvelope,
+  ChatOptions
+} from './channel.types.js';
+
+const chatOptionsSchema = z.object({
+  model: z.string().optional(),
+  temperature: z.number().optional(),
+  maxTokens: z.number().optional(),
+  enableTools: z.boolean().optional(),
+  enableParamValidation: z.boolean().optional(),
+  enablePrompts: z.boolean().optional(),
+  maxToolCallRounds: z.number().optional(),
+  enableAutoCompact: z.boolean().optional(),
+  compactModel: z.string().optional()
+}) satisfies z.ZodType<ChatOptions>;
+
+/** 宽松校验 messages[]，Worker 仍走 normalizeMessages */
+const internalMessageSchema = z.record(z.string(), z.unknown());
+
+const agentInboundPayloadSchema = z.object({
+  messages: z.array(internalMessageSchema).min(1),
+  chatOptions: chatOptionsSchema.optional()
+});
+
+const webChannelMetaSerializedSchema = z.object({
+  requestId: z.string().min(1),
+  vendor: z.string().optional()
+});
+
+const agentTraceSchema = z.object({
+  traceId: z.string().min(1),
+  idempotencyKey: z.string().min(1)
+});
+
+/** 入队 JSON Envelope（不含 abortSignal） */
+export const agentMessageEnvelopeSerializedSchema = z.object({
+  id: z.string().min(1),
+  source: z.literal('web:api'),
+  type: z.literal('agent.message.inbound'),
+  time: z.string().min(1),
+  channel: z.literal('web'),
+  sessionKey: z.string().min(1),
+  channelMeta: webChannelMetaSerializedSchema,
+  payload: agentInboundPayloadSchema,
+  trace: agentTraceSchema
+});
+
+const chunkPayloadSchema = z.record(z.string(), z.unknown());
+
+const contextCompactedPayloadSchema = z.object({
+  summaryContent: z.string().optional()
+});
+
+const usageOutboundPayloadSchema = z.object({
+  requestId: z.string().min(1),
+  promptTokens: z.number(),
+  completionTokens: z.number(),
+  totalTokens: z.number(),
+  elapsedTime: z.string(),
+  hasReasoning: z.boolean(),
+  hasTool: z.boolean()
+});
+
+const doneOutboundPayloadSchema = z.object({
+  requestId: z.string().min(1),
+  finish_reason: z.string().optional()
+});
+
+const errorOutboundPayloadSchema = z.object({
+  requestId: z.string().min(1),
+  error: z.string().min(1)
+});
+
+const agentOutboundEnvelopeSchema = z.discriminatedUnion('kind', [
+  z.object({
+    sessionKey: z.string().min(1),
+    channel: z.literal('web'),
+    requestId: z.string().min(1),
+    kind: z.literal('chunk'),
+    payload: chunkPayloadSchema
+  }),
+  z.object({
+    sessionKey: z.string().min(1),
+    channel: z.literal('web'),
+    requestId: z.string().min(1),
+    kind: z.literal('context_compacted'),
+    payload: contextCompactedPayloadSchema
+  }),
+  z.object({
+    sessionKey: z.string().min(1),
+    channel: z.literal('web'),
+    requestId: z.string().min(1),
+    kind: z.literal('usage'),
+    payload: usageOutboundPayloadSchema
+  }),
+  z.object({
+    sessionKey: z.string().min(1),
+    channel: z.literal('web'),
+    requestId: z.string().min(1),
+    kind: z.literal('done'),
+    payload: doneOutboundPayloadSchema
+  }),
+  z.object({
+    sessionKey: z.string().min(1),
+    channel: z.literal('web'),
+    requestId: z.string().min(1),
+    kind: z.literal('error'),
+    payload: errorOutboundPayloadSchema
+  })
+]) as z.ZodType<AgentOutboundEnvelope>;
+
+/** 解析入站 Envelope（失败 throw ZodError） */
+export function parseAgentMessageEnvelopeSerialized(
+  input: unknown
+): AgentMessageEnvelopeSerialized {
+  return agentMessageEnvelopeSerializedSchema.parse(input) as unknown as AgentMessageEnvelopeSerialized;
+}
+
+/** 解析出站 Envelope（失败 throw ZodError） */
+export function parseAgentOutboundEnvelope(input: unknown): AgentOutboundEnvelope {
+  return agentOutboundEnvelopeSchema.parse(input);
+}

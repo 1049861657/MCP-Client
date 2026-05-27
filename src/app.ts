@@ -8,6 +8,8 @@ import apiRoutes from './api/routes.js';
 import { Logger } from './utils/logger.js';
 import { ConfigService } from './services/config.service.js';
 import { cleanupExpiredAgentOutputs } from './core/agent-harness/context-budget.js';
+import { startMessageBus } from './message-bus/bootstrap.js';
+import { startChannels } from './channels/bootstrap.js';
 
 // 获取当前文件的目录路径
 const __filename = fileURLToPath(import.meta.url);
@@ -33,6 +35,9 @@ async function startServer() {
     const serverConfig = await ConfigService.getSetting('serverConfig') || ServerConfig;
 
     await cleanupExpiredAgentOutputs();
+
+    startMessageBus();
+    startChannels();
     
     // 启动服务器
     app.listen(serverConfig.port, () => {

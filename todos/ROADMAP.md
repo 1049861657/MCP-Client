@@ -31,7 +31,9 @@
 
 ## 二、目标架构（2026 Harness 模式）
 
-参考 OpenAI Agents SDK、GitHub Copilot Agent Mode、AWS MCP Prescriptive Guidance 的共识：
+参考 OpenAI Agents SDK、GitHub Copilot Agent Mode、AWS MCP Prescriptive Guidance 的共识。
+
+**T1 已落地**：流式聊天经渠道层 + Inbound Queue（BullMQ/Redis），Harness 仍无渠道分支。
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -41,8 +43,20 @@
                          │ SSE / REST
 ┌────────────────────────▼────────────────────────────────┐
 │  API Layer (src/api/)                                    │
+│  chatStream：SSE begin → registerSink → publishInbound   │
 └────────────────────────┬────────────────────────────────┘
-                         │
+                         │ Envelope
+┌────────────────────────▼────────────────────────────────┐
+│  Channels (src/channels/)          ← T1 渠道层           │
+│  WebChannelAdapter · normalize-web-inbound · registry    │
+└────────────────────────┬────────────────────────────────┘
+                         │ BullMQ Inbound
+┌────────────────────────▼────────────────────────────────┐
+│  Message Bus (src/message-bus/)    ← T1 消息总线         │
+│  publishInbound · Inbound Worker · OutboundRouter        │
+│  OutboundSinkRegistry · idempotency (Redis mcp-client:*) │
+└────────────────────────┬────────────────────────────────┘
+                         │ InternalMessage[] + onChunk
 ┌────────────────────────▼────────────────────────────────┐
 │  Agent Harness (src/core/agent-harness/)  ← 控制面   │
 │  ┌─────────────┐ ┌──────────────┐ ┌──────────────────┐  │
@@ -100,9 +114,9 @@ gantt
 | **P2** | 2 周 | Resources/Prompts/OAuth/连接状态机 | MCP 能力面完整；远程服可 OAuth |
 | **P3** | 3 周 | Todo/Memory/Hook/服务端会话 | 跨会话偏好保留；Hook 可扩展 |
 | **Backlog** | 按需 | 多 Agent、Worktree、CLI | 视产品方向决定 |
-| **T1** | 2–3 周 | 渠道层 + 消息总线（**Web 单渠道**） | Web 全链路走 Envelope + Inbound Queue；Harness 无渠道分支 |
+| **T1** ✅ | 2–3 周 | 渠道层 + 消息总线（**Web 单渠道**） | Web 全链路走 Envelope + Inbound Queue；Harness 无渠道分支 |
 
-> **T1** 为个人任务轨，与 P 正交，详见 [T1-channel-bus.md](./T1-channel-bus.md)。飞书/钉钉留 T2，依赖 T1 + P3-04。
+> **T1** 已完成（2026-05-27），详见 [T1-channel-bus.md](./T1-channel-bus.md)。飞书/钉钉留 T2，依赖 T1 + P3-04。
 
 ## 四、阶段依赖
 
@@ -116,9 +130,9 @@ P0-01 Harness 模块拆分
               │     └─► P1-02 错误恢复（compact 分支）
               │           └─► P1-03 权限门（工具执行前）
               │                 └─► P2-01 MCP OAuth
-              └─► T1-01 Envelope 契约（可与 P1 并行）
-                    └─► T1-02 Inbound Queue
-                          └─► T1-03 Web Adapter → T1-04 Worker → T1-05 Outbound
+              └─► T1-01 Envelope 契约 ✅
+                    └─► T1-02 Inbound Queue ✅
+                          └─► T1-03 Web Adapter → T1-04 Worker → T1-05 Outbound ✅
 P2-02 Resources/Prompts（可与 P1 后期并行）
 P3-* 可在 P1 完成后按需启动
 T2 飞书/钉钉：T1 完成 + P3-04 Session Store
