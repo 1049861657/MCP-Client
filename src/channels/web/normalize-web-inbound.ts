@@ -3,7 +3,7 @@ import {
   resolveMaxToolCallRounds,
   ToolsConfig
 } from '../../config/feature-config.js';
-import type { AgentMessageEnvelope, ChatOptions } from '../../types/channel.types.js';
+import type { ChatOptions, WebAgentMessageEnvelope } from '../../types/channel.types.js';
 import type { InternalMessage } from '../../core/agent-harness/types.js';
 import { buildWebSessionKey } from '../session-key.js';
 
@@ -65,7 +65,7 @@ function buildChatOptions(body: Record<string, unknown>): ChatOptions {
 /**
  * Web 入站：HTTP body + requestId + AbortSignal → AgentMessageEnvelope
  */
-export function normalizeWebInbound(input: WebInboundInput): AgentMessageEnvelope {
+export function normalizeWebInbound(input: WebInboundInput): WebAgentMessageEnvelope {
   const { body, requestId, abortSignal } = input;
   const messages = resolveMessages(body);
   const vendor = typeof body.vendor === 'string' ? body.vendor : undefined;

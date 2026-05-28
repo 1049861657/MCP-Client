@@ -159,7 +159,7 @@
 | P2 MCP 平台化 | [todos/P2-mcp-platform.md](./P2-mcp-platform.md) |
 | P3 Agent 运行时 | [todos/P3-agent-runtime.md](./P3-agent-runtime.md) |
 | T0 目录架构 | [todos/T0-architecture.md](./T0-architecture.md) |
-| T1 渠道+总线（Web） | [todos/T1-channel-bus.md](./T1-channel-bus.md) |
+| T1 渠道+总线（Web + 飞书） | [todos/T1-channel-bus.md](./T1-channel-bus.md) |
 | 远期 Backlog | [todos/BACKLOG.md](./BACKLOG.md) |
 
 ---

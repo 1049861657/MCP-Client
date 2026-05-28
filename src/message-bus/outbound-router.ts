@@ -12,7 +12,7 @@ function routeOutbound(envelope: AgentOutboundEnvelope): void {
   adapter.sendOutbound(envelope);
 }
 
-/** 出站路由：按 channel 分发至 Adapter（T1 仅 web） */
+/** 出站路由：按 channel 分发至 Adapter */
 export const outboundRouter: OutboundRouter = {
   route: routeOutbound
 };

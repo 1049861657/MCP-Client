@@ -18,7 +18,7 @@
 | [P3-agent-runtime.md](./P3-agent-runtime.md) | **P3** Agent 运行时进阶（规划、Memory、Hook、任务系统） |
 | [BACKLOG.md](./BACKLOG.md) | 远期可选（多 Agent、Worktree、CLI/SDK） |
 | [T0-architecture.md](./T0-architecture.md) | **T0** 个人任务：本文件主题为「目录与命名架构整理」 |
-| [T1-channel-bus.md](./T1-channel-bus.md) | **T1** 个人任务：渠道层 + 消息总线层（**当前仅 Web**） |
+| [T1-channel-bus.md](./T1-channel-bus.md) | **T1** 个人任务：渠道层 + 消息总线（Web + 飞书 + 钉钉） |
 
 > AI 改造任务：启用项目 Skill `.cursor/skills/roadmap/`（薄路由，正文以本目录为准）
 
@@ -47,7 +47,7 @@
 | 阶段 | 总数 | 已完成 | 进度 |
 |------|------|--------|------|
 | T0（架构·精简） | 5 | 5 | 100% |
-| T1（渠道+总线·Web） | 20 | 20 | 100% |
+| T1（渠道+总线） | 34 | 33 | 97% |
 | P0 | 19 | 19 | 100% |
 | P1 | 31 | 12 | 39% |
 | P2 | 21 | 0 | 0% |
@@ -58,12 +58,12 @@
 
 ## 当前阶段
 
-**P1 — 控制面**（T0、T1 已完成；T1 见 [T1-channel-bus.md](./T1-channel-bus.md)）
+**P1 — 控制面**（T1 渠道+总线已交付；仅剩 **T1-07-07 飞书 E2E 搁置**，见 [T1-channel-bus.md](./T1-channel-bus.md)）
 
 ## 相关代码入口
 
 ```
-src/channels/               # T1：Web Adapter、bootstrap、envelope-mapper
+src/channels/               # T1：Web / 飞书 / 钉钉 Adapter、bootstrap、envelope-mapper
 src/message-bus/            # T1：Inbound Queue、Worker、OutboundRouter、幂等
 src/core/agent-harness/     # Harness：agent-loop、tool-call-manager、system-tools、types
 src/providers/              # AiProvider、ai-providers（LLM Chat）

@@ -1,7 +1,7 @@
 import type { ChunkResponse, InternalMessage, UsageInfo } from '../core/agent-harness/types.js';
 
-/** T1 支持的渠道标识（当前仅 web） */
-export type ChannelId = 'web';
+/** T1 支持的渠道标识 */
+export type ChannelId = 'web' | 'feishu' | 'dingtalk';
 
 /** 入站 Envelope CloudEvents 核心字段 */
 export interface AgentEnvelopeCore {
@@ -19,6 +19,36 @@ export interface WebChannelMetaSerialized {
 
 /** Web 入站 channelMeta（进程内 runtime，含 AbortSignal） */
 export interface WebChannelMeta extends WebChannelMetaSerialized {
+  abortSignal?: AbortSignal;
+}
+
+/** 飞书入站 channelMeta（序列化 JSON） */
+export interface FeishuChannelMetaSerialized {
+  requestId: string;
+  messageId: string;
+  chatId: string;
+  vendor?: string;
+}
+
+/** 飞书入站 channelMeta（进程内 runtime） */
+export interface FeishuChannelMeta extends FeishuChannelMetaSerialized {
+  abortSignal?: AbortSignal;
+}
+
+/** 钉钉入站 channelMeta（序列化 JSON） */
+export interface DingtalkChannelMetaSerialized {
+  requestId: string;
+  msgId: string;
+  conversationId: string;
+  sessionWebhook: string;
+  sessionWebhookExpiredTime: number;
+  robotCode?: string;
+  conversationType?: string;
+  vendor?: string;
+}
+
+/** 钉钉入站 channelMeta（进程内 runtime） */
+export interface DingtalkChannelMeta extends DingtalkChannelMetaSerialized {
   abortSignal?: AbortSignal;
 }
 
@@ -47,8 +77,8 @@ export interface AgentTrace {
   idempotencyKey: string;
 }
 
-/** 入站 Envelope（Web，进程内 runtime） */
-export interface AgentMessageEnvelope extends AgentEnvelopeCore {
+/** Web 入站 Envelope（进程内 runtime） */
+export interface WebAgentMessageEnvelope extends AgentEnvelopeCore {
   source: 'web:api';
   type: 'agent.message.inbound';
   channel: 'web';
@@ -58,10 +88,57 @@ export interface AgentMessageEnvelope extends AgentEnvelopeCore {
   trace: AgentTrace;
 }
 
-/** 入队 JSON 形态（不含 abortSignal） */
-export interface AgentMessageEnvelopeSerialized extends Omit<AgentMessageEnvelope, 'channelMeta'> {
+/** 飞书入站 Envelope（进程内 runtime） */
+export interface FeishuAgentMessageEnvelope extends AgentEnvelopeCore {
+  source: 'feishu:im';
+  type: 'agent.message.inbound';
+  channel: 'feishu';
+  sessionKey: string;
+  channelMeta: FeishuChannelMeta;
+  payload: AgentInboundPayload;
+  trace: AgentTrace;
+}
+
+/** 钉钉入站 Envelope（进程内 runtime） */
+export interface DingtalkAgentMessageEnvelope extends AgentEnvelopeCore {
+  source: 'dingtalk:im';
+  type: 'agent.message.inbound';
+  channel: 'dingtalk';
+  sessionKey: string;
+  channelMeta: DingtalkChannelMeta;
+  payload: AgentInboundPayload;
+  trace: AgentTrace;
+}
+
+/** 入站 Envelope 联合（进程内 runtime） */
+export type AgentMessageEnvelope =
+  | WebAgentMessageEnvelope
+  | FeishuAgentMessageEnvelope
+  | DingtalkAgentMessageEnvelope;
+
+/** Web 入队 JSON 形态（不含 abortSignal） */
+export interface WebAgentMessageEnvelopeSerialized
+  extends Omit<WebAgentMessageEnvelope, 'channelMeta'> {
   channelMeta: WebChannelMetaSerialized;
 }
+
+/** 飞书入队 JSON 形态（不含 abortSignal） */
+export interface FeishuAgentMessageEnvelopeSerialized
+  extends Omit<FeishuAgentMessageEnvelope, 'channelMeta'> {
+  channelMeta: FeishuChannelMetaSerialized;
+}
+
+/** 钉钉入队 JSON 形态（不含 abortSignal） */
+export interface DingtalkAgentMessageEnvelopeSerialized
+  extends Omit<DingtalkAgentMessageEnvelope, 'channelMeta'> {
+  channelMeta: DingtalkChannelMetaSerialized;
+}
+
+/** 入队 JSON Envelope 联合（不含 abortSignal） */
+export type AgentMessageEnvelopeSerialized =
+  | WebAgentMessageEnvelopeSerialized
+  | FeishuAgentMessageEnvelopeSerialized
+  | DingtalkAgentMessageEnvelopeSerialized;
 
 /** 出站 kind */
 export type AgentOutboundKind =
@@ -104,11 +181,49 @@ export type AgentOutboundPayload =
   | DoneOutboundPayload
   | ErrorOutboundPayload;
 
-/** 出站 Envelope（Web → SSE） */
-export interface AgentOutboundEnvelope {
+/** 出站 Envelope 基础字段 */
+interface AgentOutboundEnvelopeBase {
   sessionKey: string;
-  channel: 'web';
   requestId: string;
   kind: AgentOutboundKind;
   payload: AgentOutboundPayload;
+}
+
+/** Web 出站 Envelope（→ SSE） */
+export interface WebAgentOutboundEnvelope extends AgentOutboundEnvelopeBase {
+  channel: 'web';
+}
+
+/** 飞书出站 Envelope（→ im.v1.message.reply） */
+export interface FeishuAgentOutboundEnvelope extends AgentOutboundEnvelopeBase {
+  channel: 'feishu';
+}
+
+/** 钉钉出站 Envelope（→ sessionWebhook POST） */
+export interface DingtalkAgentOutboundEnvelope extends AgentOutboundEnvelopeBase {
+  channel: 'dingtalk';
+}
+
+/** 出站 Envelope 联合 */
+export type AgentOutboundEnvelope =
+  | WebAgentOutboundEnvelope
+  | FeishuAgentOutboundEnvelope
+  | DingtalkAgentOutboundEnvelope;
+
+export function isWebInboundEnvelope(
+  envelope: AgentMessageEnvelopeSerialized
+): envelope is WebAgentMessageEnvelopeSerialized {
+  return envelope.channel === 'web';
+}
+
+export function isFeishuInboundEnvelope(
+  envelope: AgentMessageEnvelopeSerialized
+): envelope is FeishuAgentMessageEnvelopeSerialized {
+  return envelope.channel === 'feishu';
+}
+
+export function isDingtalkInboundEnvelope(
+  envelope: AgentMessageEnvelopeSerialized
+): envelope is DingtalkAgentMessageEnvelopeSerialized {
+  return envelope.channel === 'dingtalk';
 }

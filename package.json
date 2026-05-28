@@ -9,7 +9,8 @@
     "build": "pnpm run clean && prisma generate && tsc",
     "db:migrate": "prisma migrate deploy",
     "start": "pnpm run build && node dist/app.js",
-    "server": "node dist/app.js"
+    "server": "node dist/app.js",
+    "test": "pnpm exec tsc && node --test dist/channels/session-key.test.js dist/channels/feishu/normalize-feishu-inbound.test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -25,7 +26,9 @@
     "zod": "^4.4.3",
     "bullmq": "^5.77.4",
     "ioredis": "^5.11.0",
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.0",
+    "@larksuiteoapi/node-sdk": "^1.66.0",
+    "dingtalk-stream": "^2.1.6-beta.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

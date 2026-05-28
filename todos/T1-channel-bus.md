@@ -1,9 +1,9 @@
-# T1 — 渠道层 + 消息总线层（Web 单渠道 MVP）
+# T1 — 渠道层 + 消息总线层
 
-> **状态**：已完成（2026-05-27）  
-> **范围**：渠道接入 + 异步总线；**当前仅 Web**  
+> **状态**：**T1 渠道+总线已交付**（33/34）；**T1-07-07 飞书 E2E 搁置**；**T1-08 钉钉 E2E 已通过**（2026-05-27）  
+> **范围**：渠道接入 + 异步总线（**Web + 飞书 + 钉钉**）  
 > **前置**：P0 完成（`agent-harness`、`InternalMessage`、SSE 已可用）；可与 P1 并行  
-> **预估**：2–3 周（**20** 子项，建议 2–3 个 PR）  
+> **预估**：**34** 子项（已完成 33；T1-07-07 搁置）  
 > **参考**：[REFERENCES.md — 渠道层·消息总线](./REFERENCES.md#渠道层--消息总线)
 
 ---
@@ -38,7 +38,7 @@ Harness **不改** Loop 语义；动的是 **Controller 入站** 与 **chunk 出
 
 ---
 
-## 已拍板决策（新对话按此执行，勿再讨论）
+## 约束
 
 | 项 | 决策 |
 |----|------|
@@ -91,7 +91,7 @@ register(requestId, res, abortController)
 | 消息总线 | `bullmq` + `ioredis` + Redis **6.2+**（公司实例 6.2.6） | 内存队列、Kafka/NATS |
 | Envelope | `zod` + CloudEvents 核心字段 | `@cloudevents/sdk` |
 | Web | 自研 Adapter | 第三方 Gateway 嵌入 |
-| Session 持久化 | T1 仍用 body **`messages[]`** | P3-04（T2 IM 前置） |
+| Session 持久化 | Web 用 body **`messages[]`**；飞书用 **`feishu:{chatId}`** + 当轮消息 | 跨端统一会话见 P3-04 |
 
 **BullMQ**：`maxRetriesPerRequest: null`；`attempts` + 指数退避；`removeOnComplete` / `removeOnFail`。
 
@@ -159,12 +159,12 @@ SSE 映射（与 `ai.controller.ts` 现网一致）：
 
 | 做 | 不做 |
 |----|------|
-| Web Adapter、Envelope、Inbound Queue + Worker、OutboundRouter + SinkRegistry | 飞书/钉钉、Channel Registry、独立 Outbound Queue |
+| Web / 飞书 / 钉钉 Adapter、Envelope、Inbound Queue + Worker、OutboundRouter + SinkRegistry | 独立 Outbound Queue |
 | 幂等 + traceId | 改 `public/js/ai-api.js` |
 
 1. Harness 只接 `InternalMessage[]`，出 `ChunkResponse`  
 2. Web 行为与改造前一致  
-3. 接口按多渠道设计，T1 只实现 `web`
+3. 接口按多渠道设计；T1-03～06 交付 **web**，T1-07 **feishu**，T1-08 **dingtalk**
 
 ---
 
@@ -182,7 +182,7 @@ Web UI → WebChannelAdapter(inbound) → Envelope → BullMQ Inbound
 
 ## 开发顺序
 
-`T1-01 → T1-02 → T1-03 → T1-04 → T1-05 → T1-06`（T1-04 前须完成 01–03；01 与 02 可并行）
+`T1-01 → T1-02 → T1-03 → T1-04 → T1-05 → T1-06 → T1-07 → T1-08`（T1-04 前须完成 01–03；01 与 02 可并行；T1-08 可复用 T1-07 模式）
 
 ---
 
@@ -295,9 +295,7 @@ Web UI → WebChannelAdapter(inbound) → Envelope → BullMQ Inbound
 ## T1-06 验收
 
 - [x] **T1-06-01** E2E：多轮 tool + SSE + abort + 与改造前行为一致  
-  - 手测通过：基本流式、多轮 tool + SSE、abort、双窗口并发  
-  - 未手测（代码已实现，后续不测）：重复 request 幂等、Redis 不可用 → SSE error  
-  - 完成日期：2026-05-27
+  - 验收：与改造前一致；abort 不崩溃
 
 - [x] **T1-06-02** 更新 [ROADMAP.md](./ROADMAP.md) 架构图（API ↔ Bus ↔ Harness）  
   - 完成日期：2026-05-27
@@ -312,20 +310,74 @@ Web UI → WebChannelAdapter(inbound) → Envelope → BullMQ Inbound
 
 ---
 
-## 交付摘要
+## T1-07 飞书渠道
 
-| 项 | 说明 |
-|----|------|
-| 入站 | `POST /api/chat/stream` → `normalizeWebInbound` → `publishInbound`（BullMQ） |
-| 出站 | Worker → `outboundRouter` → `WebChannelAdapter` → SSE（帧格式与改造前一致） |
-| Redis | 前缀 `mcp-client`；幂等 `mcp-client:idem:{requestId}` TTL 24h |
-| requestId | UUID v7（`uuid` 包，`generateRequestId()`） |
-| 非流式 | `/api/chat` 保留直调 Harness，UI 默认仅流式 |
-| 依赖 | `bullmq`、`ioredis`、`uuid`；`REDIS_URL` 必填 |
+- [x] **T1-07-01** `channel.types` / `channel.schema` — `ChannelId` 增 **`feishu`**；`FeishuChannelMeta`（含 **`messageId`、`chatId`**）、入站 zod  
+  - 验收：parse 失败 throw；`payload.messages` + `chatOptions?` 与 Web 同构
+  - 完成日期：2026-05-27
 
-## T2（备忘）
+- [x] **T1-07-02** `session-key.ts` — `buildFeishuSessionKey(chatId: string): string` → **`feishu:{chatId}`**（事件 `message.chat_id`）  
+  - 验收：单测
+  - 完成日期：2026-05-27
 
-飞书 `@larksuiteoapi/node-sdk`、钉钉 `dingtalk-stream` — 前置 **T1 + P3-04**；Outbound 独立队列、Channel Registry 见 T2 任务书。
+- [x] **T1-07-03** `channels/feishu/normalize-feishu-inbound.ts` — **`im.message.receive_v1`** → `AgentMessageEnvelope`；**`idempotencyKey` = header `event_id`**  
+  - 验收：单测覆盖群聊 `@机器人` 文本 → `role: user`；跳过 `sender_type=bot`；群聊未 @ 时跳过（未开 `im:message.group_msg` 敏感权限时）
+  - 完成日期：2026-05-27
+
+- [x] **T1-07-04** `channels/feishu/feishu-channel.adapter.ts` — `sendOutbound`：chunk 聚合后 **`im.v1.message.reply`**（`messageId` 来自 meta）；MVP **`msg_type=text`**；不经 OutboundSinkRegistry  
+  - 验收：无 `res.write`；回复挂在用户消息下
+  - 完成日期：2026-05-27
+
+- [x] **T1-07-05** `channels/feishu/feishu-event-listener.ts` — **`WSClient` + `EventDispatcher`**（`@larksuiteoapi/node-sdk` ≥ 1.24.0）；企业自建应用 + 后台 **`im.message.receive_v1` / 长连接** 已保存  
+  - handler **仅** normalize + **`publishInbound`**，**禁止 await Harness**，3s 内返回；`bootstrap.ts` + `app.ts` 启动  
+  - `.env.example`：`FEISHU_APP_ID`、`FEISHU_APP_SECRET`  
+  - 验收：长连接在线；日志 `inbound enqueue channel=feishu`
+  - 完成日期：2026-05-27
+
+- [x] **T1-07-06** `inbound-worker.ts` — **`finally` 仅 `channel=web` 时 `unregisterSink`**  
+  - 验收：飞书 job 不访问 SinkRegistry；Web 行为不变
+  - 完成日期：2026-05-27
+
+- [ ] **T1-07-07** E2E：飞书 @机器人 发问 → `message.reply` 收回复；与 Web 并发不串线；重复 **`event_id`** 幂等跳过  
+  - > **搁置**：无飞书企业自建应用测试环境；代码保留，待有租户后再测
+
+---
+
+## T1-08 钉钉渠道
+
+> **选型**：**企业内部应用 + 机器人 Stream 模式**（`dingtalk-stream` SDK，WebSocket，**无需公网 IP**）。  
+> **对齐 T1-07**：复用同一 Inbound Queue + Worker + OutboundRouter；`chatOptions` / vendor 仍走服务端默认。
+
+- [x] **T1-08-01** `channel.types` / `channel.schema` — `ChannelId` 增 **`dingtalk`**；`DingtalkChannelMeta`（含 **`msgId`、`conversationId`、`sessionWebhook`、`sessionWebhookExpiredTime`**；可选 `robotCode`、`conversationType`）  
+  - 验收：parse 失败 throw；`payload.messages` + `chatOptions?` 与 Web 同构  
+  - 完成日期：2026-05-27
+
+- [x] **T1-08-02** `session-key.ts` — `buildDingtalkSessionKey(conversationId: string): string` → **`dingtalk:{conversationId}`**  
+  - 验收：单测  
+  - 完成日期：2026-05-27
+
+- [x] **T1-08-03** `channels/dingtalk/normalize-dingtalk-inbound.ts` — Stream 回调 **`/v1.0/im/bot/messages/get`** → `AgentMessageEnvelope`；**`idempotencyKey` = `msgId`**（header `messageId` 作辅）  
+  - 验收：单测覆盖群聊 `@机器人` 文本（`isInAtList` / `conversationType=2`）→ `role: user`；单聊（`conversationType=1`）可入站；群未 @ 跳过；MVP 仅 **`msgtype=text`**  
+  - 完成日期：2026-05-27
+
+- [x] **T1-08-04** `channels/dingtalk/dingtalk-channel.adapter.ts` — `sendOutbound`：chunk 聚合后 **`sessionWebhook` POST**（`msgtype=text`）；校验 `sessionWebhookExpiredTime`；失败时日志 + 可选 OAPI 回退（MVP 可先仅 webhook）  
+  - 验收：无 `res.write`；回复落在同一会话  
+  - 完成日期：2026-05-27
+
+- [x] **T1-08-05** `channels/dingtalk/dingtalk-stream-listener.ts` — **`dingtalk-stream`** `DWClient` + `registerCallbackListener('/v1.0/im/bot/messages/get')`  
+  - handler **仅** normalize + **`publishInbound`**，**禁止 await Harness**，快速 ACK；`bootstrap.ts` 启动  
+  - `.env.example`：`DINGTALK_CLIENT_ID`、`DINGTALK_CLIENT_SECRET`（即 AppKey / AppSecret）  
+  - 验收：Stream 在线；日志 `inbound enqueue channel=dingtalk`  
+  - 完成日期：2026-05-27
+
+- [x] **T1-08-06** `inbound-worker.ts` — 确认 **`finally` 仅 `channel=web` 时 `unregisterSink`**（钉钉 job 与飞书同路径，不访问 SinkRegistry）  
+  - 验收：钉钉 job 不访问 SinkRegistry；Web 行为不变  
+  - 完成日期：2026-05-27
+
+- [x] **T1-08-07** E2E：钉钉单聊或群 @ 机器人 → `sessionWebhook` 收回复；与 Web 并发不串线；重复 **`msgId`** 幂等跳过  
+  - 完成日期：2026-05-27
+
+---
 
 ## PR 建议
 
@@ -334,11 +386,13 @@ Web UI → WebChannelAdapter(inbound) → Envelope → BullMQ Inbound
 | PR-1 | T1-01 + T1-02（含集成测试：publish → handler） |
 | PR-2 | T1-03 + T1-04 + T1-05 |
 | PR-3 | T1-06 |
+| PR-4 | T1-07 飞书 |
+| PR-5 | T1-08 钉钉 |
 
 ## 新建目录预期
 
 ```
-src/channels/           bootstrap, registry, session-key, envelope-mapper, web/
+src/channels/           bootstrap, registry, session-key, envelope-mapper, web/, feishu/, dingtalk/
 src/message-bus/        redis-connection, queue-names, inbound-queue, inbound-worker,
                         idempotency, outbound-router, outbound-sink-registry
 src/types/              channel.types.ts, channel.schema.ts

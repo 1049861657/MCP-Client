@@ -25,6 +25,10 @@ export class WebChannelAdapter implements ChannelAdapter {
   }
 
   sendOutbound(envelope: AgentOutboundEnvelope): void {
+    if (envelope.channel !== 'web') {
+      return;
+    }
+
     const sink = getOutboundSink(envelope.requestId);
     if (!sink || sink.response.writableEnded) {
       return;

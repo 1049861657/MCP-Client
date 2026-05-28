@@ -114,9 +114,9 @@ gantt
 | **P2** | 2 周 | Resources/Prompts/OAuth/连接状态机 | MCP 能力面完整；远程服可 OAuth |
 | **P3** | 3 周 | Todo/Memory/Hook/服务端会话 | 跨会话偏好保留；Hook 可扩展 |
 | **Backlog** | 按需 | 多 Agent、Worktree、CLI | 视产品方向决定 |
-| **T1** ✅ | 2–3 周 | 渠道层 + 消息总线（**Web 单渠道**） | Web 全链路走 Envelope + Inbound Queue；Harness 无渠道分支 |
+| **T1** | 2–3 周 | 渠道层 + 消息总线（Web + 飞书 + 钉钉） | 各渠道 Envelope + Inbound Queue；Harness 无渠道分支 |
 
-> **T1** 已完成（2026-05-27），详见 [T1-channel-bus.md](./T1-channel-bus.md)。飞书/钉钉留 T2，依赖 T1 + P3-04。
+> 进度见 [T1-channel-bus.md](./T1-channel-bus.md)（T1-08 钉钉 E2E 已通过；T1-07-07 飞书 E2E 搁置）。
 
 ## 四、阶段依赖
 
@@ -132,10 +132,9 @@ P0-01 Harness 模块拆分
               │                 └─► P2-01 MCP OAuth
               └─► T1-01 Envelope 契约 ✅
                     └─► T1-02 Inbound Queue ✅
-                          └─► T1-03 Web Adapter → T1-04 Worker → T1-05 Outbound ✅
+                          └─► T1-03 Web → T1-04 Worker → T1-05 Outbound → T1-07 飞书 → T1-08 钉钉
 P2-02 Resources/Prompts（可与 P1 后期并行）
 P3-* 可在 P1 完成后按需启动
-T2 飞书/钉钉：T1 完成 + P3-04 Session Store
 ```
 
 ## 五、不建议做的（避免过度工程）
