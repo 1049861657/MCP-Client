@@ -1,9 +1,4 @@
-import {
-  resolveEnableAutoCompact,
-  resolveMaxToolCallRounds,
-  ToolsConfig
-} from '../../config/feature-config.js';
-import type { ChatOptions, FeishuAgentMessageEnvelope } from '../../types/channel.types.js';
+import type { FeishuAgentMessageEnvelope } from '../../types/channel.types.js';
 import { generateRequestId } from '../../utils/request-id.js';
 import { buildFeishuSessionKey } from '../session-key.js';
 import type { FeishuReceiveMessageEvent } from './feishu-event.types.js';
@@ -13,16 +8,6 @@ export class FeishuInboundSkipError extends Error {
     super(message);
     this.name = 'FeishuInboundSkipError';
   }
-}
-
-function buildDefaultChatOptions(): ChatOptions {
-  return {
-    enableTools: ToolsConfig.enableMCPTools,
-    enableParamValidation: ToolsConfig.enableParamValidation,
-    enablePrompts: ToolsConfig.enablePrompts,
-    maxToolCallRounds: resolveMaxToolCallRounds(undefined),
-    enableAutoCompact: resolveEnableAutoCompact(undefined)
-  };
 }
 
 function parseTextContent(content: string): string {
@@ -106,8 +91,7 @@ export function normalizeFeishuInbound(
       chatId
     },
     payload: {
-      messages: [{ role: 'user', content: text }],
-      chatOptions: buildDefaultChatOptions()
+      messages: [{ role: 'user', content: text }]
     },
     trace: {
       traceId: requestId,

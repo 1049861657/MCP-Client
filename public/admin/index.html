@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>渠道管理</title>
+    <script src="/js/navbar.js"></script>
+  <script type="module" crossorigin src="/admin/assets/index-Caa4eVGI.js"></script>
+  <link rel="stylesheet" crossorigin href="/admin/assets/index-CNiAYOnW.css">
+</head>
+<body class="admin-page">
+    <div id="app" class="admin-shell">
+        <header class="page-header">
+            <h1 class="page-title">渠道管理</h1>
+            <div class="page-header-actions">
+                <button type="button" id="btn-toggle-auth" class="auth-trigger">
+                    <span id="auth-status-dot" class="auth-status-dot" aria-hidden="true"></span>
+                    <span id="auth-trigger-label">登录</span>
+                </button>
+            </div>
+        </header>
+
+        <div id="auth-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+            <div id="auth-backdrop" class="modal-backdrop"></div>
+            <div class="modal-panel auth-panel">
+                <h2 id="auth-modal-title" class="modal-title">管理员口令</h2>
+                <div class="modal-body">
+                    <label class="field-label" for="admin-token">口令</label>
+                    <input type="password" id="admin-token" placeholder="ADMIN_API_TOKEN" autocomplete="off" class="field-input">
+                    <p id="auth-error" class="field-error hidden"></p>
+                </div>
+                <div class="modal-actions modal-actions--primary">
+                    <button type="button" id="btn-connect" class="btn-primary btn-block">确认</button>
+                </div>
+                <div class="modal-actions modal-actions--secondary">
+                    <button type="button" id="btn-save-token" class="btn-secondary btn-sm">记住口令</button>
+                    <button type="button" id="btn-seed" class="btn-secondary btn-sm">空库初始化</button>
+                    <button type="button" id="btn-close-auth" class="btn-text btn-sm">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="empty-state" class="empty-panel">
+            <p class="empty-title">请先登录</p>
+            <button type="button" id="btn-empty-connect" class="btn-primary">登录</button>
+        </div>
+
+        <div id="workspace" class="admin-layout hidden">
+            <aside class="channel-sidebar" aria-label="渠道列表">
+                <nav id="channel-rail" class="channel-list" role="tablist"></nav>
+            </aside>
+
+            <main class="editor-panel">
+                <header id="editor-header" class="editor-header">
+                    <div class="editor-header-main">
+                        <span id="channel-badge" class="channel-badge" aria-hidden="true"></span>
+                        <h2 id="channel-title" class="editor-title"></h2>
+                    </div>
+                    <div class="editor-actions">
+                        <p id="save-ok" class="save-feedback save-feedback--ok hidden"></p>
+                        <p id="save-err" class="save-feedback save-feedback--err hidden"></p>
+                        <span id="dirty-badge" class="status-tag status-tag--warn hidden">未保存</span>
+                        <button type="button" id="btn-discard" class="btn-secondary btn-sm hidden">放弃</button>
+                        <button type="button" id="btn-save" class="btn-primary btn-sm" disabled>保存</button>
+                    </div>
+                </header>
+
+                <div class="editor-body">
+                    <section class="settings-group" aria-labelledby="sec-model-title">
+                        <div class="settings-group-head">
+                            <span id="sec-model-icon" class="settings-group-icon" aria-hidden="true"></span>
+                            <h3 id="sec-model-title" class="settings-group-title">对话模型</h3>
+                        </div>
+                        <div class="settings-group-body">
+                            <div class="field-row field-row--2">
+                                <label class="field-label">
+                                    <span>供应商</span>
+                                    <select id="fld-vendor" class="field-input"></select>
+                                </label>
+                                <label class="field-label">
+                                    <span>模型</span>
+                                    <select id="fld-model" class="field-input"></select>
+                                </label>
+                            </div>
+                            <details class="advanced-details">
+                                <summary class="advanced-summary">
+                                    <span class="advanced-summary-chevron" aria-hidden="true"></span>
+                                    高级参数
+                                </summary>
+                                <div class="field-row field-row--2 advanced-fields">
+                                    <label class="field-label">
+                                        <span>温度</span>
+                                        <input type="number" id="fld-temperature" step="0.1" min="0" max="2" class="field-input">
+                                    </label>
+                                    <label class="field-label">
+                                        <span>最大输出 Token</span>
+                                        <input type="number" id="fld-max-tokens" min="1" class="field-input">
+                                    </label>
+                                </div>
+                            </details>
+                        </div>
+                    </section>
+
+                    <section class="settings-group" aria-labelledby="sec-mcp-title">
+                        <div class="settings-group-head settings-group-head--split">
+                            <div class="settings-group-head-main">
+                                <span id="sec-mcp-icon" class="settings-group-icon" aria-hidden="true"></span>
+                                <h3 id="sec-mcp-title" class="settings-group-title">MCP 工具</h3>
+                            </div>
+                            <label class="toggle" title="启用 MCP">
+                                <input type="checkbox" id="fld-enable-tools" checked>
+                                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                            </label>
+                        </div>
+                        <div class="settings-group-body">
+                            <div id="mcp-panel">
+                                <div class="mcp-toolbar">
+                                    <button type="button" id="btn-mcp-all" class="btn-text btn-text--sm">全选</button>
+                                    <span class="toolbar-divider" aria-hidden="true">|</span>
+                                    <button type="button" id="btn-mcp-none" class="btn-text btn-text--sm">清空</button>
+                                </div>
+                                <div id="mcp-chips" class="mcp-list"></div>
+                                <p id="mcp-empty-warn" class="inline-notice inline-notice--warn hidden">暂无 MCP 服务</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="settings-group settings-group--last" aria-labelledby="sec-behavior-title">
+                        <div class="settings-group-head">
+                            <span id="sec-behavior-icon" class="settings-group-icon" aria-hidden="true"></span>
+                            <h3 id="sec-behavior-title" class="settings-group-title">行为与限制</h3>
+                        </div>
+                        <div class="settings-group-body">
+                            <div class="behavior-stack">
+                                <div class="behavior-block">
+                                    <div class="field-block-head">
+                                        <span class="field-block-title">工具提示词</span>
+                                        <label class="toggle shrink-0">
+                                            <input type="checkbox" id="fld-enable-prompts">
+                                            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                                        </label>
+                                    </div>
+                                    <div id="prompt-panel" class="behavior-block-body hidden">
+                                        <textarea id="fld-tool-prompt" rows="3" class="field-input field-input--textarea" placeholder="可选"></textarea>
+                                    </div>
+                                </div>
+
+                                <div class="behavior-row">
+                                    <div class="behavior-block behavior-block--grow">
+                                        <div class="field-block-head">
+                                            <span class="field-block-title">自动压缩</span>
+                                            <label class="toggle shrink-0">
+                                                <input type="checkbox" id="fld-enable-compact" checked>
+                                                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                                            </label>
+                                        </div>
+                                        <div id="compact-model-wrap" class="behavior-block-body hidden">
+                                            <select id="fld-compact-model" class="field-input" aria-label="压缩模型"></select>
+                                        </div>
+                                    </div>
+                                    <label class="field-label behavior-block behavior-block--fixed">
+                                        <span>单轮工具调用上限</span>
+                                        <input type="number" id="fld-max-rounds" min="1" max="100" value="25" class="field-input">
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>

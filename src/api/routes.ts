@@ -2,6 +2,7 @@ import express from 'express';
 import { InfoController } from './info.controller.js';
 import { AiController } from './ai.controller.js';
 import { ConfigController } from './config.controller.js';
+import { AdminController } from './admin.controller.js';
 import { SettingsController } from './settings.controller.js';
 
 /**
@@ -50,5 +51,17 @@ router.get('/mcp/servers', AiController.getMCPServers);
 
 // 更新MCP服务器启用状态
 router.post('/mcp/servers/enabled', AiController.updateEnabledServers);
+
+// T2 配置平面 Admin API（Header: X-Admin-Token = ADMIN_API_TOKEN）
+router.post('/admin/seed', AdminController.seedDefaults);
+router.get('/admin/profiles', AdminController.listProfiles);
+router.get('/admin/profiles/:profileId', AdminController.getProfile);
+router.post('/admin/profiles', AdminController.createProfile);
+router.put('/admin/profiles/:profileId', AdminController.updateProfile);
+router.delete('/admin/profiles/:profileId', AdminController.deleteProfile);
+router.get('/admin/routes', AdminController.listRoutes);
+router.post('/admin/routes', AdminController.createRoute);
+router.put('/admin/routes/:routeId', AdminController.updateRoute);
+router.delete('/admin/routes/:routeId', AdminController.deleteRoute);
 
 export default router; 

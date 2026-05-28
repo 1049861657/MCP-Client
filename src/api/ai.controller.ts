@@ -356,12 +356,17 @@ export class AiController {
       // 获取当前已连接的服务器
       const serverInfo = await mcpClient.getServerInfo();
       
-      // 直接使用connectedServers，并添加isEnabled标志
-      const servers = serverInfo.connectedServers?.map(server => ({
+      // 返回全部已配置服务器（含未连接），便于管理端勾选渠道 MCP
+      const available = serverInfo.availableServers ?? serverInfo.connectedServers ?? [];
+      const connectedIds = new Set(
+        (serverInfo.connectedServers ?? []).map((server) => server.id)
+      );
+      const servers = available.map((server) => ({
         id: server.id,
         name: server.name,
-        isEnabled: enabledServerIds.includes(server.id)
-      })) || [];
+        isEnabled: enabledServerIds.includes(server.id),
+        isConnected: connectedIds.has(server.id)
+      }));
       
       res.json({
         success: true,

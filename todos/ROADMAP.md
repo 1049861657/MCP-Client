@@ -56,6 +56,12 @@
 │  publishInbound · Inbound Worker · OutboundRouter        │
 │  OutboundSinkRegistry · idempotency (Redis mcp-client:*) │
 └────────────────────────┬────────────────────────────────┘
+                         │ resolveProfile (T2)
+┌────────────────────────▼────────────────────────────────┐
+│  Config Plane (src/config-plane/)  ← T2 配置平面         │
+│  AgentProfile · RouteRule · Admin API · configVersion    │
+└────────────────────────┬────────────────────────────────┘
+                         │ ResolvedChatProfile
                          │ InternalMessage[] + onChunk
 ┌────────────────────────▼────────────────────────────────┐
 │  Agent Harness (src/core/agent-harness/)  ← 控制面   │
@@ -116,7 +122,8 @@ gantt
 | **Backlog** | 按需 | 多 Agent、Worktree、CLI | 视产品方向决定 |
 | **T1** | 2–3 周 | 渠道层 + 消息总线（Web + 飞书 + 钉钉） | 各渠道 Envelope + Inbound Queue；Harness 无渠道分支 |
 
-> 进度见 [T1-channel-bus.md](./T1-channel-bus.md)（T1-08 钉钉 E2E 已通过；T1-07-07 飞书 E2E 搁置）。
+> 进度见 [T1-channel-bus.md](./T1-channel-bus.md)（T1-08 钉钉 E2E 已通过；T1-07-07 飞书 E2E 搁置）。  
+> **T2**：[配置平面 + 管理员平台](./T2-config-plane.md)（多渠道 Profile/Route，Web 聊天不污染 IM）。
 
 ## 四、阶段依赖
 
@@ -133,6 +140,7 @@ P0-01 Harness 模块拆分
               └─► T1-01 Envelope 契约 ✅
                     └─► T1-02 Inbound Queue ✅
                           └─► T1-03 Web → T1-04 Worker → T1-05 Outbound → T1-07 飞书 → T1-08 钉钉
+                                └─► T2 Config Plane + Admin（Profile/Route，按渠道解析能力）
 P2-02 Resources/Prompts（可与 P1 后期并行）
 P3-* 可在 P1 完成后按需启动
 ```

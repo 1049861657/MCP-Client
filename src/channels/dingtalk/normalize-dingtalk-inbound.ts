@@ -1,9 +1,4 @@
-import {
-  resolveEnableAutoCompact,
-  resolveMaxToolCallRounds,
-  ToolsConfig
-} from '../../config/feature-config.js';
-import type { ChatOptions, DingtalkAgentMessageEnvelope } from '../../types/channel.types.js';
+import type { DingtalkAgentMessageEnvelope } from '../../types/channel.types.js';
 import { generateRequestId } from '../../utils/request-id.js';
 import { buildDingtalkSessionKey } from '../session-key.js';
 import type {
@@ -20,16 +15,6 @@ export class DingtalkInboundSkipError extends Error {
 
 const GROUP_CONVERSATION_TYPE = '2';
 const SINGLE_CONVERSATION_TYPE = '1';
-
-function buildDefaultChatOptions(): ChatOptions {
-  return {
-    enableTools: ToolsConfig.enableMCPTools,
-    enableParamValidation: ToolsConfig.enableParamValidation,
-    enablePrompts: ToolsConfig.enablePrompts,
-    maxToolCallRounds: resolveMaxToolCallRounds(undefined),
-    enableAutoCompact: resolveEnableAutoCompact(undefined)
-  };
-}
 
 function parseBotMessage(data: string): DingtalkBotTextMessage {
   const parsed = JSON.parse(data) as DingtalkBotTextMessage;
@@ -119,8 +104,7 @@ export function normalizeDingtalkInbound(
     sessionKey: buildDingtalkSessionKey(message.conversationId),
     channelMeta,
     payload: {
-      messages: [{ role: 'user', content: text }],
-      chatOptions: buildDefaultChatOptions()
+      messages: [{ role: 'user', content: text }]
     },
     trace: {
       traceId: requestId,

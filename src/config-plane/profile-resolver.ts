@@ -1,0 +1,202 @@
+import { pickDefined } from '../channels/envelope-mapper.js';
+import {
+  ChatConfig,
+  ContextConfig,
+  resolveEnableAutoCompact,
+  resolveMaxToolCallRounds,
+  ToolsConfig
+} from '../config/feature-config.js';
+import type {
+  AgentMessageEnvelopeSerialized,
+  ChannelId,
+  ChatOptions
+} from '../types/channel.types.js';
+import {
+  isDingtalkInboundEnvelope,
+  isFeishuInboundEnvelope,
+  isWebInboundEnvelope
+} from '../types/channel.types.js';
+import type {
+  AgentProfileRecord,
+  ProfileResolveContext,
+  ResolvedChatProfile,
+  RouteRuleRecord
+} from '../types/config-plane.types.js';
+import {
+  CHANNEL_DEFAULT_PROFILE_BY_CHANNEL,
+  ROUTE_MATCH_ALL
+} from '../types/config-plane.types.js';
+import type { ConfigPlaneSnapshot } from './config-snapshot.js';
+import { getConfigPlaneSnapshot } from './config-snapshot.js';
+
+export function extractRouteMatchKey(
+  envelope: AgentMessageEnvelopeSerialized
+): string {
+  if (isWebInboundEnvelope(envelope)) {
+    return envelope.channelMeta.requestId;
+  }
+  if (isFeishuInboundEnvelope(envelope)) {
+    return envelope.channelMeta.chatId;
+  }
+  if (isDingtalkInboundEnvelope(envelope)) {
+    return envelope.channelMeta.conversationId;
+  }
+  return ROUTE_MATCH_ALL;
+}
+
+export function buildProfileResolveContext(
+  envelope: AgentMessageEnvelopeSerialized
+): ProfileResolveContext {
+  const vendorFromChannelMeta =
+    'vendor' in envelope.channelMeta && typeof envelope.channelMeta.vendor === 'string'
+      ? envelope.channelMeta.vendor
+      : undefined;
+
+  return {
+    channel: envelope.channel,
+    sessionKey: envelope.sessionKey,
+    routeMatchKey: extractRouteMatchKey(envelope),
+    envelopeChatOptions: pickDefined(
+      (envelope.payload.chatOptions ?? {}) as Record<string, unknown>
+    ) as Partial<ChatOptions>,
+    vendorFromChannelMeta
+  };
+}
+
+export function selectRouteRule(
+  channel: ChannelId,
+  routeMatchKey: string,
+  routes: RouteRuleRecord[]
+): RouteRuleRecord | undefined {
+  const enabled = routes.filter((rule) => rule.enabled);
+  const exactMatches = enabled
+    .filter((rule) => rule.matchKey === routeMatchKey)
+    .sort((a, b) => a.priority - b.priority);
+  if (exactMatches.length > 0) {
+    return exactMatches[0];
+  }
+
+  const wildcardMatches = enabled
+    .filter((rule) => rule.matchKey === ROUTE_MATCH_ALL)
+    .sort((a, b) => a.priority - b.priority);
+  return wildcardMatches[0];
+}
+
+function resolveProfileRecord(
+  snapshot: ConfigPlaneSnapshot,
+  channel: ChannelId,
+  routeMatchKey: string
+): AgentProfileRecord {
+  const routes = snapshot.routesByChannel.get(channel) ?? [];
+  const route = selectRouteRule(channel, routeMatchKey, routes);
+  const profileId =
+    route?.profileId ?? CHANNEL_DEFAULT_PROFILE_BY_CHANNEL[channel];
+  const profile = snapshot.profiles.get(profileId);
+  if (!profile) {
+    throw new Error(
+      `Config plane: AgentProfile "${profileId}" missing for channel "${channel}". ` +
+        'Initialize defaults via POST /api/admin/seed.'
+    );
+  }
+  return profile;
+}
+
+function mergeLayer(
+  base: Partial<ChatOptions> & {
+    profileId: string;
+    mcpServerIds: string[];
+    toolPrompt: string;
+    vendor?: string;
+  },
+  layer: Partial<ChatOptions>
+): void {
+  if (layer.model !== undefined) {
+    base.model = layer.model;
+  }
+  if (layer.temperature !== undefined) {
+    base.temperature = layer.temperature;
+  }
+  if (layer.maxTokens !== undefined) {
+    base.maxTokens = layer.maxTokens;
+  }
+  if (layer.enableTools !== undefined) {
+    base.enableTools = layer.enableTools;
+  }
+  if (layer.enableParamValidation !== undefined) {
+    base.enableParamValidation = layer.enableParamValidation;
+  }
+  if (layer.enablePrompts !== undefined) {
+    base.enablePrompts = layer.enablePrompts;
+  }
+  if (layer.maxToolCallRounds !== undefined) {
+    base.maxToolCallRounds = layer.maxToolCallRounds;
+  }
+  if (layer.enableAutoCompact !== undefined) {
+    base.enableAutoCompact = layer.enableAutoCompact;
+  }
+  if (layer.compactModel !== undefined) {
+    base.compactModel = layer.compactModel;
+  }
+}
+
+/** 将指定 Profile 与入站覆盖链合并为 ResolvedChatProfile */
+function resolveProfileFromProfileRecord(
+  ctx: ProfileResolveContext,
+  profile: AgentProfileRecord
+): ResolvedChatProfile {
+  const merged: Partial<ChatOptions> & {
+    profileId: string;
+    mcpServerIds: string[];
+    toolPrompt: string;
+    vendor?: string;
+  } = {
+    profileId: profile.profileId,
+    model: profile.defaultModel,
+    temperature: profile.temperature ?? ChatConfig.defaultTemperature,
+    maxTokens: profile.maxTokens ?? ChatConfig.defaultMaxTokens,
+    enableTools: profile.enableTools,
+    enableParamValidation: profile.enableParamValidation,
+    enablePrompts: profile.enablePrompts,
+    maxToolCallRounds: profile.maxToolCallRounds,
+    enableAutoCompact: profile.enableAutoCompact ?? ContextConfig.enableAutoCompact,
+    compactModel: profile.compactModel ?? undefined,
+    mcpServerIds: [...profile.mcpServerIds],
+    toolPrompt: profile.toolPrompt ?? '',
+    vendor: profile.vendor ?? ctx.vendorFromChannelMeta
+  };
+
+  mergeLayer(merged, ctx.envelopeChatOptions ?? {});
+
+  return {
+    profileId: merged.profileId,
+    vendor: merged.vendor,
+    model: merged.model ?? profile.defaultModel,
+    temperature: merged.temperature ?? ChatConfig.defaultTemperature,
+    maxTokens: merged.maxTokens ?? ChatConfig.defaultMaxTokens,
+    enableTools: merged.enableTools ?? ToolsConfig.enableMCPTools,
+    enableParamValidation:
+      merged.enableParamValidation ?? ToolsConfig.enableParamValidation,
+    enablePrompts: merged.enablePrompts ?? ToolsConfig.enablePrompts,
+    maxToolCallRounds: resolveMaxToolCallRounds(merged.maxToolCallRounds),
+    enableAutoCompact: resolveEnableAutoCompact(merged.enableAutoCompact),
+    compactModel: merged.compactModel,
+    mcpServerIds: merged.mcpServerIds,
+    toolPrompt: merged.toolPrompt
+  };
+}
+
+export function resolveProfileFromContext(
+  ctx: ProfileResolveContext,
+  snapshot: ConfigPlaneSnapshot
+): ResolvedChatProfile {
+  const profile = resolveProfileRecord(snapshot, ctx.channel, ctx.routeMatchKey);
+  return resolveProfileFromProfileRecord(ctx, profile);
+}
+
+export async function resolveProfile(
+  envelope: AgentMessageEnvelopeSerialized
+): Promise<ResolvedChatProfile> {
+  const ctx = buildProfileResolveContext(envelope);
+  const snapshot = getConfigPlaneSnapshot();
+  return resolveProfileFromContext(ctx, snapshot);
+}

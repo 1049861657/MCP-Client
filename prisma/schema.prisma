@@ -24,6 +24,13 @@ enum ConnectionType {
   HTTP
 }
 
+// T2 配置平面：路由渠道（与 ChannelId 一致）
+enum ConfigChannelId {
+  web
+  feishu
+  dingtalk
+}
+
 // 通用设置模型
 model Setting {
   key   String @id // 主键，例如 'defaultProvider', 'ChatConfig', 'HistoryConfig'
@@ -63,6 +70,46 @@ model MCPServer {
   args           Json?          // stdio 类型可选，存储 ["arg1", "arg2"]
   mcpUrl         String?        // HTTP 类型：MCP Streamable HTTP 端点
   headers        Json?          // HTTP 类型可选：自定义请求头，存储 {"key": "value"}
+}
+
+// T2：Agent 能力档案（模型、工具、Prompt 等）
+model AgentProfile {
+  id                    String        @id @default(cuid())
+  profileId             String        @unique
+  displayName           String
+  vendor                String?
+  defaultModel          String
+  temperature           Float?
+  maxTokens             Int?
+  enableTools           Boolean       @default(true)
+  enablePrompts         Boolean       @default(true)
+  enableParamValidation Boolean       @default(false)
+  maxToolCallRounds     Int           @default(25)
+  enableAutoCompact     Boolean?
+  compactModel          String?
+  mcpServerIds          Json          @default("[]")
+  toolPrompt            String?
+  tenantId              String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  routes                RouteRule[]
+}
+
+// T2：入站路由（channel + matchKey → profileId）
+model RouteRule {
+  id        String          @id @default(cuid())
+  channel   ConfigChannelId
+  matchKey  String
+  profileId String
+  priority  Int             @default(100)
+  enabled   Boolean         @default(true)
+  tenantId  String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  profile   AgentProfile    @relation(fields: [profileId], references: [profileId], onDelete: Cascade)
+
+  @@unique([channel, matchKey])
+  @@index([channel, enabled, priority])
 }
 
 // 快捷消息模型

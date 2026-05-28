@@ -473,6 +473,42 @@ export class MCPClientManager {
   }
 
   /**
+   * 校验 MCP 服务器连通性；不可达或未配置的 ID 归入 unreachable。
+   */
+  async resolveReachableServerIds(serverIds: string[]): Promise<{
+    reachableIds: string[];
+    unreachable: Array<{ id: string; name: string }>;
+  }> {
+    const reachableIds: string[] = [];
+    const unreachable: Array<{ id: string; name: string }> = [];
+
+    await Promise.all(
+      serverIds.map(async (serverId) => {
+        const connection = this.connections.get(serverId);
+        if (!connection) {
+          unreachable.push({ id: serverId, name: serverId });
+          return;
+        }
+
+        const info = await connection.getServerInfo();
+        const name = info.name || serverId;
+        let ok = connection.isConnected();
+        if (!ok) {
+          ok = await this.connect(serverId);
+        }
+        if (ok) {
+          reachableIds.push(serverId);
+          return;
+        }
+        unreachable.push({ id: serverId, name });
+      })
+    );
+
+    reachableIds.sort();
+    return { reachableIds, unreachable };
+  }
+
+  /**
    * 获取指定服务器的连接对象
    */
   getConnection(serverId: string): ServerConnection | undefined {

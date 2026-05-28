@@ -19,6 +19,7 @@
 | [BACKLOG.md](./BACKLOG.md) | 远期可选（多 Agent、Worktree、CLI/SDK） |
 | [T0-architecture.md](./T0-architecture.md) | **T0** 个人任务：本文件主题为「目录与命名架构整理」 |
 | [T1-channel-bus.md](./T1-channel-bus.md) | **T1** 个人任务：渠道层 + 消息总线（Web + 飞书 + 钉钉） |
+| [T2-config-plane.md](./T2-config-plane.md) | **T2** 个人任务：配置平面 + 管理员平台（多渠道能力隔离） |
 
 > AI 改造任务：启用项目 Skill `.cursor/skills/roadmap/`（薄路由，正文以本目录为准）
 
@@ -48,6 +49,7 @@
 |------|------|--------|------|
 | T0（架构·精简） | 5 | 5 | 100% |
 | T1（渠道+总线） | 34 | 33 | 97% |
+| T2（配置平面+Admin） | 18 | 16 | 89% |
 | P0 | 19 | 19 | 100% |
 | P1 | 31 | 12 | 39% |
 | P2 | 21 | 0 | 0% |
@@ -58,13 +60,15 @@
 
 ## 当前阶段
 
-**P1 — 控制面**（T1 渠道+总线已交付；仅剩 **T1-07-07 飞书 E2E 搁置**，见 [T1-channel-bus.md](./T1-channel-bus.md)）
+**P1 — 控制面**（T1 渠道+总线已交付；**T2 配置平面+Admin** 见 [T2-config-plane.md](./T2-config-plane.md)；T1-07-07 飞书 E2E 搁置）
 
 ## 相关代码入口
 
 ```
 src/channels/               # T1：Web / 飞书 / 钉钉 Adapter、bootstrap、envelope-mapper
+src/config-plane/           # T2：resolveProfile、快照、web session override
 src/message-bus/            # T1：Inbound Queue、Worker、OutboundRouter、幂等
+public/admin/               # T2：管理员平台（与 ai.html 分离）
 src/core/agent-harness/     # Harness：agent-loop、tool-call-manager、system-tools、types
 src/providers/              # AiProvider、ai-providers（LLM Chat）
 src/api/ai.controller.ts    # 路由 /api/chat/*（T1 瘦身为入队）

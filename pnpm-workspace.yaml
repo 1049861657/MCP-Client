@@ -12,3 +12,4 @@ allowBuilds:
   '@prisma/engines': true
   msgpackr-extract: false
   protobufjs: false
+  esbuild: false

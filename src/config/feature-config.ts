@@ -1,13 +1,17 @@
 /**
  * 特性配置
  * 集中定义系统中的特性开关和默认值，避免重复配置
+ *
+ * T2 配置平面：运行时对话能力以 DB `AgentProfile` + `RouteRule` 为准（见 `resolveProfile`）。
+ * 本文件中的 ToolsConfig / ChatConfig / ContextConfig 仅作 **Resolver 兜底**（无 Profile、迁移前、单测）。
+ * 渠道 normalize 不得再写死 chatOptions；管理员平台改渠道配置不经过本文件。
  */
 
 /**
- * 工具相关配置
+ * 工具相关配置（Resolver 兜底；生产以 AgentProfile 为准）
  */
 export const ToolsConfig = {
-  // 默认启用MCP工具
+  // 默认启用 MCP 工具（Profile 未配置时的 fallback）
   enableMCPTools: true,
 
   /** System 内置工具（P1-01-11：read_persisted_output 等） */
@@ -41,7 +45,7 @@ export function resolveMaxToolCallRounds(requestValue: unknown): number {
 }
 
 /**
- * 聊天相关配置
+ * 聊天相关配置（Resolver 兜底；model/vendor 以 AgentProfile + AIProvider 为准）
  */
 export const ChatConfig = {
   // 默认温度值
@@ -55,7 +59,7 @@ export const ChatConfig = {
 };
 
 /**
- * 上下文压缩与 budget（P1-01）
+ * 上下文压缩与 budget（P1-01；enableAutoCompact 可被 AgentProfile 覆盖）
  */
 export const ContextConfig = {
   /** 拉丁/英文等：约 4 字符 / token */

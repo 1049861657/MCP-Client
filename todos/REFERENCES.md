@@ -149,6 +149,19 @@
 
 ---
 
+## 配置平面 · 多渠道管理（T2）
+
+| 主题 | 说明 | 完整 URL |
+|------|------|----------|
+| OpenClaw — Gateway 配置 | `channels.*`、dmPolicy、modelByChannel | https://docs.openclaw.ai/gateway/configuration |
+| OpenClaw — Config channels |  per-channel 键参考 | https://docs.openclaw.ai/gateway/config-channels |
+| LangBot — Pipelines | Bot × Pipeline、外接 Dify/Coze | https://docs.langbot.app/en/usage/pipelines/readme |
+| LangBot — Bot 与 Adapter | 平台绑定、路由规则 | https://deepwiki.com/langbot-app/LangBot/4.2-bot-configuration-and-platform-adapters |
+| Hermes — channel_overrides | 按 channelId 覆盖 model/prompt | https://github.com/NousResearch/hermes-agent/pull/1991 |
+| Configuration as Code | 多租户 SaaS 配置 GitOps | https://dev.to/sbimochan/configuration-as-code-the-missing-gitops-layer-in-multi-tenant-saas-1kph |
+
+---
+
 ## 本仓库改造路线文件
 
 | 文件 | 路径 |
@@ -159,7 +172,8 @@
 | P2 MCP 平台化 | [todos/P2-mcp-platform.md](./P2-mcp-platform.md) |
 | P3 Agent 运行时 | [todos/P3-agent-runtime.md](./P3-agent-runtime.md) |
 | T0 目录架构 | [todos/T0-architecture.md](./T0-architecture.md) |
-| T1 渠道+总线（Web + 飞书） | [todos/T1-channel-bus.md](./T1-channel-bus.md) |
+| T1 渠道+总线（Web + 飞书 + 钉钉） | [todos/T1-channel-bus.md](./T1-channel-bus.md) |
+| T2 配置平面 + Admin | [todos/T2-config-plane.md](./T2-config-plane.md) |
 | 远期 Backlog | [todos/BACKLOG.md](./BACKLOG.md) |
 
 ---

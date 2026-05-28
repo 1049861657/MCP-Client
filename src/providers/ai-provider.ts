@@ -30,6 +30,7 @@ import {
 } from '../config/feature-config.js';
 import { mcpClient } from '../core/mcp/index.js';
 import { ConfigService } from '../services/config.service.js';
+import type { ResolvedChatProfile } from '../types/config-plane.types.js';
 import { AIProvider } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';
 import { verifyToolArguments as verifyToolArgumentsImpl } from '../core/agent-harness/tool-validation.js';
@@ -101,7 +102,9 @@ export class AiProvider {
    * 将MCP工具转换为OpenAI函数定义
    * @returns OpenAI工具定义列表
    */
-  private async convertMcpToolsToChatFunctions(): Promise<ChatTool[]> {
+  private async convertMcpToolsToChatFunctions(
+    enabledServerIdsFromProfile?: string[]
+  ): Promise<ChatTool[]> {
     try {
       // 获取MCP服务器上可用的工具
       const serverInfo = await mcpClient.getServerInfo();
@@ -112,9 +115,11 @@ export class AiProvider {
         return [];
       }
       
-      // 获取MCP配置中的启用工具服务器ID列表
-      const mcpConfig = await ConfigService.getMCPConfig();
-      const enabledServerIds = mcpConfig.enabledToolServerIds || [];
+      let enabledServerIds = enabledServerIdsFromProfile;
+      if (enabledServerIds === undefined) {
+        const mcpConfig = await ConfigService.getMCPConfig();
+        enabledServerIds = mcpConfig.enabledToolServerIds || [];
+      }
       
       // 如果没有启用的服务器，返回空数组
       if (enabledServerIds.length === 0) {
@@ -184,7 +189,8 @@ export class AiProvider {
   private async formatMessages(
     message: string | InternalMessage[],
     enableTools: boolean = false,
-    enablePrompts: boolean = false
+    enablePrompts: boolean = false,
+    resolvedProfile?: ResolvedChatProfile
   ): Promise<InternalMessage[]> {
     const messages: InternalMessage[] = typeof message === 'string'
       ? [{ role: 'user', content: message, _source: 'user' }]
@@ -197,17 +203,26 @@ export class AiProvider {
       if (!hasSystemMessage) {
         const parts: string[] = [];
 
-        // 用户在设置页配置的工具提示词（仅 enablePrompts 时注入）
+        // 工具提示词：渠道 Profile 独立配置；无 Profile 时回退 Web Setting
         if (enablePrompts) {
-          const toolPromp = await ConfigService.getSetting('mcpToolPrompt');
-          const toolPrompStr = String(toolPromp ?? '').trim();
+          let toolPrompStr = '';
+          if (resolvedProfile) {
+            toolPrompStr = resolvedProfile.toolPrompt.trim();
+          } else {
+            const toolPromp = await ConfigService.getSetting('mcpToolPrompt');
+            toolPrompStr = String(toolPromp ?? '').trim();
+          }
           if (toolPrompStr) parts.push(toolPrompStr);
         }
 
         // MCP 官方 instructions 字段：只取已启用工具服务器的 instructions，
         // 与工具过滤逻辑对齐（参考 GitHub MCP Server 官方实现）
-        const mcpConfig = await ConfigService.getMCPConfig();
-        const enabledServerIds: string[] = mcpConfig.enabledToolServerIds ?? [];
+        const profileMcpIds = resolvedProfile?.mcpServerIds;
+        const enabledServerIds: string[] = resolvedProfile
+          ? profileMcpIds && profileMcpIds.length > 0
+            ? profileMcpIds
+            : ((await ConfigService.getMCPConfig()).enabledToolServerIds ?? [])
+          : ((await ConfigService.getMCPConfig()).enabledToolServerIds ?? []);
         const serverInstructions = mcpClient.getInstructions(
           enabledServerIds.length > 0 ? enabledServerIds : undefined
         ).trim();
@@ -235,13 +250,19 @@ export class AiProvider {
    * @param enableTools 是否启用工具调用
    * @returns 工具定义列表
    */
-  private async getToolDefinitions(enableTools: boolean): Promise<ChatTool[]> {
+  private async getToolDefinitions(
+    enableTools: boolean,
+    resolvedProfile?: ResolvedChatProfile
+  ): Promise<ChatTool[]> {
     if (!enableTools) return [];
 
     const systemTools = ToolsConfig.enableSystemTools ? getSystemToolSchemas() : [];
 
     try {
-      const mcpTools = await this.convertMcpToolsToChatFunctions();
+      const profileMcpIds = resolvedProfile?.mcpServerIds;
+      const mcpTools = await this.convertMcpToolsToChatFunctions(
+        profileMcpIds && profileMcpIds.length > 0 ? profileMcpIds : undefined
+      );
       if (systemTools.length > 0) {
         Logger.info('OPENAI', `使用 ${systemTools.length} 个 System 内置工具`);
       }
@@ -725,15 +746,21 @@ export class AiProvider {
     maxToolCallRounds: number = ToolsConfig.maxToolCallRounds,
     requestId: string = '',
     enableAutoCompact?: boolean,
-    compactModel?: string
+    compactModel?: string,
+    resolvedProfile?: ResolvedChatProfile
   ): Promise<ChatResponse> {
     try {
       if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
         this.toolsConfig.enableParamValidation = enableParamValidation;
       }
 
-      const messages = await this.formatMessages(message, enableTools, enablePrompts);
-      const chatTools = await this.getToolDefinitions(enableTools);
+      const messages = await this.formatMessages(
+        message,
+        enableTools,
+        enablePrompts,
+        resolvedProfile
+      );
+      const chatTools = await this.getToolDefinitions(enableTools, resolvedProfile);
       const summarizeFn = this.resolveSummarizeFn(enableAutoCompact, compactModel, signal);
 
       return await runAgentLoop({

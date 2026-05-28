@@ -1,7 +1,6 @@
 import {
   resolveEnableAutoCompact,
-  resolveMaxToolCallRounds,
-  ToolsConfig
+  resolveMaxToolCallRounds
 } from '../../config/feature-config.js';
 import type { ChatOptions, WebAgentMessageEnvelope } from '../../types/channel.types.js';
 import type { InternalMessage } from '../../core/agent-harness/types.js';
@@ -28,24 +27,25 @@ function resolveMessages(body: Record<string, unknown>): InternalMessage[] {
   throw new Error('缺少消息参数');
 }
 
-function buildChatOptions(body: Record<string, unknown>): ChatOptions {
-  const enableTools =
-    typeof body.enableTools === 'boolean' ? body.enableTools : ToolsConfig.enableMCPTools;
-  const enableParamValidation =
-    typeof body.enableParamValidation === 'boolean'
-      ? body.enableParamValidation
-      : ToolsConfig.enableParamValidation;
-  const enablePrompts =
-    typeof body.enablePrompts === 'boolean' ? body.enablePrompts : ToolsConfig.enablePrompts;
+/** 仅映射请求体显式字段，供 Resolver 作 override；未传字段由 web Profile 补全 */
+function buildChatOptionsFromBody(body: Record<string, unknown>): ChatOptions | undefined {
+  const options: ChatOptions = {};
 
-  const options: ChatOptions = {
-    enableTools,
-    enableParamValidation,
-    enablePrompts,
-    maxToolCallRounds: resolveMaxToolCallRounds(body.maxToolCallRounds),
-    enableAutoCompact: resolveEnableAutoCompact(body.enableAutoCompact)
-  };
-
+  if (typeof body.enableTools === 'boolean') {
+    options.enableTools = body.enableTools;
+  }
+  if (typeof body.enableParamValidation === 'boolean') {
+    options.enableParamValidation = body.enableParamValidation;
+  }
+  if (typeof body.enablePrompts === 'boolean') {
+    options.enablePrompts = body.enablePrompts;
+  }
+  if (typeof body.maxToolCallRounds === 'number') {
+    options.maxToolCallRounds = resolveMaxToolCallRounds(body.maxToolCallRounds);
+  }
+  if (typeof body.enableAutoCompact === 'boolean') {
+    options.enableAutoCompact = resolveEnableAutoCompact(body.enableAutoCompact);
+  }
   if (typeof body.model === 'string') {
     options.model = body.model;
   }
@@ -59,7 +59,7 @@ function buildChatOptions(body: Record<string, unknown>): ChatOptions {
     options.compactModel = body.compactModel;
   }
 
-  return options;
+  return Object.keys(options).length > 0 ? options : undefined;
 }
 
 /**
@@ -69,6 +69,8 @@ export function normalizeWebInbound(input: WebInboundInput): WebAgentMessageEnve
   const { body, requestId, abortSignal } = input;
   const messages = resolveMessages(body);
   const vendor = typeof body.vendor === 'string' ? body.vendor : undefined;
+
+  const chatOptions = buildChatOptionsFromBody(body);
 
   return {
     id: requestId,
@@ -84,7 +86,7 @@ export function normalizeWebInbound(input: WebInboundInput): WebAgentMessageEnve
     },
     payload: {
       messages,
-      chatOptions: buildChatOptions(body)
+      ...(chatOptions !== undefined ? { chatOptions } : {})
     },
     trace: {
       traceId: requestId,

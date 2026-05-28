@@ -11,6 +11,7 @@ import {
 } from '../types/channel.types.js';
 import type { ChunkResponse } from '../core/agent-harness/types.js';
 import { envelopeToHarnessInput } from '../channels/envelope-mapper.js';
+import { resolveProfile } from '../config-plane/profile-resolver.js';
 import { getDingtalkChannelAdapter } from '../channels/dingtalk/dingtalk-channel.adapter.js';
 import { getFeishuChannelAdapter } from '../channels/feishu/feishu-channel.adapter.js';
 import { getWebChannelAdapter } from '../channels/web/web-channel.adapter.js';
@@ -68,14 +69,21 @@ async function runHarnessForEnvelope(
   requestId: string,
   signal?: AbortSignal
 ): Promise<void> {
-  const service = resolveServiceForVendor(envelope.channelMeta.vendor);
+  const resolved = await resolveProfile(envelope);
+  const vendor = resolved.vendor ?? envelope.channelMeta.vendor;
+  const service = resolveServiceForVendor(vendor);
   if (!service) {
     Logger.warn('BUS', `Inbound Worker 跳过：无可用 AI 服务 requestId=${requestId}`);
     return;
   }
 
-  const { messages, chatOptions } = envelopeToHarnessInput(envelope);
+  const { messages } = envelopeToHarnessInput(envelope);
   const wallStarted = Date.now();
+
+  Logger.info(
+    'BUS',
+    `Harness start channel=${envelope.channel} requestId=${requestId} profileId=${resolved.profileId} vendor=${vendor ?? 'default'}`
+  );
 
   const result = await service.chatStream(
     messages,
@@ -101,17 +109,18 @@ async function runHarnessForEnvelope(
         payload: chunk
       });
     },
-    chatOptions.model,
-    chatOptions.temperature,
-    chatOptions.maxTokens,
-    chatOptions.enableTools,
-    chatOptions.enableParamValidation,
-    chatOptions.enablePrompts,
+    resolved.model,
+    resolved.temperature,
+    resolved.maxTokens,
+    resolved.enableTools,
+    resolved.enableParamValidation,
+    resolved.enablePrompts,
     signal,
-    chatOptions.maxToolCallRounds,
+    resolved.maxToolCallRounds,
     requestId,
-    chatOptions.enableAutoCompact,
-    chatOptions.compactModel
+    resolved.enableAutoCompact,
+    resolved.compactModel,
+    resolved
   );
 
   if (signal?.aborted) {

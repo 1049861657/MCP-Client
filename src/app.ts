@@ -8,6 +8,8 @@ import apiRoutes from './api/routes.js';
 import { Logger } from './utils/logger.js';
 import { ConfigService } from './services/config.service.js';
 import { cleanupExpiredAgentOutputs } from './core/agent-harness/context-budget.js';
+import { initConfigPlane } from './config-plane/index.js';
+import { initializeProviders } from './providers/ai-providers.js';
 import { startMessageBus } from './message-bus/bootstrap.js';
 import { startChannels } from './channels/bootstrap.js';
 
@@ -35,6 +37,9 @@ async function startServer() {
     const serverConfig = await ConfigService.getSetting('serverConfig') || ServerConfig;
 
     await cleanupExpiredAgentOutputs();
+
+    await initializeProviders();
+    await initConfigPlane();
 
     startMessageBus();
     startChannels();
