@@ -159,8 +159,10 @@ export class AiController {
 
       let envelope;
       try {
+        const body = req.body as Record<string, unknown>;
+        await AiController.sanitizeWebMcpServerIds(body);
         envelope = normalizeWebInbound({
-          body: req.body as Record<string, unknown>,
+          body,
           requestId,
           abortSignal: abortController.signal
         });
@@ -348,66 +350,67 @@ export class AiController {
    * @param req 请求对象
    * @param res 响应对象
    */
+  /**
+   * 获取 MCP 服务器列表。
+   * - 默认 `scope=connected`：Web 聊天可选列表，仅已连接（与服务信息页可用一致）
+   * - `scope=configured`：Admin 渠道配置，全部已添加的 MCP（与连接状态解耦）
+   */
   static async getMCPServers(req: Request, res: Response): Promise<void> {
     try {
-      // 直接获取启用的服务器ID列表
-      const enabledServerIds = await ConfigService.getSetting('mcpEnabledToolServerIds') || [];
-      
-      // 获取当前已连接的服务器
+      const scopeRaw = req.query.scope;
+      const scope = typeof scopeRaw === 'string' ? scopeRaw : 'connected';
       const serverInfo = await mcpClient.getServerInfo();
-      
-      // 返回全部已配置服务器（含未连接），便于管理端勾选渠道 MCP
-      const available = serverInfo.availableServers ?? serverInfo.connectedServers ?? [];
       const connectedIds = new Set(
         (serverInfo.connectedServers ?? []).map((server) => server.id)
       );
-      const servers = available.map((server) => ({
+
+      if (scope === 'configured') {
+        const rows = await ConfigService.listConfiguredMcpServers();
+        const servers = rows.map((row) => ({
+          id: row.serverId,
+          name: row.name,
+          isConnected: connectedIds.has(row.serverId)
+        }));
+        res.json({ success: true, servers });
+        return;
+      }
+
+      if (scope !== 'connected') {
+        res.status(400).json({ error: 'scope 须为 connected 或 configured' });
+        return;
+      }
+
+      const connected = serverInfo.connectedServers ?? [];
+      const servers = connected.map((server) => ({
         id: server.id,
         name: server.name,
-        isEnabled: enabledServerIds.includes(server.id),
-        isConnected: connectedIds.has(server.id)
+        isConnected: true
       }));
-      
+
       res.json({
         success: true,
-        servers,
-        enabledServerIds
+        servers
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       Logger.error('API', '获取MCP服务器列表时出错:', error);
-      res.status(500).json({ 
-        error: error.message 
+      res.status(500).json({
+        error: message
       });
     }
   }
-  
-  /**
-   * 更新已启用的MCP服务器ID列表
-   * @param req 请求对象
-   * @param res 响应对象
-   */
-  static async updateEnabledServers(req: Request, res: Response): Promise<void> {
-    try {
-      const { enabledServerIds } = req.body;
-      
-      if (!Array.isArray(enabledServerIds)) {
-        res.status(400).json({
-          error: "enabledServerIds必须是数组"
-        });
-        return;
-      }
-      
-      await ConfigService.saveSetting('mcpEnabledToolServerIds', enabledServerIds);
-      
-      res.json({
-        success: true,
-        message: "已成功更新MCP服务器启用状态"
-      });
-    } catch (error: any) {
-      Logger.error('API', '更新MCP服务器启用状态时出错:', error);
-      res.status(500).json({ 
-        error: error.message 
-      });
+
+  /** Web 请求体 mcpServerIds 仅保留当前已连接的 MCP 服务器 */
+  static async sanitizeWebMcpServerIds(body: Record<string, unknown>): Promise<void> {
+    if (!Array.isArray(body.mcpServerIds)) {
+      return;
     }
+    const serverInfo = await mcpClient.getServerInfo();
+    const connectedIds = new Set(
+      (serverInfo.connectedServers ?? []).map((server) => server.id)
+    );
+    body.mcpServerIds = body.mcpServerIds.filter(
+      (id): id is string => typeof id === 'string' && connectedIds.has(id)
+    );
   }
 } 

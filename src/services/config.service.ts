@@ -146,20 +146,13 @@ export class ConfigService {
       // 从MCPServer表获取服务器数据
       const servers = await prisma.mCPServer.findMany();
 
-      // 获取工具提示与启用的工具服务器ID设置
+      // 获取工具提示（启用的 MCP 列表已迁移至 Profile / Web localStorage，运行态不再读 Setting）
       const toolPromptSetting = await this.getSetting('mcpToolPrompt');
-      const enabledToolServerIdsSetting = await this.getSetting('mcpEnabledToolServerIds');
 
       // 处理工具提示，确保是字符串
       let toolPromptValue: string = '';
       if (toolPromptSetting !== null) {
         toolPromptValue = String(toolPromptSetting);
-      }
-
-      // 处理启用的工具服务器ID列表
-      let enabledToolServerIds: string[] = [];
-      if (enabledToolServerIdsSetting !== null) {
-        enabledToolServerIds = enabledToolServerIdsSetting;
       }
 
       // 构建返回结果
@@ -168,14 +161,14 @@ export class ConfigService {
           serverId: server.serverId,
           name: server.name,
           isActive: server.isActive,
-          connectionType: server.connectionType, 
+          connectionType: server.connectionType,
           command: server.command || undefined,
           args: server.args as string[] || undefined,
           mcpUrl: server.mcpUrl || undefined,
           headers: (server.headers as Record<string, string>) || undefined
         })),
         toolPrompt: toolPromptValue,
-        enabledToolServerIds: enabledToolServerIds
+        enabledToolServerIds: []
       };
 
       return result;
@@ -185,6 +178,15 @@ export class ConfigService {
     }
   }
 
+  /** 全部已添加的 MCP 服务器（Admin 渠道配置用，与 isActive/连接状态解耦） */
+  static async listConfiguredMcpServers(): Promise<Array<{ serverId: string; name: string }>> {
+    const rows = await prisma.mCPServer.findMany({
+      select: { serverId: true, name: true },
+      orderBy: { name: 'asc' }
+    });
+    return rows;
+  }
+
   /**
    * 保存MCP配置
    * @param config MCP配置
@@ -192,9 +194,8 @@ export class ConfigService {
    */
   static async saveMCPConfig(config: MCPConfigType): Promise<boolean> {
     try {
-      // 保存工具提示与启用的工具服务器ID设置
+      // 保存工具提示（MCP 启用列表见 Profile / Web localStorage）
       await this.saveSetting('mcpToolPrompt', config.toolPrompt);
-      await this.saveSetting('mcpEnabledToolServerIds', config.enabledToolServerIds || []);
 
       // 清空现有服务器数据
       await prisma.mCPServer.deleteMany({});

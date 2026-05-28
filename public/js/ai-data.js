@@ -621,7 +621,7 @@ window.AIChatData = {
                     
                     // 更新会话ID
                     this.app.state.sessionId = sessionId;
-                    
+
                     // 清空聊天界面
                     if (this.app.elements.chatMessages) {
                         this.app.elements.chatMessages.innerHTML = '';

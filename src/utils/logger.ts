@@ -4,15 +4,18 @@ import { LogConfig } from '../config/feature-config.js';
 import { getProjectRoot } from './path-util.js';
 
 // 创建基本日志格式（用于文件输出）
+const timestampFormat = winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' });
+
 const logFormat = winston.format.printf(({ level, message, timestamp, context }) => {
   return `${timestamp} [${level.toUpperCase()}] [${context || ''}] ${message}`;
 });
 
-// 创建控制台日志格式（没有时间戳）
+// 控制台与文件一致，均带时间戳
 const consoleFormat = winston.format.combine(
+  timestampFormat,
   winston.format.colorize({ all: false, message: false, level: true }),
-  winston.format.printf(({ level, message, context }) => {
-    return `${level} [${context || ''}] ${message}`;
+  winston.format.printf(({ level, message, timestamp, context }) => {
+    return `${timestamp} ${level} [${context || ''}] ${message}`;
   })
 );
 
@@ -20,7 +23,7 @@ const consoleFormat = winston.format.combine(
 const winstonLogger = winston.createLogger({
   level: LogConfig.level,
   format: winston.format.combine(
-    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    timestampFormat,
     winston.format.errors({ stack: true }),
     logFormat
   ),

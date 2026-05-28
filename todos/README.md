@@ -49,7 +49,7 @@
 |------|------|--------|------|
 | T0（架构·精简） | 5 | 5 | 100% |
 | T1（渠道+总线） | 34 | 33 | 97% |
-| T2（配置平面+Admin） | 18 | 16 | 89% |
+| T2（配置平面+Admin） | 24 | 21 | 88% |
 | P0 | 19 | 19 | 100% |
 | P1 | 31 | 12 | 39% |
 | P2 | 21 | 0 | 0% |
@@ -66,7 +66,7 @@
 
 ```
 src/channels/               # T1：Web / 飞书 / 钉钉 Adapter、bootstrap、envelope-mapper
-src/config-plane/           # T2：resolveProfile、快照、web session override
+src/config-plane/           # T2：resolveProfile、快照（Web 全局偏好走前端 body，非 session override）
 src/message-bus/            # T1：Inbound Queue、Worker、OutboundRouter、幂等
 public/admin/               # T2：管理员平台（与 ai.html 分离）
 src/core/agent-harness/     # Harness：agent-loop、tool-call-manager、system-tools、types

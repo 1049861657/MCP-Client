@@ -1,8 +1,8 @@
 import './style.css';
 import { icon } from './icons.js';
 
-const TOKEN_KEY = 'mcp-admin-token';
 const API = '/api/admin';
+const SESSION_TOKEN_KEY = 'mcp-admin-token';
 
 const IM_CHANNELS = [
   { key: 'dingtalk', profileId: 'dingtalk-default', label: '钉钉', badge: '钉' },
@@ -10,13 +10,13 @@ const IM_CHANNELS = [
 ];
 
 const els = {
+  shell: document.querySelector('.admin-shell'),
+  pageHeader: document.getElementById('page-header'),
+  authForm: document.getElementById('auth-form'),
   token: document.getElementById('admin-token'),
-  authModal: document.getElementById('auth-modal'),
-  authBackdrop: document.getElementById('auth-backdrop'),
   authError: document.getElementById('auth-error'),
-  authStatusDot: document.getElementById('auth-status-dot'),
-  authTriggerLabel: document.getElementById('auth-trigger-label'),
-  btnToggleAuth: document.getElementById('btn-toggle-auth'),
+  authStatus: document.getElementById('auth-status'),
+  btnLogout: document.getElementById('btn-logout'),
   emptyState: document.getElementById('empty-state'),
   workspace: document.getElementById('workspace'),
   channelRail: document.getElementById('channel-rail'),
@@ -43,8 +43,7 @@ const els = {
   saveErr: document.getElementById('save-err'),
   btnSave: document.getElementById('btn-save'),
   btnDiscard: document.getElementById('btn-discard'),
-  btnConnect: document.getElementById('btn-connect'),
-  btnSeed: document.getElementById('btn-seed')
+  btnConnect: document.getElementById('btn-connect')
 };
 
 const state = {
@@ -311,10 +310,10 @@ function renderMcpChips() {
     name.textContent = srv.name;
     body.appendChild(name);
 
-    if (srv.isEnabled) {
+    if (!srv.isConnected) {
       const tag = document.createElement('span');
       tag.className = 'mcp-item-tag';
-      tag.textContent = 'Web 已启用';
+      tag.textContent = '未连接';
       body.appendChild(tag);
     }
 
@@ -344,15 +343,61 @@ function updateChannelHeader() {
 
 function updateAuthTrigger() {
   const connected = state.connected;
-  if (els.authStatusDot) {
-    els.authStatusDot.classList.toggle('auth-status-dot--on', connected);
+  show(els.authStatus, connected);
+  show(els.btnLogout, connected);
+}
+
+function logout() {
+  if (state.dirtyChannels.size > 0) {
+    const ok = window.confirm('有未保存的更改，确定退出？');
+    if (!ok) return;
   }
-  if (els.authTriggerLabel) {
-    els.authTriggerLabel.textContent = connected ? '已连接' : '登录';
+
+  state.profilesById = {};
+  state.providers = [];
+  state.defaultProvider = '';
+  state.mcpServers = [];
+  state.dirtyChannels.clear();
+  state.draftsByChannel = {};
+  setText(els.saveOk, '');
+  setText(els.saveErr, '');
+  setText(els.authError, '');
+  clearStoredToken();
+  if (els.token) els.token.value = '';
+  setConnectedUI(false);
+}
+
+function readStoredToken() {
+  try {
+    const token = sessionStorage.getItem(SESSION_TOKEN_KEY);
+    return token && token.trim() ? token.trim() : '';
+  } catch {
+    return '';
   }
-  if (els.btnToggleAuth) {
-    els.btnToggleAuth.classList.toggle('auth-trigger--on', connected);
+}
+
+function persistToken(token) {
+  try {
+    const value = token.trim();
+    if (value) {
+      sessionStorage.setItem(SESSION_TOKEN_KEY, value);
+    } else {
+      sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    }
+  } catch {
+    // ignore quota / private mode
   }
+}
+
+function clearStoredToken() {
+  persistToken('');
+}
+
+function tryRestoreSession() {
+  const stored = readStoredToken();
+  if (!stored || !els.token) return;
+  els.token.value = stored;
+  void connect();
 }
 
 function bindFormToDom() {
@@ -448,20 +493,24 @@ function onFormInput() {
   updateDirtyUI();
 }
 
-function openAuthModal() {
-  if (!els.authModal) return;
-  els.authModal.classList.remove('hidden');
-  els.token?.focus();
-}
-
-function closeAuthModal() {
-  if (!els.authModal) return;
-  els.authModal.classList.add('hidden');
+function setConnectedUI(connected) {
+  state.connected = connected;
+  show(els.emptyState, !connected);
+  show(els.workspace, connected);
+  show(els.pageHeader, connected);
+  els.shell?.classList.toggle('admin-shell--connected', connected);
+  document.body.classList.toggle('admin-page--connected', connected);
+  updateAuthTrigger();
+  if (!connected) {
+    window.requestAnimationFrame(() => {
+      els.token?.focus({ preventScroll: true });
+    });
+  }
 }
 
 async function adminFetch(path, init) {
   const token = els.token ? els.token.value.trim() : '';
-  if (!token) throw new Error('请填写 ADMIN_API_TOKEN');
+  if (!token) throw new Error('请填写密钥');
   const headers = new Headers(init?.headers ?? {});
   headers.set('X-Admin-Token', token);
   if (init?.body && !headers.has('Content-Type')) {
@@ -484,18 +533,6 @@ async function adminFetch(path, init) {
   return data;
 }
 
-function setConnectedUI(connected) {
-  state.connected = connected;
-  show(els.emptyState, !connected);
-  show(els.workspace, connected);
-  show(els.btnSeed, true);
-  updateAuthTrigger();
-}
-
-function isMissingProfileError(message) {
-  return message.includes('空库初始化') || message.includes('缺少渠道方案');
-}
-
 async function connect() {
   if (state.connecting) return;
   state.connecting = true;
@@ -508,21 +545,17 @@ async function connect() {
   }
 
   try {
-    const stored = sessionStorage.getItem(TOKEN_KEY);
-    if (stored && els.token && !els.token.value) els.token.value = stored;
-    if (els.token?.value.trim()) sessionStorage.setItem(TOKEN_KEY, els.token.value.trim());
-
     const [profileList, provRes, mcpRes] = await Promise.all([
       adminFetch('/profiles'),
       fetch('/api/settings/providers'),
-      fetch('/api/mcp/servers')
+      fetch('/api/mcp/servers?scope=configured')
     ]);
 
     const profiles = Array.isArray(profileList) ? profileList : [];
     state.profilesById = {};
     for (const ch of IM_CHANNELS) {
       const row = profiles.find((p) => p.profileId === ch.profileId);
-      if (!row) throw new Error('缺少渠道方案 ' + ch.profileId + '，请点「空库初始化」');
+      if (!row) throw new Error('缺少渠道方案 ' + ch.profileId + '，请检查服务启动与数据库 seed');
       state.profilesById[ch.profileId] = row;
     }
 
@@ -540,7 +573,6 @@ async function connect() {
       state.mcpServers = (mcp.servers || []).map((s) => ({
         id: String(s.id),
         name: String(s.name || s.id),
-        isEnabled: Boolean(s.isEnabled),
         isConnected: Boolean(s.isConnected)
       }));
     } else {
@@ -548,38 +580,22 @@ async function connect() {
     }
 
     state.dirtyChannels.clear();
+    persistToken(els.token ? els.token.value : '');
     setConnectedUI(true);
-    closeAuthModal();
     loadFormForActive();
   } catch (e) {
     setConnectedUI(false);
     const message = e instanceof Error ? e.message : String(e);
-    setText(els.authError, message);
-    if (isMissingProfileError(message)) {
-      show(els.btnSeed, true);
+    if (/未授权|401|无效|Unauthorized/i.test(message)) {
+      clearStoredToken();
     }
-    openAuthModal();
+    setText(els.authError, message);
   } finally {
     state.connecting = false;
     if (els.btnConnect) {
       els.btnConnect.disabled = false;
-      els.btnConnect.textContent = '确认';
+      els.btnConnect.textContent = '连接';
     }
-  }
-}
-
-async function seed() {
-  try {
-    const data = await adminFetch('/seed', { method: 'POST' });
-    await connect();
-    const message =
-      typeof data?.message === 'string' && data.message.trim()
-        ? data.message
-        : '初始化完成';
-    setText(els.authError, message);
-    setTimeout(() => setText(els.authError, ''), 3000);
-  } catch (e) {
-    setText(els.authError, e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -746,35 +762,34 @@ function mountStaticIcons() {
 function init() {
   mountStaticIcons();
 
-  const stored = sessionStorage.getItem(TOKEN_KEY);
-  if (stored && els.token) els.token.value = stored;
-
   renderChannelRail();
   setConnectedUI(false);
-  updateAuthTrigger();
-  closeAuthModal();
 
-  document.getElementById('btn-save-token')?.addEventListener('click', () => {
-    if (els.token?.value.trim()) {
-      sessionStorage.setItem(TOKEN_KEY, els.token.value.trim());
-      setText(els.authError, '口令已记住');
-      setTimeout(() => setText(els.authError, ''), 2000);
+  els.authForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    connect();
+  });
+
+  els.token?.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    els.token?.focus();
+  });
+
+  els.token?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      connect();
     }
   });
 
-  document.getElementById('btn-toggle-auth')?.addEventListener('click', openAuthModal);
-  document.getElementById('btn-empty-connect')?.addEventListener('click', openAuthModal);
-  document.getElementById('btn-close-auth')?.addEventListener('click', closeAuthModal);
-  els.authBackdrop?.addEventListener('click', closeAuthModal);
-
   els.btnConnect?.addEventListener('click', connect);
-  els.btnSeed?.addEventListener('click', seed);
+  els.btnLogout?.addEventListener('click', logout);
+
   els.btnSave?.addEventListener('click', save);
   els.btnDiscard?.addEventListener('click', discardChanges);
 
   bindFormListeners();
-
-  if (stored) connect();
+  tryRestoreSession();
 }
 
 init();

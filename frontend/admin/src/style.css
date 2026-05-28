@@ -97,6 +97,18 @@ body.admin-page {
   gap: 8px;
 }
 
+.auth-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #2e7d32;
+  background: #f1f8e9;
+  border: 1px solid rgb(46 125 50 / 0.35);
+  border-radius: 4px;
+}
+
 .auth-trigger {
   display: inline-flex;
   align-items: center;
@@ -214,7 +226,103 @@ body.admin-page {
   font-size: 12px;
 }
 
-/* 空状态 */
+/* 未登录：整页验证 */
+.admin-shell:not(.admin-shell--connected) {
+  max-width: none;
+  padding: 0;
+  min-height: calc(100vh - 50px);
+}
+
+body.admin-page:not(.admin-page--connected) {
+  background: var(--color-page-bg);
+}
+
+.auth-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 50px);
+  padding: 48px 24px;
+  background: var(--color-page-bg);
+}
+
+.auth-gate-panel {
+  width: 100%;
+  max-width: 400px;
+  padding: 32px 28px 28px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.06);
+}
+
+.auth-gate-head {
+  text-align: center;
+}
+
+.auth-gate-page-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.auth-gate-lead {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.auth-gate-form {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #eee;
+}
+
+.auth-gate-form .field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: text;
+}
+
+.admin-page #app .auth-gate-form .field-input {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 11px 12px;
+  min-height: 44px;
+  cursor: text;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.auth-gate-form .field-input--secret {
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+.auth-gate-form .field-error {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+.auth-gate-form .btn-primary {
+  margin-top: 20px;
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.admin-shell--connected .page-header {
+  margin-bottom: 10px;
+}
+
+/* 空状态（保留兼容） */
 .empty-panel {
   padding: 32px 24px;
   text-align: center;
@@ -600,6 +708,10 @@ body.admin-page {
   resize: vertical;
   min-height: 72px;
   line-height: 1.5;
+}
+
+.field-input--secret {
+  -webkit-text-security: disc;
 }
 
 .field-row {

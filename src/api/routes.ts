@@ -49,9 +49,6 @@ router.get('/tools/list', AiController.getAvailableTools);
 // MCP服务器列表路由
 router.get('/mcp/servers', AiController.getMCPServers);
 
-// 更新MCP服务器启用状态
-router.post('/mcp/servers/enabled', AiController.updateEnabledServers);
-
 // T2 配置平面 Admin API（Header: X-Admin-Token = ADMIN_API_TOKEN）
 router.post('/admin/seed', AdminController.seedDefaults);
 router.get('/admin/profiles', AdminController.listProfiles);

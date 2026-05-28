@@ -70,6 +70,21 @@ pnpm start
 - 配置 MCP 服务器连接（stdio / HTTP）
 - 设置系统参数（System Prompt、快捷消息等）
 
+### 渠道管理（/admin）
+
+- 配置钉钉、飞书等 IM 渠道的默认模型与 MCP 工具（需 `ADMIN_API_TOKEN`）
+- 与 AI 聊天页分离：聊天偏好存浏览器 `localStorage`，IM 能力存 AgentProfile
+
+## 环境变量
+
+| 变量 | 用途 |
+|------|------|
+| `ADMIN_API_TOKEN` | 渠道管理 Admin API 鉴权（请求头 `X-Admin-Token`） |
+| `DATABASE_URL` | SQLite 数据库路径 |
+| `REDIS_URL` | 消息总线（BullMQ） |
+
+Admin API（`/api/admin/*`）与公开聊天 API（`/api/chat/*`）分离：前者改 Profile/Route，后者仅处理终端用户对话。
+
 ## 工具超时机制
 
 - 默认单步超时 60s

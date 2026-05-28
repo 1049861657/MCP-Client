@@ -188,3 +188,41 @@ test('resolveProfileFromContext Web 请求体 chatOptions 覆盖 Profile enableT
   );
   assert.equal(resolved.enableTools, false);
 });
+
+test('resolveProfileFromContext Web body mcpServerIds 覆盖 Profile', () => {
+  const snapshot = buildSnapshot(
+    [baseProfile(CONFIG_PROFILE_WEB_DEFAULT, { mcpServerIds: ['srv-old'] })],
+    [
+      {
+        id: 'r1',
+        channel: 'web',
+        matchKey: ROUTE_MATCH_ALL,
+        profileId: CONFIG_PROFILE_WEB_DEFAULT,
+        priority: 100,
+        enabled: true,
+        tenantId: null
+      }
+    ]
+  );
+
+  const envelope: AgentMessageEnvelopeSerialized = {
+    id: 'req-web-mcp',
+    source: 'web:api',
+    type: 'agent.message.inbound',
+    time: new Date().toISOString(),
+    channel: 'web',
+    sessionKey: 'web:req-web-mcp',
+    channelMeta: { requestId: 'req-web-mcp' },
+    payload: {
+      messages: [{ role: 'user', content: 'hi' }],
+      chatOptions: { mcpServerIds: ['srv-new'] }
+    },
+    trace: { traceId: 'req-web-mcp', idempotencyKey: 'req-web-mcp' }
+  };
+
+  const resolved = resolveProfileFromContext(
+    buildProfileResolveContext(envelope),
+    snapshot
+  );
+  assert.deepEqual(resolved.mcpServerIds, ['srv-new']);
+});

@@ -137,6 +137,9 @@ function mergeLayer(
   if (layer.compactModel !== undefined) {
     base.compactModel = layer.compactModel;
   }
+  if (layer.mcpServerIds !== undefined) {
+    base.mcpServerIds = [...layer.mcpServerIds];
+  }
 }
 
 /** 将指定 Profile 与入站覆盖链合并为 ResolvedChatProfile */
@@ -193,9 +196,9 @@ export function resolveProfileFromContext(
   return resolveProfileFromProfileRecord(ctx, profile);
 }
 
-export async function resolveProfile(
+export function resolveProfile(
   envelope: AgentMessageEnvelopeSerialized
-): Promise<ResolvedChatProfile> {
+): ResolvedChatProfile {
   const ctx = buildProfileResolveContext(envelope);
   const snapshot = getConfigPlaneSnapshot();
   return resolveProfileFromContext(ctx, snapshot);

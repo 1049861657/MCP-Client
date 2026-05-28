@@ -1572,23 +1572,30 @@ window.AIChatUI = {
                 app.state.maxToolCallRounds = Math.min(100, Math.max(1, parsed));
             }
         }
-        
+
+        this.saveMcpServerIds();
+    },
+
+    saveMcpServerIds() {
+        const app = window.AIChatApp;
         try {
-            const settings = {
-                isStreamMode: app.state.isStreamMode,
-                model: app.state.model,
-                enableAutoCompact: app.state.enableAutoCompact,
-                compactModel: app.state.compactModel,
-                temperature: app.state.temperature,
-                maxTokens: app.state.maxTokens,
-                enableMCPTools: app.state.enableMCPTools,
-                enableParamValidation: app.state.enableParamValidation,
-                enablePrompts: app.state.enablePrompts,
-                enableMessageHistory: app.state.enableMessageHistory,
-                messageHistoryCount: app.state.messageHistoryCount,
-                maxToolCallRounds: app.state.maxToolCallRounds
-            };
-            
+            const settingsJson = localStorage.getItem('aiChatSettings');
+            const settings = settingsJson ? JSON.parse(settingsJson) : {};
+            settings.isStreamMode = app.state.isStreamMode;
+            settings.model = app.state.model;
+            settings.enableAutoCompact = app.state.enableAutoCompact;
+            settings.compactModel = app.state.compactModel;
+            settings.temperature = app.state.temperature;
+            settings.maxTokens = app.state.maxTokens;
+            settings.enableMCPTools = app.state.enableMCPTools;
+            settings.enableParamValidation = app.state.enableParamValidation;
+            settings.enablePrompts = app.state.enablePrompts;
+            settings.enableMessageHistory = app.state.enableMessageHistory;
+            settings.messageHistoryCount = app.state.messageHistoryCount;
+            settings.maxToolCallRounds = app.state.maxToolCallRounds;
+            settings.enabledServerIds = Array.isArray(app.state.enabledServerIds)
+                ? [...app.state.enabledServerIds]
+                : [];
             localStorage.setItem('aiChatSettings', JSON.stringify(settings));
         } catch (error) {}
     },
@@ -1622,22 +1629,21 @@ window.AIChatUI = {
         try {
             const settingsJson = localStorage.getItem('aiChatSettings');
             if (!settingsJson) return;
-            
+
             const settings = JSON.parse(settingsJson);
             const app = window.AIChatApp;
             const elements = app.elements;
-            
-            // 应用响应模式设置（标准模式已废弃，启动时强制流式）
+
             if (typeof settings.isStreamMode === 'boolean') {
                 app.state.isStreamMode = true;
                 elements.modeStream.checked = true;
                 elements.modeRegular.checked = false;
                 app.UI.updateUIForMode();
             }
-            
-            // 应用设置
+
             if (settings.model && elements.model.querySelector(`option[value="${settings.model}"]`)) {
                 elements.model.value = settings.model;
+                app.state.model = settings.model;
             }
 
             app.updateCompactModelOptions();
@@ -1651,25 +1657,27 @@ window.AIChatUI = {
                 elements.compactModel.value = settings.compactModel;
                 app.state.compactModel = settings.compactModel;
             }
-            
+
             if (typeof settings.temperature === 'number') {
                 elements.temperature.value = settings.temperature;
+                app.state.temperature = settings.temperature;
             }
-            
+
             if (typeof settings.maxTokens === 'number') {
                 elements.maxTokens.value = settings.maxTokens;
+                app.state.maxTokens = settings.maxTokens;
             }
-            
+
             if (typeof settings.enableMCPTools === 'boolean') {
                 elements.enableMCPTools.checked = settings.enableMCPTools;
                 app.state.enableMCPTools = settings.enableMCPTools;
             }
-            
+
             if (typeof settings.enableParamValidation === 'boolean') {
                 elements.enableParamValidation.checked = settings.enableParamValidation;
                 app.state.enableParamValidation = settings.enableParamValidation;
             }
-            
+
             if (typeof settings.enablePrompts === 'boolean') {
                 elements.enablePrompts.checked = settings.enablePrompts;
                 app.state.enablePrompts = settings.enablePrompts;
@@ -1679,7 +1687,7 @@ window.AIChatUI = {
                 elements.enableMessageHistory.checked = settings.enableMessageHistory;
                 app.state.enableMessageHistory = settings.enableMessageHistory;
             }
-            
+
             if (typeof settings.messageHistoryCount === 'number') {
                 elements.messageHistoryCount.value = settings.messageHistoryCount;
                 app.state.messageHistoryCount = settings.messageHistoryCount;
@@ -1688,6 +1696,10 @@ window.AIChatUI = {
             if (typeof settings.maxToolCallRounds === 'number' && elements.maxToolCallRounds) {
                 elements.maxToolCallRounds.value = settings.maxToolCallRounds;
                 app.state.maxToolCallRounds = settings.maxToolCallRounds;
+            }
+
+            if (Array.isArray(settings.enabledServerIds)) {
+                app.state.enabledServerIds = settings.enabledServerIds.filter((id) => typeof id === 'string');
             }
         } catch (error) {
             console.error('加载设置失败:', error);
@@ -1765,8 +1777,7 @@ window.AIChatUI = {
         container.innerHTML = '<div class="loading-servers">加载服务器列表...</div>';
         
         app.loadMCPServers().then(() => {
-            const initialEnabledIds = [...app.state.enabledServerIds];
-            
+            const beforeCount = app.state.enabledServerIds.length;
             app.state.enabledServerIds = app.state.enabledServerIds.filter(id => {
                 const server = app.state.mcpServers.find(s => s.id === id);
                 return server !== undefined;
@@ -1775,14 +1786,10 @@ window.AIChatUI = {
             app.state.mcpServers.forEach(server => {
                 server.isEnabled = app.state.enabledServerIds.includes(server.id);
             });
-            
-            const hasChanges = initialEnabledIds.length !== app.state.enabledServerIds.length;
-            if (hasChanges) {
-                app.API.saveEnabledMCPServers(app.state.enabledServerIds)
-                    .then(() => {
-                        this.showTooltip('已自动移除不可用的服务器');
-                    })
-                    .catch(err => {});
+
+            if (app.state.enabledServerIds.length !== beforeCount) {
+                this.saveMcpServerIds();
+                this.showTooltip('已自动移除不可用的服务器');
             }
             
             this.renderMCPServersList();
@@ -1801,7 +1808,7 @@ window.AIChatUI = {
         container.innerHTML = '';
         
         if (app.state.mcpServers.length === 0) {
-            container.innerHTML = '<div class="no-servers">没有可用的MCP服务器</div>';
+            container.innerHTML = '<div class="no-servers">请先在<a href="/info.html">服务信息</a>页连接 MCP 服务器</div>';
             return;
         }
         
@@ -1894,16 +1901,10 @@ window.AIChatUI = {
         
         app.state.enabledServerIds = enabledIds;
         
-        app.API.saveEnabledMCPServers(enabledIds)
-            .then(() => {
-                this.showTooltip(`已更新启用的MCP服务器，当前启用 ${enabledIds.length} 个服务器`);
-                
-                this.updateMCPButtonCounter();
-                app.updateMCPServersUI();
-            })
-            .catch(error => {
-                this.showTooltip('保存MCP服务器启用状态失败');
-            });
+        this.saveMcpServerIds();
+        this.showTooltip(`已更新启用的MCP服务器，当前启用 ${enabledIds.length} 个服务器`);
+        this.updateMCPButtonCounter();
+        app.updateMCPServersUI();
     },
     
     updateMCPButtonCounter() {

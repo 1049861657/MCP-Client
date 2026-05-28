@@ -402,6 +402,13 @@ window.AIChatAPI = {
                 enableAutoCompact: app.state.enableAutoCompact,
                 compactModel: app.state.compactModel || app.elements.compactModel?.value
             };
+
+            if (enableTools) {
+                const selectableIds = app.getSelectableMcpServerIds();
+                if (selectableIds.length > 0) {
+                    requestBody.mcpServerIds = selectableIds;
+                }
+            }
             
             this.beginCompactConsumeTracking(app);
 
@@ -493,6 +500,13 @@ window.AIChatAPI = {
                 enableAutoCompact: app.state.enableAutoCompact,
                 compactModel: app.state.compactModel || app.elements.compactModel?.value
             };
+
+            if (enableTools) {
+                const selectableIds = app.getSelectableMcpServerIds();
+                if (selectableIds.length > 0) {
+                    requestBody.mcpServerIds = selectableIds;
+                }
+            }
             
             const outgoing = this.buildOutgoingMessages(app, message);
             if (outgoing.length > 0) {
@@ -880,41 +894,13 @@ window.AIChatAPI = {
             
             if (data.error) {
                 console.error('获取MCP服务器列表失败:', data.error);
-                return { servers: [], enabledServerIds: [] };
+                return { servers: [] };
             }
             
             return data;
         } catch (error) {
             console.error('获取MCP服务器出错:', error);
-            return { servers: [], enabledServerIds: [] };
-        }
-    },
-    
-    /**
-     * 保存启用的MCP服务器ID列表
-     * @param {string[]} enabledServerIds 启用的服务器ID列表
-     * @returns {Promise<boolean>} 是否保存成功
-     */
-    async saveEnabledMCPServers(enabledServerIds) {
-        try {
-            const response = await fetch('/api/mcp/servers/enabled', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ enabledServerIds })
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `HTTP错误: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            return data.success;
-        } catch (error) {
-            console.error('保存启用的MCP服务器列表失败:', error);
-            throw error;
+            return { servers: [] };
         }
     },
 

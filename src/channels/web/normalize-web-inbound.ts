@@ -58,6 +58,9 @@ function buildChatOptionsFromBody(body: Record<string, unknown>): ChatOptions | 
   if (typeof body.compactModel === 'string') {
     options.compactModel = body.compactModel;
   }
+  if (Array.isArray(body.mcpServerIds)) {
+    options.mcpServerIds = body.mcpServerIds.filter((id): id is string => typeof id === 'string');
+  }
 
   return Object.keys(options).length > 0 ? options : undefined;
 }

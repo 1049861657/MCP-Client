@@ -21,3 +21,14 @@ test('normalizeWebInbound 仅透传 body 显式 enableTools', () => {
   assert.equal(envelope.payload.chatOptions?.enableTools, false);
   assert.equal(envelope.payload.chatOptions?.enablePrompts, undefined);
 });
+
+test('normalizeWebInbound 透传 body mcpServerIds', () => {
+  const envelope = normalizeWebInbound({
+    body: {
+      messages: [{ role: 'user', content: 'hi' }],
+      mcpServerIds: ['srv-a', 'srv-b']
+    },
+    requestId: 'req-3'
+  });
+  assert.deepEqual(envelope.payload.chatOptions?.mcpServerIds, ['srv-a', 'srv-b']);
+});

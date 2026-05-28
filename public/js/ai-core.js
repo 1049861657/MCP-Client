@@ -672,14 +672,27 @@ window.AIChatApp = {
 
     
     /**
+     * 当前可选 MCP 服务器 ID（仅已连接，与 GET /api/mcp/servers 默认 scope 一致）
+     */
+    getSelectableMcpServerIds() {
+        const allowed = new Set((this.state.mcpServers || []).map((server) => server.id));
+        return (this.state.enabledServerIds || []).filter((id) => allowed.has(id));
+    },
+
+    /**
      * 加载MCP服务器列表并显示选择界面
      */
     async loadMCPServers() {
         try {
-            // 获取服务器列表
             const data = await this.API.getMCPServers();
             this.state.mcpServers = data.servers || [];
-            this.state.enabledServerIds = data.enabledServerIds || [];
+            const knownIds = new Set(this.state.mcpServers.map((server) => server.id));
+            this.state.enabledServerIds = (this.state.enabledServerIds || []).filter((id) =>
+                knownIds.has(id)
+            );
+            this.state.mcpServers.forEach((server) => {
+                server.isEnabled = this.state.enabledServerIds.includes(server.id);
+            });
             this.updateMCPServersUI();
             
             // 更新MCP按钮计数器
@@ -704,7 +717,7 @@ window.AIChatApp = {
         container.innerHTML = '';
         
         if (this.state.mcpServers.length === 0) {
-            container.innerHTML = '<div class="no-servers">没有可用的MCP服务器</div>';
+            container.innerHTML = '<div class="no-servers">请先在<a href="/info.html">服务信息</a>页连接 MCP 服务器</div>';
             return;
         }
         
@@ -822,7 +835,6 @@ window.AIChatApp = {
      * 更新启用的服务器列表并保存到服务器
      */
     async updateEnabledServers() {
-        // 收集选中的服务器ID
         const enabledIds = [];
         this.state.mcpServers.forEach(server => {
             const checkbox = document.getElementById(`server-${server.id}`);
@@ -830,21 +842,17 @@ window.AIChatApp = {
                 enabledIds.push(server.id);
             }
         });
-        
-        // 更新状态
+
         this.state.enabledServerIds = enabledIds;
-        
-        try {
-            // 保存到服务器
-            await this.API.saveEnabledMCPServers(enabledIds);
-            console.log('已更新启用的MCP服务器列表:', enabledIds);
-            
-            // 显示提示
-            this.UI.showTooltip(`已更新启用的MCP服务器，当前启用 ${enabledIds.length} 个服务器`);
-        } catch (error) {
-            console.error('保存MCP服务器启用状态失败:', error);
-            this.UI.showTooltip('保存MCP服务器启用状态失败');
+        this.state.mcpServers.forEach((server) => {
+            server.isEnabled = enabledIds.includes(server.id);
+        });
+
+        if (window.AIChatUI?.saveMcpServerIds) {
+            window.AIChatUI.saveMcpServerIds();
         }
+
+        this.UI.showTooltip(`已更新启用的MCP服务器，当前启用 ${enabledIds.length} 个服务器`);
     },
     
     _bindContextPanelEvents() {

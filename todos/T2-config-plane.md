@@ -1,6 +1,6 @@
 # T2 — 配置平面 + 管理员平台（多渠道能力隔离）
 
-> **状态**：未开始  
+> **状态**：进行中（T2-08 已交付；T2-09 待做）  
 > **范围**：在 T1 渠道 + Bus 之上增加 **Config Plane**；**独立管理员平台**按渠道配置能力；Web 聊天页改动**不污染**钉钉/飞书  
 > **前置**：T1 已交付（Envelope → Inbound Worker → Harness）；现有 `Setting` / `AIProvider` / `MCPServer` 可迁移  
 > **预估**：**18** 子项（约 **2–3 人日**，分 3 PR）  
@@ -25,7 +25,7 @@ IM/Web 入站 → Envelope（无写死 chatOptions）
 ```
 
 - **管理员平台**（独立路由/UI）：维护各渠道的 **Agent Profile** 与 **Route**；保存后 `configVersion++`，下一条消息生效。
-- **Web 聊天页**：仅 `channel=web` 的 **请求级 / 会话级 override**；禁止写全局 `Setting` 或他渠道 Profile。
+- **Web 聊天页**：**浏览器全局**一份 model/tools 等（所有 Web 会话共用）；每次请求可通过 **body `chatOptions`** 覆盖；**禁止**写 IM Profile、禁止写 Provider/MCP 全局 Setting。
 - **Harness / agent-loop / MCP 调用语义不变**；动的是配置来源与解析点。
 
 ---
@@ -45,13 +45,13 @@ IM/Web 入站 → Envelope（无写死 chatOptions）
 ```
 ResolvedChatProfile =
   codeDefaults (feature-config 兜底)
-  ← AgentProfile（Route 命中）
-  ← envelope.payload.chatOptions（仅当调用方显式传入）
-  ← sessionOverride（仅 channel=web + sessionKey，Redis/Setting，TTL 可选）
+  ← AgentProfile（Route 命中，含 web-default）
+  ← envelope.payload.chatOptions（Web 请求体显式字段；IM 通常为空）
 ```
 
 - **禁止**在 `normalize-dingtalk-inbound` 等写 `ToolsConfig.enableMCPTools`。
-- **禁止**管理员保存 Web 聊天 localStorage 到全局 Setting。
+- **禁止** Web 聊天设置写入 **按 sessionId 分键** 的服务端 override（如 `webOverride:{sessionKey}`）。
+- **Web 用户偏好**（model、enableTools 等）由 **前端全局 state + localStorage 单键** 维护，经 **每请求 body** 进入 Resolver；**不**增加 Config Plane 会话级存储层。
 
 ### 配置热更新
 
@@ -64,9 +64,9 @@ ResolvedChatProfile =
 
 | 入口 | 用户 | 改什么 | 影响范围 |
 |------|------|--------|----------|
-| **`/admin/*`**（新） | 运维/管理员 | Binding、Profile、Route | 对应 channel（及匹配会话） |
-| **`/api/chat/stream`** + `ai.html` | 终端用户 | 当前会话 model/tools 等 | **仅** `channel=web` 当次或 session override |
-| 旧 **`/api/settings/*`**（聊天相关） | — | 迁到 Admin 或标废弃 | 避免双写 |
+| **`/admin/*`**（新） | 运维/管理员 | Profile、Route | 对应 channel（钉钉/飞书；Web 默认 `web-default` 可选） |
+| **`/api/chat/stream`** + `ai.html` | 终端用户 | Web **全局** model/tools 等 + 当次 body | **仅** `channel=web`；与 IM Profile **隔离** |
+| **`/api/settings/*`** | 运维 | Provider、MCP 连接定义 | 基础设施；**不**承载 Web 聊天 model/tools 偏好 |
 
 ---
 
@@ -87,10 +87,10 @@ ResolvedChatProfile =
 | 变更类型 | 操作 | 生效方式 |
 |----------|------|----------|
 | `AgentProfile` / `RouteRule` 增删改 | Admin API 写 DB 后调用 **`bumpConfigPlaneVersion()`** | 内存快照刷新；**下一条** Inbound 消息用新 Profile |
-| `mcpToolPrompt` / `mcpEnabledToolServerIds`（旧 Setting） | 仍写入 Setting；seed 仅空库一次 | 已运行实例应改 Profile 并 bump，勿依赖单独改 Setting |
+| `mcpToolPrompt` / `mcpEnabledToolServerIds`（旧 Setting） | **仅空库 seed 读一次**；运行态禁止读写 | 日常改 MCP 启用范围：Web → localStorage+body；IM → Admin Profile |
 | MCP 服务器连接（command/url/headers） | `POST /api/server/reload-config` 或 add/update/delete 内建 reload | **`reloadMCPConfig()`** 重连 |
 | AI 提供商 / API Key / 默认模型 | `POST /api/settings/providers` + **`POST /api/settings/providers/reload`** | **`reloadAiProviders()`** 重建 `AiProvider` 实例 |
-| Web 会话临时选项 | `webOverride:{sessionKey}`（T2-07 API） | 仅 **`channel=web`** 下一条 resolve 合并 |
+| Web 聊天全局偏好 | `ai.html` 设置面板 → `localStorage` 单键（如 `aiChatSettings`）→ 加载到 `app.state` → 每请求 body | **仅 Web 前端**；不入 Setting、不 bump Profile；Resolver 经 body 合并 |
 
 ---
 
@@ -149,9 +149,10 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
   - 验收：bump 后下一 resolve 读到新 Profile，无需重启进程  
   - 完成日期：2026-05-28
 
-- [x] **T2-02-03** `src/config-plane/session-override.ts` — **仅** `channel=web`：`sessionKey` → `Setting` 键 `webOverride:{sessionKey}`  
-  - 验收：钉钉 envelope 不读 session override（单测覆盖）  
-  - 完成日期：2026-05-28
+- [x] **T2-02-03** Resolver 覆盖链 — **仅** Profile + envelope `chatOptions`（**无** 会话级中间层）  
+  - 验收：钉钉 envelope 不读 Web localStorage；Web body 显式字段覆盖 Profile  
+  - 完成日期：2026-05-28  
+  - > **修订**：曾短暂实现 `session-override` / `webOverride:*`，已认定过度设计；**T2-07 重构**拆除，以本节两层链为准。
 
 ---
 
@@ -214,20 +215,40 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
 
 ## T2-07 Web 聊天页作用域
 
-- [ ] **T2-07-01** `ai-ui.js` / `ai-api.js` — 会话级设置写入 **session override API**（`POST /api/chat/session-options`），不再 `localStorage` 写 enableTools/model（或 localStorage 仅作草稿，提交才写服务端）  
-  - 验收：Web 关工具不影响钉钉；刷新后 override 仍生效（若 session 未变）  
+> **2026-05-28 任务书重构**  
+> Web 端 model/tools/temperature 等为 **浏览器全局一份**，所有 Web 聊天会话共用；**不是** 每个 sessionId 一套设置。  
+> 与 IM 隔离：Web 只影响 `channel=web` 入站（`web-default` + body），钉钉/飞书只读各自 Profile。  
+> **撤销** 原方案：`POST /api/chat/session-options`、`webOverride:{sessionKey}`、Resolver `sessionOverride` 层。
 
-- [ ] **T2-07-02** `normalize-web-inbound` + Resolver — session override 合并进 `ResolvedChatProfile`（优先级低于 body 显式字段）  
-  - 验收：单测覆盖 web session override  
+- [x] **T2-07-01** `ai-ui.js` / `ai-api.js` — Web 设置 **全局** 持久化：`localStorage` **单键**（如 `aiChatSettings`），启动/保存时加载到 `app.state`；切换或新建会话 **不** 按 sessionId 拉不同配置；移除对 `/api/chat/session-options` 的调用  
+  - 验收：在会话 A 改「关工具」后新建会话 B，仍为关工具；刷新页面后仍生效；钉钉/飞书行为不变  
+  - 完成日期：2026-05-28
+
+- [x] **T2-07-02** 拆除误加的 session override — 删除 `session-override.ts`、`GET/POST /api/chat/session-options`、Resolver 中 `sessionOverride` 合并、`ProfileResolveContext.sessionOverride`；删除 `webOverride:*` 相关类型常量；单测改为 **Profile + body** 两层  
+  - 验收：`resolveProfile` 覆盖链无 session 层；`pnpm exec tsc --noEmit` 通过  
+  - 完成日期：2026-05-28
+
+- [x] **T2-07-03** `normalize-web-inbound` — body 仍映射 **当次** `chatOptions`；`sessionKey` 回退为 **`web:{requestId}`**（移除仅为 override 引入的 body.sessionId）  
+  - 验收：`normalize-web-inbound.test.ts` 与现网 Web 多轮行为一致  
+  - 完成日期：2026-05-28
 
 ---
 
-## T2-08 兼容与清理
+## T2-08 旧路径淘汰与文档
 
-- [ ] **T2-08-01** 保留 `POST /api/mcp/servers/enabled` 行为：写入时同步更新 **所有** Profile 的 `mcpServerIds` 或仅 `global-default`（二选一须在 PR 说明；推荐改为只改 Admin，旧 API 标 `@deprecated` 写 `global-default`）  
-  - 验收：旧前端调用不崩溃  
+> **2026-05-28 决策**：不做旧 API 兼容层；`mcpEnabledToolServerIds` 与 `POST /api/mcp/servers/enabled` 淘汰。  
+> Web MCP 勾选 → **localStorage + 每请求 body `mcpServerIds`**；IM → **Admin Profile**。
 
-- [ ] **T2-08-02** `.env.example` — `ADMIN_API_TOKEN`；文档说明 Admin 与聊天 API 分离  
+- [x] **T2-08-01** 删除 `POST /api/mcp/servers/enabled` 及 `AiController.updateEnabledServers`；`GET /api/mcp/servers` 不再读 Setting 返回全局 `enabledServerIds`；`ConfigService.getMCPConfig` 运行态不再返回 `enabledToolServerIds`（seed 仍可读 Setting 一次）  
+  - Web：`ai-*.js` 去掉 `saveEnabledMCPServers`；`enabledServerIds` 纳入 `aiChatSettings`；请求 body 带 `mcpServerIds`  
+  - `normalize-web-inbound` + `ChatOptions` + Resolver `mergeLayer` 支持 body `mcpServerIds`  
+  - `info.html` 去掉对 enabled POST 的调用  
+  - 验收：`pnpm exec tsc --noEmit` 通过；旧 POST 404；Web 勾选 MCP 刷新后仍生效（localStorage）  
+  - 完成日期：2026-05-28
+
+- [x] **T2-08-02** `.env.example` + `README.md` — `ADMIN_API_TOKEN`；Admin API 与 `/api/chat/*` 分离；MCP 能力配置入口说明  
+  - 验收：文档可读，无「全局 Setting 启 MCP」误导  
+  - 完成日期：2026-05-28
 
 ---
 
@@ -243,7 +264,7 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
 
 - [ ] 各渠道能力由 **Profile + Route** 决定，normalize 无 `ToolsConfig` 写死  
 - [ ] 管理员平台可独立配置钉钉/飞书/Web，互不影响  
-- [ ] Web 聊天页改动作用域 ≤ `channel=web`  
+- [x] Web 聊天偏好为 **浏览器全局**（非 per-session 服务端存储），作用域 ≤ `channel=web`（经 body 进 Resolver）  
 - [ ] Inbound Worker 单一解析点 `resolveProfile`  
 - [ ] Harness 无 `channel` 分支（与 T1 一致）  
 
@@ -255,15 +276,16 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
 |----|------|
 | PR-1 | T2-01 + T2-02 + T2-03 + T2-04（Resolver 贯通 + 渠道瘦身） |
 | PR-2 | T2-05 + T2-08（Admin API + 迁移） |
-| PR-3 | T2-06 + T2-07 + T2-09（Admin UI + Web 作用域 + E2E） |
+| PR-3 | T2-06 + T2-07（重构）+ T2-09（Admin UI + Web 全局偏好 + E2E） |
 
 ## 新建目录预期
 
 ```
-src/config-plane/       profile-resolver, config-snapshot, session-override
+src/config-plane/       profile-resolver, config-snapshot（无 session-override）
 src/api/admin.controller.ts
 src/types/config-plane.types.ts
-public/admin/             index.html, admin.js
+public/admin/             Vite 构建产物 public/admin/
+public/js/ai-*.js         Web 全局 aiChatSettings + body chatOptions
 prisma/                   AgentProfile, RouteRule migrations
 ```
 

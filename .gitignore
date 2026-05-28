@@ -3,6 +3,7 @@ node_modules/
 
 # 编译输出
 dist/
+public/admin/
 
 # 日志
 logs

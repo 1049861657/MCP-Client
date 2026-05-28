@@ -63,6 +63,8 @@ export interface ChatOptions {
   maxToolCallRounds?: number;
   enableAutoCompact?: boolean;
   compactModel?: string;
+  /** Web body override：当次启用的 MCP 服务器 ID 列表 */
+  mcpServerIds?: string[];
 }
 
 /** 入站 payload */

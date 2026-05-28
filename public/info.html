@@ -1366,35 +1366,6 @@
                 }
             }
             
-            // 更新MCP已启用服务器列表
-            async function updateMCPEnabledServers() {
-                // 获取当前所有连接的服务器信息
-                const infoResponse = await fetch('/api/info');
-                const infoData = await infoResponse.json();
-                const connectedServers = infoData.connectedServers || [];
-                
-                // 获取当前已启用的服务器ID列表
-                const mcpResponse = await fetch('/api/mcp/servers');
-                const mcpData = await mcpResponse.json();
-                let enabledServerIds = mcpData.enabledServerIds || [];
-                
-                // 过滤掉不可用的服务器ID
-                const connectedServerIds = connectedServers.map(server => server.id);
-                const initialEnabledIds = [...enabledServerIds];
-                enabledServerIds = enabledServerIds.filter(id => connectedServerIds.includes(id));
-                
-                // 检查是否有变化，如有则更新
-                if (initialEnabledIds.length !== enabledServerIds.length) {
-                    await fetch('/api/mcp/servers/enabled', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ enabledServerIds })
-                    });
-                }
-            }
-            
             // 断开服务器连接
             async function disconnectServer(serverId) {
                 try {
@@ -1420,9 +1391,6 @@
                     
                     // 断开连接成功后主动刷新服务器信息
                     await fetchServerInfo();
-                    
-                    // 更新数据库中的mcpEnabledToolServerIds
-                    await updateMCPEnabledServers();
                     
                 } catch (error) {
                     console.error('断开服务器连接失败:', error);
