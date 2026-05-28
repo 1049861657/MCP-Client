@@ -59,7 +59,7 @@
                          │ resolveProfile (T2)
 ┌────────────────────────▼────────────────────────────────┐
 │  Config Plane (src/config-plane/)  ← T2 配置平面         │
-│  AgentProfile · RouteRule · Admin API · configVersion    │
+│  AgentProfile · RouteRule · Admin API · 内存快照 reload │
 └────────────────────────┬────────────────────────────────┘
                          │ ResolvedChatProfile
                          │ InternalMessage[] + onChunk

@@ -12,18 +12,15 @@ import {
   CONFIG_PROFILE_DINGTALK_DEFAULT,
   CONFIG_PROFILE_FEISHU_DEFAULT,
   CONFIG_PROFILE_WEB_DEFAULT,
-  ROUTE_MATCH_ALL,
-  SETTING_CONFIG_PLANE_VERSION
+  ROUTE_MATCH_ALL
 } from '../types/config-plane.types.js';
 
 export interface ConfigPlaneSnapshot {
-  version: number;
   profiles: Map<string, AgentProfileRecord>;
   routesByChannel: Map<ChannelId, RouteRuleRecord[]>;
 }
 
 let currentSnapshot: ConfigPlaneSnapshot = {
-  version: 0,
   profiles: new Map(),
   routesByChannel: new Map()
 };
@@ -93,19 +90,10 @@ function mapRouteRow(row: {
   };
 }
 
-async function readConfigPlaneVersion(): Promise<number> {
-  const stored = await ConfigService.getSetting(SETTING_CONFIG_PLANE_VERSION);
-  if (typeof stored === 'number' && Number.isFinite(stored)) {
-    return Math.floor(stored);
-  }
-  return 0;
-}
-
 async function loadSnapshotFromDb(): Promise<ConfigPlaneSnapshot> {
-  const [profileRows, routeRows, version] = await Promise.all([
+  const [profileRows, routeRows] = await Promise.all([
     prisma.agentProfile.findMany(),
-    prisma.routeRule.findMany(),
-    readConfigPlaneVersion()
+    prisma.routeRule.findMany()
   ]);
 
   const profiles = new Map<string, AgentProfileRecord>();
@@ -125,7 +113,7 @@ async function loadSnapshotFromDb(): Promise<ConfigPlaneSnapshot> {
     list.sort((a, b) => a.priority - b.priority);
   }
 
-  return { version, profiles, routesByChannel };
+  return { profiles, routesByChannel };
 }
 
 async function resolveSeedDefaultModel(): Promise<{ vendor: string | null; defaultModel: string }> {
@@ -302,17 +290,14 @@ export async function initConfigPlane(): Promise<void> {
   currentSnapshot = await loadSnapshotFromDb();
   Logger.info(
     'CONFIG',
-    `Config plane loaded version=${currentSnapshot.version} profiles=${currentSnapshot.profiles.size}`
+    `Config plane loaded profiles=${currentSnapshot.profiles.size}`
   );
 }
 
-/** 管理端保存后调用：重载 DB 并递增 version */
-export async function bumpConfigPlaneVersion(): Promise<number> {
-  const nextVersion = (await readConfigPlaneVersion()) + 1;
-  await ConfigService.saveSetting(SETTING_CONFIG_PLANE_VERSION, nextVersion);
+/** 管理端保存后调用：从 DB 重载内存快照 */
+export async function reloadConfigPlaneSnapshot(): Promise<void> {
   currentSnapshot = await loadSnapshotFromDb();
-  Logger.info('CONFIG', `Config plane bumped to version=${currentSnapshot.version}`);
-  return currentSnapshot.version;
+  Logger.info('CONFIG', `Config plane reloaded profiles=${currentSnapshot.profiles.size}`);
 }
 
 /** 获取当前内存快照（同步，供 Resolver 热路径使用） */

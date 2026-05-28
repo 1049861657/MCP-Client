@@ -1,7 +1,7 @@
 export {
-  bumpConfigPlaneVersion,
   getConfigPlaneSnapshot,
   initConfigPlane,
+  reloadConfigPlaneSnapshot,
   seedConfigPlaneIfEmpty,
   type ConfigPlaneSnapshot
 } from './config-snapshot.js';

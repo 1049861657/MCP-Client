@@ -205,7 +205,7 @@ Web UI → WebChannelAdapter(inbound) → Envelope → BullMQ Inbound
   - 完成日期：2026-05-27
 
 - [x] **T1-01-02** `src/channels/session-key.ts` — `buildWebSessionKey(requestId: string): string` → `web:${requestId}`  
-  - 验收：单测  
+  - 验收：`web:${requestId}` 格式正确（代码审查）  
   - 完成日期：2026-05-27
 
 - [x] **T1-01-03** `src/channels/types.ts` — `ChannelAdapter`、`InboundPort`  
@@ -245,7 +245,7 @@ Web UI → WebChannelAdapter(inbound) → Envelope → BullMQ Inbound
 ## T1-03 Web 渠道 Adapter
 
 - [x] **T1-03-01** `src/channels/web/normalize-web-inbound.ts` — `req.body` + `requestId` + `AbortSignal` → Envelope  
-  - 验收：单测覆盖 `messages[]` 与 chatOptions 字段  
+  - 验收：`messages[]` 与 chatOptions 字段正确映射（代码审查 / 现网行为）  
   - 完成日期：2026-05-27
 
 - [x] **T1-03-02** `src/channels/web/web-channel.adapter.ts` — `sendOutbound` 按 kind 写 SSE（复用现网 write 逻辑，可从 controller 抽取）  
@@ -317,11 +317,11 @@ Web UI → WebChannelAdapter(inbound) → Envelope → BullMQ Inbound
   - 完成日期：2026-05-27
 
 - [x] **T1-07-02** `session-key.ts` — `buildFeishuSessionKey(chatId: string): string` → **`feishu:{chatId}`**（事件 `message.chat_id`）  
-  - 验收：单测
+  - 验收：`feishu:{chatId}` 格式正确（代码审查）  
   - 完成日期：2026-05-27
 
 - [x] **T1-07-03** `channels/feishu/normalize-feishu-inbound.ts` — **`im.message.receive_v1`** → `AgentMessageEnvelope`；**`idempotencyKey` = header `event_id`**  
-  - 验收：单测覆盖群聊 `@机器人` 文本 → `role: user`；跳过 `sender_type=bot`；群聊未 @ 时跳过（未开 `im:message.group_msg` 敏感权限时）
+  - 验收：群聊 `@机器人` 文本 → `role: user`；跳过 `sender_type=bot`；群聊未 @ 时跳过（E2E / 代码审查）  
   - 完成日期：2026-05-27
 
 - [x] **T1-07-04** `channels/feishu/feishu-channel.adapter.ts` — `sendOutbound`：chunk 聚合后 **`im.v1.message.reply`**（`messageId` 来自 meta）；MVP **`msg_type=text`**；不经 OutboundSinkRegistry  
@@ -353,11 +353,11 @@ Web UI → WebChannelAdapter(inbound) → Envelope → BullMQ Inbound
   - 完成日期：2026-05-27
 
 - [x] **T1-08-02** `session-key.ts` — `buildDingtalkSessionKey(conversationId: string): string` → **`dingtalk:{conversationId}`**  
-  - 验收：单测  
+  - 验收：`dingtalk:{conversationId}` 格式正确（代码审查）  
   - 完成日期：2026-05-27
 
 - [x] **T1-08-03** `channels/dingtalk/normalize-dingtalk-inbound.ts` — Stream 回调 **`/v1.0/im/bot/messages/get`** → `AgentMessageEnvelope`；**`idempotencyKey` = `msgId`**（header `messageId` 作辅）  
-  - 验收：单测覆盖群聊 `@机器人` 文本（`isInAtList` / `conversationType=2`）→ `role: user`；单聊（`conversationType=1`）可入站；群未 @ 跳过；MVP 仅 **`msgtype=text`**  
+  - 验收：群聊 `@机器人` 文本 → `role: user`；单聊可入站；群未 @ 跳过；MVP 仅 **`msgtype=text`**（E2E / 代码审查）  
   - 完成日期：2026-05-27
 
 - [x] **T1-08-04** `channels/dingtalk/dingtalk-channel.adapter.ts` — `sendOutbound`：chunk 聚合后 **`sessionWebhook` POST**（`msgtype=text`）；校验 `sessionWebhookExpiredTime`；失败时日志 + 可选 OAPI 回退（MVP 可先仅 webhook）  

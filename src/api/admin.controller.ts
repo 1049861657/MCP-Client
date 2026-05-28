@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { ConfigChannelId } from '../generated/prisma/client.js';
 import { prisma } from '../lib/prisma.js';
 import {
-  bumpConfigPlaneVersion,
+  reloadConfigPlaneSnapshot,
   runConfigPlaneSeed
 } from '../config-plane/config-snapshot.js';
 import type { ChannelId } from '../types/channel.types.js';
@@ -103,12 +103,12 @@ function mapProfileRow(row: {
   };
 }
 
-async function bumpAfterMutation(
+async function reloadAfterMutation(
   res: Response,
   extra?: Record<string, unknown>
 ): Promise<void> {
-  const version = await bumpConfigPlaneVersion();
-  res.json({ success: true, configVersion: version, ...extra });
+  await reloadConfigPlaneSnapshot();
+  res.json({ success: true, ...extra });
 }
 
 export class AdminController {
@@ -212,7 +212,7 @@ export class AdminController {
 
       await prisma.agentProfile.update({ where: { profileId }, data });
       Logger.info('ADMIN', `更新 Profile ${profileId}`);
-      await bumpAfterMutation(
+      await reloadAfterMutation(
         res,
         removedMcpServers.length > 0 ? { removedMcpServers } : undefined
       );
@@ -269,7 +269,7 @@ export class AdminController {
         }
       });
       Logger.info('ADMIN', `创建 Route ${row.id} channel=${channel}`);
-      await bumpAfterMutation(res);
+      await reloadAfterMutation(res);
     } catch (error: unknown) {
       sendError(res, 500, '创建 Route 失败', getErrorMessage(error));
     }
@@ -297,7 +297,7 @@ export class AdminController {
 
       await prisma.routeRule.update({ where: { id: routeId }, data });
       Logger.info('ADMIN', `更新 Route ${routeId}`);
-      await bumpAfterMutation(res);
+      await reloadAfterMutation(res);
     } catch (error: unknown) {
       sendError(res, 500, '更新 Route 失败', getErrorMessage(error));
     }
@@ -313,7 +313,7 @@ export class AdminController {
     try {
       await prisma.routeRule.delete({ where: { id: routeId } });
       Logger.info('ADMIN', `删除 Route ${routeId}`);
-      await bumpAfterMutation(res);
+      await reloadAfterMutation(res);
     } catch (error: unknown) {
       sendError(res, 500, '删除 Route 失败', getErrorMessage(error));
     }
@@ -333,8 +333,8 @@ export class AdminController {
         message = `已补齐 ${result.createdProfiles} 个方案、${result.createdRoutes} 条路由`;
       }
       if (didWrite) {
-        const version = await bumpConfigPlaneVersion();
-        res.json({ success: true, configVersion: version, message, ...result });
+        await reloadConfigPlaneSnapshot();
+        res.json({ success: true, message, ...result });
         return;
       }
       res.json({ success: true, message, ...result });

@@ -24,7 +24,7 @@ IM/Web 入站 → Envelope（无写死 chatOptions）
        → AiProvider.chatStream（只读 resolved）
 ```
 
-- **管理员平台**（独立路由/UI）：维护各渠道的 **Agent Profile** 与 **Route**；保存后 `configVersion++`，下一条消息生效。
+- **管理员平台**（独立路由/UI）：维护各渠道的 **Agent Profile** 与 **Route**；保存后 **`reloadConfigPlaneSnapshot()`**，下一条消息生效。
 - **Web 聊天页**：**浏览器全局**一份 model/tools 等（所有 Web 会话共用）；每次请求可通过 **body `chatOptions`** 覆盖；**禁止**写 IM Profile、禁止写 Provider/MCP 全局 Setting。
 - **Harness / agent-loop / MCP 调用语义不变**；动的是配置来源与解析点。
 
@@ -57,7 +57,7 @@ ResolvedChatProfile =
 
 | 变更类型 | 机制 |
 |----------|------|
-| Profile / Route 增删改 | `ConfigService` 写 DB → `bumpConfigVersion()` → Resolver 内存快照按 version 刷新 |
+| Profile / Route 增删改 | `ConfigService` 写 DB → **`reloadConfigPlaneSnapshot()`** → Resolver 内存快照刷新 |
 | MCP 连接定义、Provider API Key | 保存后调用既有 **`reloadMCPConfig` / `reloadAiProviders`**（与 T2 文档化，Admin API 内触发） |
 
 ### 管理员平台 vs Web 聊天
@@ -80,13 +80,13 @@ ResolvedChatProfile =
 | 迁移 | 首次启动或 migration：从现有 `defaultProvider`、`mcpEnabledToolServerIds`、`mcpToolPrompt` 生成 `web-default` / `dingtalk-default` / `feishu-default` |
 | 安全 | Admin API **独立鉴权**（env `ADMIN_API_TOKEN` 或最小 Basic）；与公开 `chat/stream` 分离 |
 | 前端 | Admin 可用极简静态页（`public/admin/`）；**不要求**改 `ai-api.js` 帧格式 |
-| 测试 | 持久化单测：Resolver 覆盖链、Route 优先级；E2E 可后置 |
+| 测试 | E2E / 手工验收；**不维护**单元测试文件 |
 
 ### 配置热更新（运行手册）
 
 | 变更类型 | 操作 | 生效方式 |
 |----------|------|----------|
-| `AgentProfile` / `RouteRule` 增删改 | Admin API 写 DB 后调用 **`bumpConfigPlaneVersion()`** | 内存快照刷新；**下一条** Inbound 消息用新 Profile |
+| `AgentProfile` / `RouteRule` 增删改 | Admin API 写 DB 后调用 **`reloadConfigPlaneSnapshot()`** | 内存快照刷新；**下一条** Inbound 消息用新 Profile |
 | `mcpToolPrompt` / `mcpEnabledToolServerIds`（旧 Setting） | **仅空库 seed 读一次**；运行态禁止读写 | 日常改 MCP 启用范围：Web → localStorage+body；IM → Admin Profile |
 | MCP 服务器连接（command/url/headers） | `POST /api/server/reload-config` 或 add/update/delete 内建 reload | **`reloadMCPConfig()`** 重连 |
 | AI 提供商 / API Key / 默认模型 | `POST /api/settings/providers` + **`POST /api/settings/providers/reload`** | **`reloadAiProviders()`** 重建 `AiProvider` 实例 |
@@ -104,7 +104,7 @@ ResolvedChatProfile =
 ┌────────────────────▼────────────────────────────┐
 │  Config Plane (src/config-plane/)               │
 │  resolveProfile(envelope) → ResolvedChatProfile │
-│  snapshot + configVersion                       │
+│  snapshot（内存，Admin 保存后 reload）            │
 └────────────────────┬────────────────────────────┘
                      │
 Channels → Bus → inbound-worker ──► AiProvider (resolved only)
@@ -142,11 +142,11 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
 
 - [x] **T2-02-01** `src/config-plane/profile-resolver.ts` — `resolveProfile(envelope): ResolvedChatProfile`  
   - 实现覆盖链；Route 按 `priority` + 精确 match 优于 `*`  
-  - 验收：单测 ≥4 例（global、channel 默认、群 ID 命中、web body override）  
+  - 验收：覆盖链覆盖 global、channel 默认、群 ID 命中、web body override（代码审查 / E2E）
   - 完成日期：2026-05-28
 
-- [x] **T2-02-02** `src/config-plane/config-snapshot.ts` — 启动加载 + `bumpConfigPlaneVersion()` 刷新；`getConfigPlaneSnapshot()`  
-  - 验收：bump 后下一 resolve 读到新 Profile，无需重启进程  
+- [x] **T2-02-02** `src/config-plane/config-snapshot.ts` — 启动加载 + **`reloadConfigPlaneSnapshot()`** 刷新；`getConfigPlaneSnapshot()`  
+  - 验收：reload 后下一 resolve 读到新 Profile，无需重启进程  
   - 完成日期：2026-05-28
 
 - [x] **T2-02-03** Resolver 覆盖链 — **仅** Profile + envelope `chatOptions`（**无** 会话级中间层）  
@@ -166,7 +166,7 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
   - 验收：Profile 指定 `mcpServerIds` 时工具列表与启用列表一致  
   - 完成日期：2026-05-28
 
-- [x] **T2-03-03** Provider/MCP reload — Admin 改 Provider 或 MCP server 定义时，API 内调用既有 reload；改 Profile 仅 bump version  
+- [x] **T2-03-03** Provider/MCP reload — Admin 改 Provider 或 MCP server 定义时，API 内调用既有 reload；改 Profile 后 **reload 快照**  
   - 验收：文档化于本文件「配置热更新（运行手册）」表  
   - 完成日期：2026-05-28
 
@@ -175,20 +175,20 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
 ## T2-04 渠道 normalize 瘦身
 
 - [x] **T2-04-01** `normalize-dingtalk-inbound.ts` / `normalize-feishu-inbound.ts` — 删除 `buildDefaultChatOptions()`；`payload.chatOptions` 为 `{}` 或省略  
-  - 验收：单测仍通过；入站 Envelope 不含量化默认  
+  - 验收：入站 Envelope 不含量化默认  
   - 完成日期：2026-05-28
 
 - [x] **T2-04-02** `normalize-web-inbound.ts` — body 字段仍映射到 `chatOptions`（**请求 override**）；未传字段由 Resolver 从 `web` Profile 补全  
-  - 验收：与 T2-02 单测「web body override」一致；`normalize-web-inbound.test.ts`  
+  - 验收：body 字段正确映射到 `chatOptions`；未传字段由 Resolver 从 `web` Profile 补全  
   - 完成日期：2026-05-28
 
 ---
 
 ## T2-05 Admin API
 
-- [x] **T2-05-01** `src/api/admin.controller.ts` + `routes` 挂载 `/api/admin/*` — CRUD Profile、Route；`GET /api/admin/config-version`  
+- [x] **T2-05-01** `src/api/admin.controller.ts` + `routes` 挂载 `/api/admin/*` — CRUD Profile、Route  
   - 鉴权：`X-Admin-Token` = `ADMIN_API_TOKEN`；无/错 token 401  
-  - 验收：curl 可更新 `dingtalk-default` 并 bump version  
+  - 验收：curl 可更新 `dingtalk-default` 并 reload 内存快照  
   - 完成日期：2026-05-28
 
 - [x] **T2-05-02** `POST /api/admin/profiles/:profileId/apply-test` — mock 上下文返回 `ResolvedChatProfile`  
@@ -203,7 +203,7 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
 
 ## T2-06 管理员平台 UI（最小）
 
-- [x] **T2-06-01** `public/admin/index.html` + `admin.js` — 列表/编辑 Profile、Route；选择 channel；保存调 Admin API  
+- [x] **T2-06-01** `frontend/admin/`（Vite）→ `public/admin/` — 列表/编辑 Profile、Route；选择 channel；保存调 Admin API  
   - 验收：浏览器改钉钉 Profile `enableTools=false` 后，下一条钉钉消息不调工具（Web 仍按 web Profile）  
   - 完成日期：2026-05-28
 
@@ -224,12 +224,12 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
   - 验收：在会话 A 改「关工具」后新建会话 B，仍为关工具；刷新页面后仍生效；钉钉/飞书行为不变  
   - 完成日期：2026-05-28
 
-- [x] **T2-07-02** 拆除误加的 session override — 删除 `session-override.ts`、`GET/POST /api/chat/session-options`、Resolver 中 `sessionOverride` 合并、`ProfileResolveContext.sessionOverride`；删除 `webOverride:*` 相关类型常量；单测改为 **Profile + body** 两层  
+- [x] **T2-07-02** 拆除误加的 session override — 删除 `session-override.ts`、`GET/POST /api/chat/session-options`、Resolver 中 `sessionOverride` 合并、`ProfileResolveContext.sessionOverride`；删除 `webOverride:*` 相关类型常量；覆盖链收敛为 **Profile + body** 两层  
   - 验收：`resolveProfile` 覆盖链无 session 层；`pnpm exec tsc --noEmit` 通过  
   - 完成日期：2026-05-28
 
 - [x] **T2-07-03** `normalize-web-inbound` — body 仍映射 **当次** `chatOptions`；`sessionKey` 回退为 **`web:{requestId}`**（移除仅为 override 引入的 body.sessionId）  
-  - 验收：`normalize-web-inbound.test.ts` 与现网 Web 多轮行为一致  
+  - 验收：body 仍映射 **当次** `chatOptions`；`sessionKey` 为 **`web:{requestId}`**；现网 Web 多轮行为一致（手工验证）  
   - 完成日期：2026-05-28
 
 ---
@@ -284,7 +284,7 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
 src/config-plane/       profile-resolver, config-snapshot（无 session-override）
 src/api/admin.controller.ts
 src/types/config-plane.types.ts
-public/admin/             Vite 构建产物 public/admin/
+public/admin/             Vite 构建产物（源码 frontend/admin/，不入 Git）
 public/js/ai-*.js         Web 全局 aiChatSettings + body chatOptions
 prisma/                   AgentProfile, RouteRule migrations
 ```

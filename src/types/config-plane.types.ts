@@ -32,9 +32,6 @@ export const ROUTE_MATCH_ALL = '*';
 /** Setting 键：渠道连接占位（T2 ChannelBinding，凭证仍走 .env） */
 export const SETTING_CHANNEL_BINDINGS = 'channelBindings';
 
-/** Setting 键：配置平面版本号（Resolver 快照刷新） */
-export const SETTING_CONFIG_PLANE_VERSION = 'configPlaneVersion';
-
 /** DB `AgentProfile` 行（与 Prisma 模型对齐） */
 export interface AgentProfileRecord {
   profileId: string;
