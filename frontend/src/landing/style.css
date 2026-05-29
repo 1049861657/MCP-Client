@@ -1,0 +1,19 @@
+@import '../shared/theme.css';
+@import 'tailwindcss';
+
+@source '../../shared/**/*.js';
+@source './**/*.{js,html}';
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+a {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: none;
+}

@@ -13,6 +13,24 @@ export class InfoController {
    * 获取错误消息
    */
   private static getErrorMessage(error: unknown): string {
+    const messages: string[] = [];
+    let current: unknown = error;
+
+    while (current instanceof Error) {
+      const message = current.message.trim();
+      if (message !== '' && !messages.includes(message)) {
+        messages.push(message);
+      }
+      current = current.cause;
+      if (messages.length >= 3) {
+        break;
+      }
+    }
+
+    if (messages.length > 0) {
+      return messages.join(' → ');
+    }
+
     return error instanceof Error ? error.message : String(error);
   }
   
@@ -81,7 +99,7 @@ export class InfoController {
         res.json(info);
       } else {
         InfoController.sendErrorResponse(
-          res, 400, "连接服务器失败", `无法连接到服务器: ${serverId}`
+          res, 400, "连接服务器失败", "连接未成功建立，请检查命令、URL 或网络后重试"
         );
       }
     } catch (error) {

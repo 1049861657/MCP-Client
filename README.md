@@ -26,10 +26,14 @@ MCP（Model Context Protocol）是一个开放协议，标准化了大型语言�
 
 ```
 MCP-Client/
-├── src/         # 后端源码（API / MCP 客户端核心 / 模型服务 / 配置）
-├── public/      # 前端页面与静态资源
-├── prisma/      # 数据库 Schema
-└── dist/        # 编译产物
+├── src/              # 后端源码（API / MCP 客户端核心 / 模型服务 / 配置）
+├── frontend/         # Web UI 源码（Vite MPA + Tailwind v4）
+│   ├── shared/       # 设计 token、navbar、fetch-json、ui primitives
+│   ├── admin/        # 渠道管理（已迁移）
+│   └── landing/      # 首页（T3 迁移中）
+├── public/           # Express 静态托管（含 Vite 构建产物）
+├── prisma/           # 数据库 Schema
+└── dist/             # 后端编译产物
 ```
 
 ## 安装与运行

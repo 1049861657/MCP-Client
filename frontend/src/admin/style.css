@@ -1,18 +1,10 @@
+@import '../shared/theme.css';
 @import 'tailwindcss';
 
-/* 与 public/css/styles.css 对齐 */
-@theme {
-  --color-brand: #1976d2;
-  --color-brand-dark: #115293;
-  --color-brand-light: #e3f2fd;
-  --color-page-bg: #f5f7f9;
-  --color-border: #e0e0e0;
-  --color-text: #333333;
-  --color-text-muted: #666666;
-  --color-text-light: #888888;
-}
+@source '../../shared/**/*.js';
+@source './**/*.{js,html}';
 
-/* 覆盖 public/css/styles.css 的全局 button/input 规则 */
+/* 覆盖 public/css/styles.css 的全局 button/input 规则（遗留页未迁前仍可能被 Express 静态加载） */
 .admin-page #app button {
   margin: 0;
   font-family: inherit;

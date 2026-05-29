@@ -30,7 +30,7 @@ function loadNavbar() {
             <a href="/ai.html" ${currentPath === '/ai.html' ? 'class="active"' : ''}>AI聊天</a>
             <a href="/info.html" ${currentPath === '/info.html' ? 'class="active"' : ''}>服务信息</a>
             <a href="/settings.html" ${currentPath === '/settings.html' ? 'class="active"' : ''}>配置管理</a>
-            <a href="/admin/" ${currentPath.startsWith('/admin') ? 'class="active"' : ''}>渠道管理</a>
+            <a href="/admin.html" ${currentPath === '/admin.html' || currentPath.startsWith('/admin/') ? 'class="active"' : ''}>渠道管理</a>
         </div>
         <div id="client-info" class="client-info" style="display: none;">
             <svg class="client-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

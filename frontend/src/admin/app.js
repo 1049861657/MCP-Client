@@ -1,5 +1,8 @@
 import './style.css';
 import { icon } from './icons.js';
+import { mountNavbar } from '../shared/navbar.js';
+
+mountNavbar();
 
 const API = '/api/admin';
 const SESSION_TOKEN_KEY = 'mcp-admin-token';

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI配置管理 - MCP演示</title>
+</head>
+<body class="settings-page">
+    <aside class="settings-sidebar" aria-label="提供商列表">
+        <div class="settings-sidebar-inner">
+            <p class="settings-sidebar-label">提供商</p>
+            <nav id="sidebar-providers-list" class="settings-sidebar-list" role="tablist"></nav>
+            <button type="button" id="add-provider" class="settings-add-btn">
+                <span class="settings-add-icon" aria-hidden="true">+</span>
+                添加提供商
+            </button>
+            <footer class="settings-sidebar-foot">
+                <label class="settings-default-label" for="default-provider">默认提供商</label>
+                <select id="default-provider" class="settings-default-select"></select>
+            </footer>
+        </div>
+    </aside>
+
+    <main class="settings-main">
+        <div id="providers-container" class="settings-cards"></div>
+
+        <footer class="settings-action-bar">
+            <button type="button" id="save-providers" class="btn-primary">保存配置</button>
+        </footer>
+    </main>
+
+    <script type="module" src="/src/settings/main.js"></script>
+</body>
+</html>

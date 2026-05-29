@@ -449,27 +449,21 @@ export class MCPClientManager {
   }
 
   /**
-   * 连接指定服务器
+   * 连接指定服务器；失败时抛出底层错误供 API 层返回详情。
    */
   async connect(serverId: string): Promise<boolean> {
     const connection = this.connections.get(serverId);
     if (!connection) {
-      return false;
+      throw new Error(`未找到服务器: ${serverId}`);
     }
-    
-    try {
-      const success = await connection.connect();
-      
-      if (success) {
-        // 更新工具映射
-        await this.updateToolServerMap(serverId);
-      }
-      
-      return success;
-    } catch (error) {
-      Logger.error('MCP CLIENT', `连接服务器 ${serverId} 失败:`, error);
-      return false;
+
+    const success = await connection.connect();
+
+    if (success) {
+      await this.updateToolServerMap(serverId);
     }
+
+    return success;
   }
 
   /**
@@ -494,7 +488,11 @@ export class MCPClientManager {
         const name = info.name || serverId;
         let ok = connection.isConnected();
         if (!ok) {
-          ok = await this.connect(serverId);
+          try {
+            ok = await this.connect(serverId);
+          } catch {
+            ok = false;
+          }
         }
         if (ok) {
           reachableIds.push(serverId);

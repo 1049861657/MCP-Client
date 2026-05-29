@@ -162,6 +162,27 @@
 
 ---
 
+## T3 前端现代化（2026 业界参考）
+
+> 任务 SSOT：[T3-frontend-modernization.md](./T3-frontend-modernization.md)。评审 T3 子项时先读本节 + 任务书「设计定稿」。
+
+| 主题 | 说明 | 完整 URL |
+|------|------|----------|
+| Vite — Multi-Page App | 多 HTML 入口、`rollupOptions.input` | https://vite.dev/guide/build.html#multi-page-app |
+| Vite — Build | 生产构建、`base`、Rolldown | https://vite.dev/guide/build |
+| Tailwind v4 — Theme variables | `@theme` 设计 token | https://tailwindcss.com/docs/theme |
+| Tailwind v4 — Vite 插件 | `@tailwindcss/vite` | https://tailwindcss.com/docs/installation/using-vite |
+| Strangler Fig（概念） | 增量替换、禁止 Big Bang | https://martinfowler.com/bliki/StranglerFigApplication.html |
+| Strangler Fig（实践） | Facade、逐能力迁移、Eliminate | https://hld.handbook.academy/curriculum/architecture-patterns/strangler-fig/ |
+| Enterprise UI — Strangler + Vite proxy | Dev 期路由 facade、codemods | https://stevekinney.com/courses/enterprise-ui/strangler-fig-introduction |
+| Webpack→Vite 大仓（2026） | 增量、双 bundler、CJS 陷阱 | https://www.pkgpulse.com/guides/webpack-to-vite-migration-large-codebases-2026 |
+| CRA→Vite 复盘 | **先 E2E 再换 bundler** | https://zenn.dev/mizchi/articles/irusiru-modernize-cra-to-vite?locale=en |
+| Playwright — 韧性 locator | Role/testid、POM、 survived refactors | https://currents.dev/posts/designing-playwright-tests-that-survive-ui-refactors |
+| Tailwind 4 — NPM Workspace | `@source` 扫描共享包 | https://nx.dev/blog/setup-tailwind-4-npm-workspace |
+| Tailwind — 跨项目共享 theme | `@import` 共享 CSS | https://nx.dev/blog/sharing-tailwind-styles-nx-monorepo |
+
+---
+
 ## 本仓库改造路线文件
 
 | 文件 | 路径 |
@@ -174,6 +195,7 @@
 | T0 目录架构 | [todos/T0-architecture.md](./T0-architecture.md) |
 | T1 渠道+总线（Web + 飞书 + 钉钉） | [todos/T1-channel-bus.md](./T1-channel-bus.md) |
 | T2 配置平面 + Admin | [todos/T2-config-plane.md](./T2-config-plane.md) |
+| T3 前端现代化 | [todos/T3-frontend-modernization.md](./T3-frontend-modernization.md) |
 | 远期 Backlog | [todos/BACKLOG.md](./BACKLOG.md) |
 
 ---
@@ -190,4 +212,5 @@
 | 权限门 | ShareAI s07 + AWS MCP Strategies |
 | MCP 平台化 | ShareAI s19 + MCP 规范 + TS SDK 文档 |
 | 多步 Agent / 循环上限 | Vercel Loop Control + OpenAI Agents orchestration |
+| 遗留 Web UI → Vite/Tailwind | 本节 T3 表 + [T3-frontend-modernization.md](./T3-frontend-modernization.md) |
 

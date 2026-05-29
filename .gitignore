@@ -3,7 +3,8 @@ node_modules/
 
 # 编译输出
 dist/
-public/admin/
+# Vite 构建 hash 资源（各 MPA 产出；根目录 *.html 为构建产物）
+public/assets/
 
 # 日志
 logs
@@ -34,6 +35,3 @@ prisma/dev.db
 
 # Agent 大工具输出落盘（P1-01）
 .agent-outputs/
-
-#demo
-public/tool-event-demo.html

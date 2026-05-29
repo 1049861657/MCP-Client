@@ -6,8 +6,8 @@
   "main": "dist/app.js",
   "scripts": {
     "clean": "rimraf dist",
-    "build": "pnpm run clean && prisma generate && tsc && pnpm run build:admin",
-    "build:admin": "vite build --config frontend/admin/vite.config.ts",
+    "build": "pnpm run clean && prisma generate && tsc && pnpm run build:frontend",
+    "build:frontend": "vite build --config frontend/vite.config.ts",
     "db:migrate": "prisma migrate deploy",
     "start": "pnpm run build && node dist/app.js",
     "server": "node dist/app.js"

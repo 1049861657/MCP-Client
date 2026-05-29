@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP服务和工具信息</title>
+</head>
+<body class="info-page">
+    <div class="info-shell">
+        <h1 class="info-page-title">MCP服务和工具信息</h1>
+
+        <div id="loading" class="info-loading">
+            <div class="info-spinner" aria-hidden="true"></div>
+            <p>正在加载服务信息...</p>
+        </div>
+
+        <div id="servers-selector" class="server-tabs hidden">
+            <p class="server-tabs-label">选择服务器</p>
+            <div id="server-tabs-list" class="server-tabs-list" role="tablist"></div>
+            <div id="add-server-container" class="add-server-wrap">
+                <button type="button" id="add-server-btn" class="add-server-btn">+ 新增服务器</button>
+            </div>
+        </div>
+
+        <div id="server-form-container" class="info-card server-form-card hidden">
+            <h2 id="form-title" class="info-card-title">新增服务器</h2>
+            <form id="server-form">
+                <input type="hidden" id="form-mode" value="add">
+                <input type="hidden" id="server-id" value="">
+
+                <div class="form-group">
+                    <label for="server-name" class="form-label">服务器名称*</label>
+                    <input type="text" id="server-name" class="form-input" required placeholder="例如: 我的服务器">
+                </div>
+
+                <div class="form-group">
+                    <span class="form-label">连接类型*</span>
+                    <div class="form-radio-group">
+                        <label class="form-radio-label">
+                            <input type="radio" name="connection-type" value="STDIO" class="form-radio" checked>
+                            标准输入/输出 (stdio)
+                        </label>
+                        <label class="form-radio-label">
+                            <input type="radio" name="connection-type" value="HTTP" class="form-radio">
+                            远程 HTTP（MCP Streamable HTTP）
+                        </label>
+                    </div>
+                </div>
+
+                <div id="stdio-fields" class="connection-fields">
+                    <div class="form-group">
+                        <label for="command" class="form-label">命令*</label>
+                        <input type="text" id="command" class="form-input" placeholder="例如: node">
+                    </div>
+                    <div class="form-group">
+                        <label for="args" class="form-label">参数* (以逗号分隔)</label>
+                        <input type="text" id="args" class="form-input" placeholder="例如: dist/index.js, --port=3000">
+                    </div>
+                </div>
+
+                <div id="http-fields" class="connection-fields hidden">
+                    <div class="form-group">
+                        <label for="mcp-url" class="form-label">MCP 端点 URL*</label>
+                        <input type="text" id="mcp-url" class="form-input" placeholder="例如: http://localhost:3000/mcp">
+                    </div>
+                    <div class="form-group">
+                        <span class="form-label">自定义请求头（可选）</span>
+                        <div class="headers-table">
+                            <div class="header-rows-header">
+                                <div class="hh-key">Header 名称</div>
+                                <div class="hh-val">Header 值</div>
+                                <div class="hh-del"></div>
+                            </div>
+                            <div id="headers-rows"></div>
+                            <button type="button" id="headers-add-row" class="btn-add-row">＋ 添加请求头</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" id="cancel-form" class="btn-secondary">取消</button>
+                    <button type="submit" class="btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="server-info" class="info-card hidden">
+            <div class="server-header">
+                <h2 class="info-card-title">服务器信息</h2>
+                <label class="connection-switch" title="开/关服务器连接">
+                    <input type="checkbox" id="connection-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div id="server-connected-info" class="hidden">
+                <div class="info-row">
+                    <div class="info-label">名称：</div>
+                    <div id="server-internal-name" class="info-value"></div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">版本：</div>
+                    <div id="server-version" class="info-value"></div>
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">连接类型：</div>
+                <div id="server-connection-type" class="info-value"></div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">连接命令：</div>
+                <div id="server-command" class="info-value"></div>
+            </div>
+        </div>
+
+        <div id="tools-info" class="info-card hidden">
+            <h2 class="info-card-title">可用工具</h2>
+            <div id="tools-container"></div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/info/main.js"></script>
+</body>
+</html>
