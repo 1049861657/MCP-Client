@@ -141,7 +141,7 @@ deny rules → mode check → allow rules → ask user → execute
   - 验收：匹配规则直接返回 deny tool_result
 
 - [ ] **P1-03-04** 前端权限确认 UI（SSE 事件 `permission_request` → 用户 approve/deny）  
-  - 涉及：`public/js/ai-ui.js`、`openai.controller.ts`  
+  - 涉及：`frontend/src/chat/`、`ai.controller.ts`  
   - 验收：ask 类工具阻塞至用户确认
 
 - [ ] **P1-03-05** MCP 工具与本地工具统一过 PermissionGate（[s19 MCP](https://learn.shareai.run/zh/s19/) 要求）  

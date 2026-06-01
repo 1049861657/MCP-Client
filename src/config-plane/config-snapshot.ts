@@ -141,9 +141,11 @@ async function buildSeedProfileData(
   const { vendor, defaultModel } = await resolveSeedDefaultModel();
   const enabledIds = await ConfigService.getSetting('mcpEnabledToolServerIds');
   const toolPromptRaw = await ConfigService.getSetting('mcpToolPrompt');
-  const mcpServerIds = Array.isArray(enabledIds)
+  const legacyEnabledIds = Array.isArray(enabledIds)
     ? enabledIds.filter((id): id is string => typeof id === 'string')
     : [];
+  const mcpServerIds =
+    profileId === CONFIG_PROFILE_WEB_DEFAULT ? [] : legacyEnabledIds;
 
   return {
     profileId,

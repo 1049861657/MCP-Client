@@ -160,7 +160,7 @@ SSE 映射（与 `ai.controller.ts` 现网一致）：
 | 做 | 不做 |
 |----|------|
 | Web / 飞书 / 钉钉 Adapter、Envelope、Inbound Queue + Worker、OutboundRouter + SinkRegistry | 独立 Outbound Queue |
-| 幂等 + traceId | 改 `public/js/ai-api.js` |
+| 幂等 + traceId | 改 `frontend/src/chat/api.js` |
 
 1. Harness 只接 `InternalMessage[]`，出 `ChunkResponse`  
 2. Web 行为与改造前一致  
@@ -194,7 +194,7 @@ Web UI → WebChannelAdapter(inbound) → Envelope → BullMQ Inbound
 | `src/providers/ai-provider.ts` | `chatStream(...)` 签名与 `onChunk` 回调 |
 | `src/core/agent-harness/types.ts` | `InternalMessage`、`ChunkResponse` |
 | `src/core/agent-harness/message-normalizer.ts` | Worker 输出前仍走 normalize |
-| `public/js/ai-api.js` | 消费 `begin` / `data` / `usage` / `done`（**不改**） |
+| `frontend/src/chat/api.js` | 消费 `begin` / `data` / `usage` / `done` |
 
 ---
 

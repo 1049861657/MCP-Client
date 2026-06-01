@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI聊天 - MCP演示</title>
+</head>
+<body class="chat-page">
+    <!-- 布局对齐 legacy：container > chat-container，会话栏与输入区分按钮 -->
+    <div class="chat-shell">
+        <div id="chat-app" class="chat-container">
+            <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+
+            <div class="message-area">
+                <div class="session-info">
+                    <div id="current-session-display" class="current-session-display">
+                        <span>当前会话: </span><span id="session-name">加载中...</span>
+                    </div>
+                    <div class="session-buttons">
+                        <button type="button" id="mcp-quick-access" class="control-button mcp-button" title="MCP服务器工具" aria-label="MCP服务器工具"></button>
+                        <button type="button" id="view-history" class="control-button history-button" title="历史记录" aria-label="历史记录"></button>
+                        <button type="button" id="compact-chat" class="control-button compact-button" title="请求上下文" aria-label="请求上下文"></button>
+                        <button type="button" id="clear-chat" class="control-button clear-button" title="清除对话" aria-label="清除对话"></button>
+                        <button type="button" id="open-settings" class="control-button settings-button" title="设置" aria-label="设置"></button>
+                    </div>
+                </div>
+
+                <div class="message-input-container">
+                    <textarea id="message" placeholder="请输入您想询问AI的问题..."></textarea>
+                    <div class="input-buttons">
+                        <button type="button" id="new-session" class="control-button new-session-button" title="新建会话" aria-label="新建会话"></button>
+                        <button type="button" id="quick-messages" class="control-button quick-messages-button" title="快捷消息" aria-label="快捷消息"></button>
+                        <button type="button" id="send-button" class="control-button send-button" title="发送" aria-label="发送"></button>
+                        <button type="button" id="stop-button" class="control-button stop-button" title="停止生成" aria-label="停止生成" style="display:none"></button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="result" class="result hidden">
+                <h3>AI回复</h3>
+                <div id="response-time" class="response-time"></div>
+                <div id="response-content" class="response-content"></div>
+                <div id="token-usage" class="token-usage"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip-container">
+        <div id="tooltip" class="tooltip"></div>
+    </div>
+
+    <script type="module" src="/src/chat/main.js"></script>
+</body>
+</html>

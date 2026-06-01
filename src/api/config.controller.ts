@@ -2,6 +2,27 @@ import { Request, Response } from 'express';
 import { Logger } from '../utils/logger.js';
 import { FeatureConfig } from '../config/feature-config.js';
 import { ConfigService } from '../services/config.service.js';
+import { QuickMessage, QuickMessagesPayload } from '../types/config.types.js';
+
+function parseQuickMessagesBody(body: unknown): QuickMessagesPayload {
+  if (!body || typeof body !== 'object') {
+    throw new Error('请求体必须为 JSON 对象');
+  }
+  const { messages, categories } = body as { messages?: unknown; categories?: unknown };
+  if (!Array.isArray(messages)) {
+    throw new Error('messages 必须为数组');
+  }
+  if (!Array.isArray(categories)) {
+    throw new Error('categories 必须为数组');
+  }
+  const normalizedCategories = categories.filter(
+    (item): item is string => typeof item === 'string' && item.trim().length > 0,
+  );
+  return {
+    messages: messages as QuickMessage[],
+    categories: normalizedCategories,
+  };
+}
 
 /**
  * 配置控制器类
@@ -39,9 +60,9 @@ export class ConfigController {
   static async getQuickMessages(req: Request, res: Response): Promise<void> {
     try {
       Logger.info('API', '请求快捷消息配置');
-      // 直接从数据库获取配置
-      const config = await ConfigService.getQuickMessagesConfig();
-      res.json(config);
+      const messages = await ConfigService.getQuickMessagesConfig();
+      const categories = await ConfigService.getQuickMessageCategories(messages);
+      res.json({ messages, categories } satisfies QuickMessagesPayload);
     } catch (error) {
       Logger.error('API', '获取快捷消息配置失败:', error);
       res.status(500).json({
@@ -58,17 +79,11 @@ export class ConfigController {
    */
   static async saveQuickMessages(req: Request, res: Response): Promise<void> {
     try {
-      const data = req.body;
+      const { messages, categories } = parseQuickMessagesBody(req.body);
+
+      await ConfigService.saveQuickMessagesConfig(messages);
+      await ConfigService.saveQuickMessageCategories(categories);
       
-      // 基本验证：确保是数组
-      if (!Array.isArray(data)) {
-        throw new Error('数据格式无效');
-      }
-      
-      // 直接保存到数据库
-      await ConfigService.saveQuickMessagesConfig(data);
-      
-      // 返回成功响应
       res.json({ success: true, message: '配置已保存' });
     } catch (error) {
       Logger.error('API', '保存快捷消息配置失败:', error);
@@ -79,4 +94,4 @@ export class ConfigController {
       });
     }
   }
-} 
+}

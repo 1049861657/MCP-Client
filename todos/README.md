@@ -51,7 +51,7 @@
 | T0（架构·精简） | 5 | 5 | 100% |
 | T1（渠道+总线） | 34 | 33 | 97% |
 | T2（配置平面+Admin） | 24 | 21 | 88% |
-| T3（前端现代化） | 31 | 11 | 35% |
+| T3（前端现代化） | 31 | 31 | 100% |
 | P0 | 19 | 19 | 100% |
 | P1 | 31 | 12 | 39% |
 | P2 | 21 | 0 | 0% |
@@ -70,7 +70,9 @@
 src/channels/               # T1：Web / 飞书 / 钉钉 Adapter、bootstrap、envelope-mapper
 src/config-plane/           # T2：resolveProfile、快照（Web 全局偏好走前端 body，非 session override）
 src/message-bus/            # T1：Inbound Queue、Worker、OutboundRouter、幂等
-public/admin.html           # T3：渠道管理（Vite 构建产物）
+public/admin.html           # T3：渠道管理（Vite 构建产物，源码 frontend/src/admin/）
+frontend/src/chat/          # T3：Chat ESM（storage-contract、chat-request-body）
+frontend/                   # T3：单体 Vite MPA 源码（见 T3 任务书）
 src/core/agent-harness/     # Harness：agent-loop、tool-call-manager、system-tools、types
 src/providers/              # AiProvider、ai-providers（LLM Chat）
 src/api/ai.controller.ts    # 路由 /api/chat/*（T1 瘦身为入队）
@@ -78,8 +80,9 @@ src/core/mcp/               # MCPClientManager、server-connection
 src/mcp-servers/            # echo-mcp、large-json-mcp（独立 MCP 进程）
 src/types/                  # config.types、mcp.types、api.types
 src/config/feature-config.ts
-public/js/ai-*.js           # 遗留前端（T3 迁入 frontend/src/）
-frontend/                   # T3：单体 Vite MPA 源码（见 T3 任务书）
+frontend/src/settings/      # T3：Settings 页 ESM
+frontend/src/info/          # T3：Info 页 ESM
+frontend/src/landing/       # T3：Landing 页
 prisma/schema.prisma
 ```
 

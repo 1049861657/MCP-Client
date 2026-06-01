@@ -14,7 +14,8 @@ const chatOptionsSchema = z.object({
   enablePrompts: z.boolean().optional(),
   maxToolCallRounds: z.number().optional(),
   enableAutoCompact: z.boolean().optional(),
-  compactModel: z.string().optional()
+  compactModel: z.string().optional(),
+  mcpServerIds: z.array(z.string()).optional()
 }) satisfies z.ZodType<ChatOptions>;
 
 /** 宽松校验 messages[]，Worker 仍走 normalizeMessages */

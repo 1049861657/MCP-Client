@@ -5,6 +5,8 @@
  *   @import '../shared/theme.css';
  *   @import 'tailwindcss';
  */
+@import './ui/confirm-modal.css';
+
 @theme {
   --color-brand: #1976d2;
   --color-brand-dark: #115293;
@@ -20,4 +22,18 @@
   --radius-lg: 12px;
 
   --spacing-navbar: 50px;
+
+  /* Chat 气泡 — MCP-Client 对话视觉体系 */
+  --bubble-radius: 18px;
+  --bubble-tail: 4px;
+  --bubble-font-size: 15px;
+  --bubble-line-height: 1.55;
+  --bubble-user-max: min(75%, 480px);
+  --bubble-ai-max: min(88%, 860px);
+  --bubble-shadow-user: 0 3px 14px rgb(25 118 210 / 0.22);
+  --bubble-shadow-ai: 0 4px 22px rgb(15 23 42 / 0.07);
+  --bubble-ai-border: rgb(25 118 210 / 0.12);
+  --color-ai-accent: #5c6bc0;
+  --color-ai-accent-soft: rgb(92 107 192 / 0.09);
+  --color-ai-accent-border: rgb(92 107 192 / 0.18);
 }

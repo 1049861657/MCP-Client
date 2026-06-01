@@ -31,7 +31,9 @@ export const ProviderTypes: ProviderTypeInfo[] = [
  */
 export const ServerConfig = {
   port: 3000,
-  host: 'localhost'
+  host: 'localhost',
+  /** Express JSON 解析上限（含 context-preview / compact 全量 messages） */
+  jsonBodyLimit: '32mb',
 };
 
 /**

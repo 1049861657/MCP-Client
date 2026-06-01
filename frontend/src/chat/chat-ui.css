@@ -1,0 +1,820 @@
+/* Chat 主界面 — Tailwind @layer components（视觉对齐 legacy，实现统一 @apply） */
+
+.chat-page {
+  @apply m-0 min-h-screen bg-[var(--color-page-bg)] font-sans text-[var(--color-text)] antialiased;
+}
+
+.chat-page button:not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.mcp-action-chip):not(.mcp-footer-btn):not(.history-action-btn):not(.history-link-btn):not(.app-confirm-btn):not(.context-footer-btn):not(.settings-nav-item):not(.settings-toggle):not(.settings-chip):not(.settings-btn-ghost):not(.settings-text-link):not(.settings-modal-close):not(.settings-seg-btn):not(.settings-stepper-btn):not(.qm-btn-add):not(.qm-cat-add-btn):not(.qm-cat-item):not(.qm-cat-menu-btn):not(.qm-icon-btn):not(.qm-status-pill):not(.qm-result-seg-btn):not(.qm-btn-ghost):not(.qm-btn-primary):not(.qm-modal-close):not(.qm-ctx-btn) {
+  @apply m-0 cursor-pointer border-0 p-0 font-[inherit];
+}
+
+.chat-page textarea {
+  @apply font-[inherit];
+}
+
+@layer components {
+  /* ── 外壳 ── */
+  .chat-shell {
+    @apply mx-auto flex h-[calc(100vh-var(--spacing-navbar))] w-[98%] max-w-[1600px] flex-col overflow-hidden px-5 pb-4 pt-2.5;
+  }
+
+  .chat-container {
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden p-2.5;
+  }
+
+  .chat-messages {
+    @apply my-2.5 flex min-h-[450px] flex-1 flex-col items-stretch overflow-y-auto scroll-smooth rounded-xl border border-[rgb(25_118_210/0.08)] p-4;
+    background: linear-gradient(165deg, #f8fafc 0%, #eef2f7 48%, #f5f7fa 100%);
+  }
+
+  .chat-messages::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  .chat-messages::-webkit-scrollbar-thumb {
+    @apply rounded bg-black/15;
+  }
+
+  /* ── 会话条 + 输入 ── */
+  .message-area {
+    @apply mt-4 flex shrink-0 flex-col gap-0;
+  }
+
+  .session-info {
+    @apply -mb-0.5 flex items-center justify-between gap-3 rounded-t-md border border-b-0 border-[var(--color-border)] bg-white px-3 py-2;
+  }
+
+  .current-session-display {
+    @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium text-[#495057];
+  }
+
+  #session-name {
+    @apply font-bold text-[var(--color-brand)];
+  }
+
+  .session-buttons {
+    @apply flex shrink-0 flex-wrap items-center gap-2;
+  }
+
+  .session-buttons .mcp-button {
+    @apply relative;
+  }
+
+  .control-button {
+    @apply flex size-9 shrink-0 items-center justify-center rounded-full text-white shadow-sm transition-[transform,background-color,box-shadow] duration-150;
+  }
+
+  .control-button:hover:not(:disabled) {
+    @apply scale-105 shadow-md;
+  }
+
+  .control-button:disabled {
+    @apply cursor-not-allowed scale-100 opacity-45;
+  }
+
+  .control-button svg {
+    @apply size-4;
+  }
+
+  .history-button {
+    @apply bg-[#2196f3] hover:bg-[#1976d2];
+  }
+
+  .settings-button {
+    @apply bg-[#ff9800] hover:bg-[#f57c00];
+  }
+
+  .mcp-button {
+    @apply relative bg-[#5c6bc0] hover:bg-[#3949ab];
+  }
+
+  .mcp-button .counter {
+    @apply absolute -right-1 -top-1 flex size-[18px] items-center justify-center rounded-full bg-[#f44336] text-[10px] font-bold leading-none text-white;
+  }
+
+  .compact-button {
+    @apply bg-[#607d8b] hover:bg-[#455a64];
+  }
+
+  .quick-messages-button {
+    @apply bg-[#9c27b0] hover:bg-[#7b1fa2];
+  }
+
+  .new-session-button {
+    @apply bg-[#4caf50] hover:bg-[#388e3c];
+  }
+
+  .clear-button {
+    @apply bg-[#f44336] hover:bg-[#d32f2f];
+  }
+
+  .send-button {
+    @apply bg-[var(--color-brand)] hover:bg-[var(--color-brand-dark)];
+  }
+
+  .stop-button {
+    @apply bg-[#ef4444] hover:bg-[#dc2626];
+  }
+
+  .message-input-container {
+    @apply relative w-full rounded-b-md border border-[var(--color-border)] bg-white;
+  }
+
+  .message-input-container textarea {
+    @apply mb-5 block min-h-[120px] w-full resize-y rounded-b-md border-0 bg-transparent px-3 py-3 pr-[140px] text-base leading-relaxed text-[var(--color-text)] outline-none transition-shadow;
+  }
+
+  .message-input-container textarea:focus {
+    @apply shadow-[inset_0_0_0_2px_rgb(25_118_210/0.2)];
+  }
+
+  .message-input-container textarea::placeholder {
+    @apply text-[var(--color-text-light)];
+  }
+
+  .input-buttons {
+    @apply absolute bottom-[30px] right-2.5 flex gap-2;
+  }
+
+  .input-buttons .control-button {
+    @apply size-9;
+  }
+
+  .input-buttons .control-button svg {
+    @apply size-[18px];
+  }
+
+  /* ── 标准模式结果区 ── */
+  .result {
+    @apply mt-6 rounded-lg border border-[rgb(25_118_210/0.1)] bg-[rgb(25_118_210/0.05)] p-4;
+  }
+
+  .result h3 {
+    @apply m-0 mb-3 font-medium text-[var(--color-brand-dark)];
+  }
+
+  .response-content {
+    @apply min-h-[60px] overflow-x-auto rounded-md border border-[var(--color-border)] bg-white p-4 text-base;
+  }
+
+  .response-time {
+    @apply mb-2 flex items-center justify-end text-sm text-[var(--color-text-muted)];
+  }
+
+  /* ── 底部 tooltip ── */
+  .tooltip-container {
+    @apply pointer-events-none fixed bottom-5 left-1/2 z-[9999] -translate-x-1/2;
+  }
+
+  .tooltip {
+    @apply max-w-[90vw] translate-y-2.5 overflow-hidden text-ellipsis whitespace-nowrap rounded-lg border border-white/10 bg-black/85 px-5 py-2.5 text-center text-sm font-medium text-white opacity-0 shadow-lg transition-[opacity,transform] duration-300;
+  }
+
+  .tooltip.show {
+    @apply translate-y-0 opacity-100;
+  }
+
+  /* ── 消息气泡（MCP-Client 双角色体系） ── */
+  .chat-message {
+    @apply mb-[18px] flex w-full items-start gap-0;
+    animation: message-appear 0.28s ease-out;
+  }
+
+  .chat-message.ai {
+    @apply flex-row items-end justify-start;
+  }
+
+  .chat-message.user {
+    @apply flex-row items-end justify-end;
+  }
+
+  .chat-message:last-child {
+    @apply mb-0;
+  }
+
+  .avatar {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-[0_2px_8px_rgb(0_0_0/0.12)] ring-2 ring-white;
+  }
+
+  .chat-message.user .avatar {
+    @apply order-2 mb-5 ml-2 mr-0 bg-gradient-to-br from-[var(--color-brand-dark)] to-[#0d47a1];
+  }
+
+  .chat-message.ai .avatar {
+    @apply mb-5 mr-2 bg-gradient-to-br from-[var(--color-brand)] to-[#43a047];
+  }
+
+  .chat-bubble {
+    @apply relative w-fit text-[var(--bubble-font-size)] leading-[var(--bubble-line-height)];
+  }
+
+  /* ── 用户 ── */
+  .user-message-wrap {
+    @apply flex max-w-[var(--bubble-user-max)] flex-col items-end gap-1;
+  }
+
+  .chat-message.user .chat-bubble {
+    @apply w-fit max-w-full rounded-[var(--bubble-radius)_var(--bubble-radius)_var(--bubble-tail)_var(--bubble-radius)] border-0 bg-gradient-to-br from-[var(--color-brand)] via-[#1e88e5] to-[#1565c0] px-4 py-2.5 text-white;
+    box-shadow: var(--bubble-shadow-user);
+  }
+
+  .user-message-text {
+    @apply block break-words whitespace-pre-wrap;
+  }
+
+  .user-message-meta {
+    @apply pr-0.5 text-[11px] leading-none text-[var(--color-text-light)];
+  }
+
+  /* ── AI ── */
+  .ai-message-wrap {
+    @apply flex w-fit max-w-[var(--bubble-ai-max)] min-w-0 flex-col items-stretch gap-0.5;
+  }
+
+  .chat-message.ai .chat-bubble {
+    @apply w-fit max-w-full overflow-hidden rounded-[var(--bubble-radius)_var(--bubble-radius)_var(--bubble-radius)_var(--bubble-tail)] border border-[var(--bubble-ai-border)] bg-white/95 text-[var(--color-text)] backdrop-blur-sm;
+    box-shadow: var(--bubble-shadow-ai);
+  }
+
+  .ai-bubble-inner {
+    @apply flex flex-col gap-2 px-4 py-3;
+  }
+
+  .ai-bubble-inner > .ai-thinking {
+    @apply -my-0.5;
+  }
+
+  .ai-bubble-inner > .markdown-content:first-child:last-child,
+  .ai-bubble-inner > .ai-thinking:first-child:last-child {
+    @apply my-0;
+  }
+
+  .ai-message-footer {
+    @apply flex w-full min-w-0 flex-nowrap items-center justify-between gap-2 px-1 leading-none;
+  }
+
+  .ai-message-meta {
+    @apply shrink-0 text-[10px] text-[var(--color-text-light)];
+  }
+
+  .token-info {
+    @apply flex shrink-0 flex-nowrap items-center justify-end gap-1;
+  }
+
+  .total-token-usage {
+    @apply inline-flex h-[18px] items-center rounded-full border border-[rgb(25_118_210/0.18)] bg-[rgb(25_118_210/0.06)] px-1.5 text-[9px] font-medium whitespace-nowrap text-[var(--color-brand-dark)];
+  }
+
+  .tool-token-usage {
+    @apply inline-flex h-[18px] items-center rounded-full bg-[rgb(92_107_192/0.08)] px-1.5 text-[9px] font-medium whitespace-nowrap text-[var(--color-ai-accent)];
+  }
+
+  /* ── 思考 / 流式 ── */
+  .ai-thinking {
+    @apply flex items-center gap-2.5 text-[var(--color-text-muted)];
+  }
+
+  .thinking-spinner {
+    @apply size-4 rounded-full border-2 border-[rgb(92_107_192/0.2)] border-t-[var(--color-ai-accent)];
+    animation: chat-spin 0.9s linear infinite;
+  }
+
+  .cursor {
+    @apply ml-0.5 inline-block h-[1.1em] w-0.5 align-text-bottom bg-[var(--color-brand)];
+    animation: chat-blink 1s step-end infinite;
+  }
+
+  /* ── 推理块（AI 壳内 inset 卡片） ── */
+  .reasoning-container {
+    @apply overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-ai-accent-border)] bg-gradient-to-br from-[#f8f9ff] to-[#f4f6fb];
+  }
+
+  .reasoning-container.collapsed {
+    @apply bg-gradient-to-br from-[#f3f4fa] to-[#eef1f8];
+  }
+
+  .reasoning-header {
+    @apply flex cursor-pointer select-none items-center gap-2 border-b border-[var(--color-ai-accent-border)] bg-[var(--color-ai-accent-soft)] px-3 py-2 text-[0.875em] text-[#434d6b] transition-colors hover:bg-[rgb(92_107_192/0.12)];
+  }
+
+  .reasoning-header .toggle-icon {
+    @apply shrink-0 transition-transform duration-200;
+  }
+
+  .reasoning-container.collapsed .reasoning-header .toggle-icon {
+    @apply -rotate-90;
+  }
+
+  .reasoning-header .title-text {
+    @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap;
+  }
+
+  .reasoning-header .thinking-time {
+    @apply ml-1 inline-flex items-center rounded bg-[rgb(108_117_125/0.1)] px-1.5 py-0.5 text-[0.85em] whitespace-nowrap text-[#6c757d];
+  }
+
+  .reasoning-header .thinking-time svg {
+    @apply mr-1 shrink-0;
+  }
+
+  .reasoning-content {
+    @apply max-h-[300px] overflow-y-auto border-t border-[var(--color-ai-accent-border)] bg-white/80 p-3 text-[0.9em] leading-normal text-[#434d6b] transition-[max-height,padding] duration-300;
+  }
+
+  .reasoning-container.collapsed .reasoning-content {
+    @apply max-h-0 overflow-hidden border-t-0 py-0;
+  }
+
+  /* ── 上下文提示 ── */
+  .chat-context-notice {
+    @apply mb-2.5 flex items-center gap-2 rounded-[var(--radius-sm)] border border-[rgb(25_118_210/0.25)] bg-gradient-to-r from-[var(--color-brand-light)] to-white px-3.5 py-2.5 text-[13px] text-[var(--color-text-muted)];
+  }
+
+  .chat-context-notice-icon {
+    @apply text-base;
+  }
+
+  .chat-context-notice-compacted {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(100% + 30px);
+    margin: 10px -15px;
+    padding: 16px 24px;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.28em;
+    text-indent: 0.28em;
+    color: #fff;
+    background:
+      linear-gradient(105deg, rgb(255 255 255 / 0.12) 0%, transparent 42%),
+      linear-gradient(135deg, #0d3d1a 0%, #1b5e20 28%, #2e7d32 62%, #43a047 100%);
+    border: none;
+    border-radius: 0;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.22),
+      0 -2px 0 rgb(0 0 0 / 0.08);
+    line-height: 1;
+    box-sizing: border-box;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .chat-context-notice-compacted::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, #a5d6a7, #fff 50%, #a5d6a7);
+    box-shadow: 2px 0 12px rgb(255 255 255 / 0.35);
+  }
+
+  .chat-context-notice-compacted::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -12deg,
+      transparent,
+      transparent 14px,
+      rgb(255 255 255 / 0.03) 14px,
+      rgb(255 255 255 / 0.03) 28px
+    );
+    pointer-events: none;
+  }
+
+  .chat-context-notice-compacted .chat-context-notice-text {
+    position: relative;
+    z-index: 1;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  }
+
+  /* ── Markdown ── */
+  .chat-bubble .markdown-content {
+    @apply text-[var(--bubble-font-size)] leading-[var(--bubble-line-height)] break-words;
+  }
+
+  .markdown-content p {
+    @apply my-[0.45em];
+  }
+
+  .markdown-content p:first-child {
+    @apply mt-0;
+  }
+
+  .markdown-content p:last-child {
+    @apply mb-0;
+  }
+
+  .markdown-content strong {
+    @apply font-semibold;
+  }
+
+  .chat-message.ai .markdown-content strong {
+    @apply text-[#222];
+  }
+
+  .markdown-content code {
+    @apply rounded-md bg-[#eef2f7] px-1.5 py-0.5 font-mono text-[0.88em] text-[#334155];
+  }
+
+  .chat-message.user .markdown-content code {
+    @apply bg-white/20 text-white;
+  }
+
+  .code-block {
+    @apply my-3 overflow-hidden rounded-xl border border-[#e2e8f0] bg-[#f6f8fa];
+  }
+
+  .code-block-bar {
+    @apply flex items-center justify-end border-b border-[#e2e8f0] bg-[#eef2f7] px-3 py-1.5;
+  }
+
+  .code-block-lang {
+    @apply font-mono text-[0.6875rem] font-semibold tracking-wide text-[#64748b];
+  }
+
+  .markdown-content pre,
+  .markdown-content .code-block-pre {
+    @apply m-0 overflow-x-auto rounded-none border-0 bg-transparent p-0 shadow-none;
+  }
+
+  .markdown-content pre code,
+  .markdown-content .code-block-pre code {
+    @apply block bg-transparent p-4 font-mono text-[0.8125rem] leading-relaxed;
+  }
+
+  .markdown-content .code-block .hljs {
+    @apply bg-transparent text-[#24292f];
+  }
+
+  .markdown-content blockquote {
+    @apply my-3 border-l-[3px] border-[#dfe2e5] pl-4 text-[#6a737d];
+  }
+
+  .markdown-content ul,
+  .markdown-content ol {
+    @apply my-2 pl-6;
+  }
+
+  .markdown-content table {
+    @apply my-3 block w-full max-w-full overflow-x-auto border-collapse text-[0.9em];
+  }
+
+  .markdown-content th,
+  .markdown-content td {
+    @apply border border-[var(--color-border)] px-2.5 py-1.5;
+  }
+
+  .markdown-content th {
+    @apply bg-[#f6f8fa] font-semibold;
+  }
+
+  /* ── 工具卡片（布局 @apply；accent 变量见文件末尾补丁） ── */
+  .tool-call {
+    @apply relative overflow-hidden rounded-[var(--radius-lg)] border p-0 shadow-sm transition-[box-shadow,border-color,transform] duration-200;
+  }
+
+  .tool-call-header {
+    @apply flex cursor-pointer select-none items-center justify-between gap-2.5 py-2 pr-3 pl-3.5;
+  }
+
+  .tool-call:not(.collapsed) .tool-call-header {
+    @apply border-b border-[var(--tool-accent-border)];
+  }
+
+  .tool-call-title {
+    @apply flex min-w-0 flex-1 flex-nowrap items-center gap-2;
+  }
+
+  .tool-source-icon-wrap {
+    @apply inline-flex size-7 shrink-0 items-center justify-center rounded-lg border border-[var(--tool-accent-border)] bg-[var(--tool-accent-soft)] text-[var(--tool-accent)];
+  }
+
+  .tool-source-badge {
+    @apply shrink-0 rounded-md border border-[var(--tool-accent-border)] bg-transparent px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase text-[var(--tool-accent)];
+  }
+
+  .tool-call-name-row {
+    @apply inline-flex max-w-full min-w-0 items-center gap-0.5;
+  }
+
+  .tool-call-name {
+    @apply min-w-0 flex-[0_1_auto] overflow-hidden bg-transparent p-0 font-mono text-[13px] font-semibold tracking-tight text-ellipsis whitespace-nowrap text-[#0f172a];
+  }
+
+  .tool-call-toggle {
+    @apply flex shrink-0 cursor-pointer items-center justify-center rounded p-0.5 text-[var(--tool-accent)] opacity-65 transition-[background-color,opacity,transform] hover:bg-[var(--tool-accent-soft)] hover:opacity-100;
+  }
+
+  .tool-call-toggle svg {
+    @apply transition-transform duration-200;
+  }
+
+  .tool-call.collapsed .tool-call-toggle svg {
+    @apply -rotate-90;
+  }
+
+  .tool-call-status {
+    @apply flex shrink-0 flex-wrap items-center gap-1.5 text-[11px] font-medium text-[#64748b];
+  }
+
+  .tool-call-content {
+    @apply px-3 py-2.5 pl-3.5;
+  }
+
+  .tool-call.collapsed .tool-call-content {
+    @apply hidden;
+  }
+
+  .tool-call-args {
+    @apply mb-2 max-h-[250px] overflow-auto rounded border border-[#e1e4e8] bg-[#f8f8f8] p-2 font-mono text-[13px] leading-normal break-words whitespace-pre-wrap;
+  }
+
+  .tool-call-result {
+    @apply border-l-[3px] border-l-[var(--tool-accent)] pl-2.5;
+  }
+
+  .tool-call-result pre {
+    @apply m-0 max-h-[300px] overflow-auto rounded-sm bg-[#f6f8fa] p-2 text-[13px] leading-normal break-words whitespace-pre-wrap;
+  }
+
+  .tool-call-result.error {
+    @apply border-l-[#e74c3c] bg-[#fff0f0];
+  }
+
+  .tool-execution-time {
+    @apply inline-flex h-[22px] items-center rounded-full border border-[var(--tool-accent-border)] bg-[var(--tool-accent-soft)] px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap text-[var(--tool-accent)];
+  }
+
+  .status-indicator {
+    @apply size-[7px] shrink-0 rounded-full;
+  }
+
+  .status-indicator.success {
+    @apply bg-[#28a745];
+  }
+
+  .status-indicator.error {
+    @apply bg-[#dc3545];
+  }
+
+  .status-indicator.status-running {
+    @apply bg-[var(--tool-accent,#64748b)];
+    animation: tool-status-pulse 1.4s ease-in-out infinite;
+  }
+
+  .status-success {
+    @apply text-[#28a745];
+  }
+
+  .status-error {
+    @apply text-[#dc3545];
+  }
+
+  /* ── 子 Agent 进度 ── */
+  .tool-progress-container {
+    @apply my-2 overflow-hidden rounded-[10px] border border-[#1e293b] bg-[#0f172a] text-xs shadow-md;
+  }
+
+  .tpc-header {
+    @apply flex cursor-pointer select-none items-center gap-2.5 border-b border-[#2d3748] bg-gradient-to-br from-[#1e1b4b] to-[#1e293b] px-3 py-2.5;
+  }
+
+  .tool-progress-container.done .tpc-header {
+    @apply border-b-[#166534] bg-gradient-to-br from-[#052e16] to-[#0f2d1a];
+  }
+
+  .tpc-icon-wrap {
+    @apply flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[rgb(99_102_241/0.15)] text-[11px] font-bold text-[#818cf8];
+  }
+
+  .tool-progress-container.done .tpc-icon-wrap {
+    @apply bg-[rgb(34_197_94/0.15)] text-[#4ade80];
+  }
+
+  .tpc-header-text {
+    @apply flex min-w-0 flex-1 flex-col gap-px;
+  }
+
+  .tpc-title {
+    @apply text-xs font-semibold text-[#c7d2fe];
+  }
+
+  .tool-progress-container.done .tpc-title {
+    @apply text-[#86efac];
+  }
+
+  .tpc-subtitle {
+    @apply text-[11px] text-[#64748b];
+  }
+
+  .tpc-toggle {
+    @apply cursor-pointer border-0 bg-transparent px-1.5 py-0.5 text-[10px] text-[#64748b] transition-transform;
+  }
+
+  .tool-progress-container.collapsed .tpc-toggle {
+    @apply -rotate-90;
+  }
+
+  .tpc-body {
+    @apply px-3 py-2.5 pb-3;
+  }
+
+  .tool-progress-container.collapsed .tpc-body {
+    @apply hidden;
+  }
+
+  .tpc-timeline {
+    @apply flex flex-col gap-2;
+  }
+
+  .tpc-step {
+    @apply rounded-md bg-white/[0.04] px-2.5 py-2;
+  }
+
+  .tpc-step.running {
+    @apply border-l-2 border-l-[#6366f1];
+  }
+
+  .tpc-step.complete,
+  .tpc-step.done {
+    @apply border-l-2 border-l-[#22c55e];
+  }
+
+  .tpc-step-body {
+    @apply flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .tpc-step-tools {
+    @apply flex flex-wrap gap-1;
+  }
+
+  .tpc-tool-chip {
+    @apply rounded-full bg-[rgb(99_102_241/0.2)] px-2 py-0.5 text-[11px] text-[#c7d2fe];
+  }
+
+  .tpc-step-duration {
+    @apply inline-flex items-center gap-1 text-[11px] text-[#94a3b8];
+  }
+
+  .tpc-duration-icon {
+    @apply size-3;
+  }
+
+  /* ── 快捷气泡 ── */
+  .quick-message-bubbles {
+    @apply mx-auto my-5 flex w-[90%] max-w-[600px] flex-col items-center gap-3;
+  }
+
+  .quick-message-bubble {
+    @apply w-fit max-w-full cursor-pointer rounded-full border border-[rgb(25_118_210/0.15)] bg-white/90 px-5 py-2.5 text-center text-sm text-[var(--color-brand-dark)] shadow-[var(--bubble-shadow-ai)] backdrop-blur-sm transition-[background-color,transform,box-shadow] hover:-translate-y-0.5 hover:border-[rgb(25_118_210/0.28)] hover:bg-[var(--color-brand-light)] hover:shadow-md;
+    animation: bubble-appear 0.5s ease-out;
+  }
+
+  .appended-quick-bubbles {
+    @apply mx-auto my-4 flex w-[90%] max-w-[900px] flex-row flex-nowrap justify-center gap-3;
+    animation: bubble-appear 0.3s ease-out;
+  }
+
+  .appended-quick-bubble {
+    @apply flex-[0_1_auto] cursor-pointer rounded-full border border-[rgb(25_118_210/0.18)] bg-white/90 px-4 py-2 text-center text-[13px] whitespace-nowrap text-[var(--color-brand)] shadow-sm backdrop-blur-sm transition-[background-color,transform,box-shadow] hover:-translate-y-px hover:bg-[var(--color-brand-light)] hover:shadow-md;
+  }
+
+  @media (max-width: 768px) {
+    .chat-container {
+      @apply w-full px-2 pb-2.5 pt-1.5;
+    }
+
+    .chat-messages {
+      @apply p-2.5;
+    }
+
+    .user-message-wrap {
+      max-width: min(92%, 480px);
+    }
+
+    .ai-message-wrap {
+      max-width: min(96%, 860px);
+    }
+
+    .session-buttons {
+      @apply gap-1;
+    }
+
+    .session-info .control-button {
+      @apply size-7;
+    }
+
+    .session-info .control-button svg {
+      @apply size-3.5;
+    }
+
+    .message-input-container textarea {
+      @apply min-h-[100px] pr-[110px];
+    }
+
+    .input-buttons .control-button {
+      @apply size-8;
+    }
+  }
+}
+
+/* ── 工具卡片 accent 变量 / 伪元素（Tailwind 不便表达） ── */
+.tool-call {
+  --tool-accent: #64748b;
+  --tool-accent-soft: rgb(100 116 139 / 0.07);
+  --tool-accent-border: rgb(100 116 139 / 0.14);
+  --tool-accent-glow: rgb(100 116 139 / 0.12);
+  border-color: var(--tool-accent-border);
+  background: linear-gradient(135deg, #fff 0%, var(--tool-accent-soft) 140%);
+}
+
+.tool-call::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  border-radius: 10px 0 0 10px;
+  background: linear-gradient(
+    180deg,
+    var(--tool-accent) 0%,
+    color-mix(in srgb, var(--tool-accent) 55%, transparent) 100%
+  );
+}
+
+.tool-call--mcp {
+  --tool-accent: #0284c7;
+  --tool-accent-soft: rgb(2 132 199 / 0.07);
+  --tool-accent-border: rgb(2 132 199 / 0.16);
+  --tool-accent-glow: rgb(2 132 199 / 0.14);
+}
+
+.tool-call--system {
+  --tool-accent: #7c3aed;
+  --tool-accent-soft: rgb(124 58 237 / 0.07);
+  --tool-accent-border: rgb(124 58 237 / 0.16);
+  --tool-accent-glow: rgb(124 58 237 / 0.14);
+}
+
+.tool-call:hover {
+  border-color: color-mix(in srgb, var(--tool-accent) 35%, transparent);
+  box-shadow: 0 4px 14px var(--tool-accent-glow);
+  transform: translateY(-1px);
+}
+
+/* ── 动画 keyframes ── */
+@keyframes message-appear {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes chat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes chat-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes tool-status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+@keyframes bubble-appear {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

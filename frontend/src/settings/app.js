@@ -572,6 +572,7 @@ async function deleteProvider(event) {
     message: '确定要删除这个提供商吗？',
     confirmLabel: '删除',
     cancelLabel: '取消',
+    variant: 'danger',
   });
 
   if (!confirmed) {

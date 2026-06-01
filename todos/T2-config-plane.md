@@ -284,8 +284,8 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
 src/config-plane/       profile-resolver, config-snapshot（无 session-override）
 src/api/admin.controller.ts
 src/types/config-plane.types.ts
-public/admin/             Vite 构建产物（源码 frontend/admin/，不入 Git）
-public/js/ai-*.js         Web 全局 aiChatSettings + body chatOptions
+public/admin.html             Vite 构建产物（源码 frontend/src/admin/、frontend/admin.html）
+frontend/src/chat/            Web 全局 aiChatSettings + body chatOptions
 prisma/                   AgentProfile, RouteRule migrations
 ```
 

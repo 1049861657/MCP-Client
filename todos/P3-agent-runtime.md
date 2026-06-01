@@ -31,7 +31,7 @@
   - 验收：日志可见 reminder 触发
 
 - [ ] **P3-01-04** UI：侧边栏或折叠面板展示当前 Todo 列表  
-  - 涉及：`public/js/ai-ui.js`  
+  - 涉及：`frontend/src/chat/`  
   - 验收：SSE 事件 `planning_update` 驱动 UI
 
 ---
@@ -119,7 +119,7 @@
   - 验收：消息 CRUD 可用
 
 - [ ] **P3-04-03** 前端双写：IndexedDB + 服务端（服务端为主）  
-  - 涉及：`public/js/ai-data.js`  
+  - 涉及：`frontend/src/chat/data.js`  
   - 验收：换浏览器可拉取历史
 
 - [ ] **P3-04-04** Harness checkpoint：每轮结束异步持久化 LoopState  
@@ -147,7 +147,7 @@
   - 验收：超限返回 partial summary
 
 - [ ] **P3-05-03** UI 标注「调研任务」卡片  
-  - 涉及：`public/js/ai-renderers.js`  
+  - 涉及：`frontend/src/chat/renderers.js`  
   - 验收：用户可见子任务边界
 
 ---

@@ -59,3 +59,9 @@ export interface QuickMessage {
   result: string;
   category: string;
 }
+
+/** GET /api/config/quick-messages 与 POST save 请求体 */
+export interface QuickMessagesPayload {
+  messages: QuickMessage[];
+  categories: string[];
+}

@@ -82,7 +82,7 @@ async function runHarnessForEnvelope(
 
   Logger.info(
     'BUS',
-    `Harness start channel=${envelope.channel} requestId=${requestId} profileId=${resolved.profileId} vendor=${vendor ?? 'default'}`
+    `Harness start channel=${envelope.channel} requestId=${requestId} profileId=${resolved.profileId} vendor=${vendor ?? 'default'} mcpCount=${resolved.mcpServerIds.length}`
   );
 
   const result = await service.chatStream(

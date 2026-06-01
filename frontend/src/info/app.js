@@ -386,6 +386,7 @@ async function deleteServer(serverId, serverName) {
     message: `确定要删除服务器 "${serverName}" 吗？`,
     confirmLabel: '删除',
     cancelLabel: '取消',
+    variant: 'danger',
   });
 
   if (!confirmed) {

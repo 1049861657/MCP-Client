@@ -120,118 +120,118 @@ frontend/
     → 04-07～11 模态/扩展（可并行）→ 04-12 切流（G4，单独 PR）
 ```
 
-- [ ] **T3-04-00** Chat 脚手架  
+- [x] **T3-04-00** Chat 脚手架  
   - **新建**：`frontend/ai.html`（壳）+ `src/chat/main.js` + `style.css`（theme→tailwind→@source）  
   - **vite**：`input` 增加 `ai.html`（构建可先产出但不改现网入口，或 04-12 前注释）  
   - **禁止**：本步替换 `public/ai.html`、删 `public/js`  
-  - **验收**：`vite build` 含 chat 入口无报错
+  - **验收**：`vite build` 含 chat 入口无报错（04-12 前 `input` 注释；开发期 `pnpm dev:frontend` 访问 `/ai.html`）（2026-05-29）
 
-- [ ] **T3-04-01** 纯逻辑 ESM  
+- [x] **T3-04-01** 纯逻辑 ESM  
   - **替换**：`ai-utils.js`、`ai-turn-collector.js`、`message-history-builder.js` → `src/chat/*.js`  
   - **形态**：无 DOM、`export` 函数；消灭 `window.AIChat*` 全局  
-  - **验收**：单元可被 04-04 import；无 document 引用
+  - **验收**：单元可被 04-04 import；无 document 引用（2026-05-29）
 
-- [ ] **T3-04-02** 会话存储  
+- [x] **T3-04-02** 会话存储  
   - **替换**：`ai-data.js` → `src/chat/data.js`（或 `idb.js`）  
   - **契约**：IDB 库名/版本/对象仓库与现网一致；profile 历史可读  
-  - **验收**：读旧会话成功；新建/切换/删除会话行为不变
+  - **验收**：读旧会话成功；新建/切换/删除会话行为不变（2026-05-29）
 
-- [ ] **T3-04-03** SSE 与压缩基线  
+- [x] **T3-04-03** SSE 与压缩基线  
   - **替换**：`ai-api.js` 流式与 abort → `src/chat/api.js`  
   - **契约**：帧类型 `begin`/`data:`/`usage|done|context_compacted`/`error`；`aiCompactBaseline:{sessionId}` 读写不变；请求体含 `mcpServerIds`、`chatOptions`  
-  - **验收**：发消息、停生成、压缩后刷新态保留
+  - **验收**：发消息、停生成、压缩后刷新态保留（2026-05-29）
 
-- [ ] **T3-04-04** `createChatApp()`  
+- [x] **T3-04-04** `createChatApp()`  
   - **替换**：`ai-core.js` → `src/chat/core.js` 导出 `createChatApp()`  
   - **边界**：编排 data/api/renderers；**不** import 模态 DOM 模块（模态在 04-07+ 注入）  
-  - **验收**：可在无模态环境下跑通 04-06 最小链路
+  - **验收**：可在无模态环境下跑通 04-06 最小链路（2026-05-29）
 
-- [ ] **T3-04-05** 渲染器 + Markdown  
+- [x] **T3-04-05** 渲染器 + Markdown  
   - **替换**：`ai-renderers.js` + CDN marked/hljs → `src/chat/renderers.js` + npm 依赖  
   - **UI**：工具卡片/推理块/代码高亮 Tailwind 化，不拷 `ai-components.css`  
-  - **验收**：Markdown、代码块、tool-call 展示正常
+  - **验收**：Markdown、代码块、tool-call 展示正常（2026-05-29）
 
-- [ ] **T3-04-06** 最小聊天 UI — **G3**  
+- [x] **T3-04-06** 最小聊天 UI — **G3**  
   - **UI**：Tailwind 重做消息区、输入区、发/停；`main.js` 挂 navbar  
   - **接线**：`createChatApp()` + 04-03 SSE 端到端  
-  - **验收**：手工 SSE 收发停；**G3 关闭**
+  - **验收**：手工 SSE 收发停；**G3 关闭**（2026-05-29，开发入口 `/ai.html` 未切流）
 
-- [ ] **T3-04-07** 历史模态  
+- [x] **T3-04-07** 历史模态  
   - **替换**：`ai-ui` 历史相关 + `ai-modals.css` 对应块 → `src/chat/ui/history-modal.js` + Tailwind  
-  - **验收**：打开/搜索/切换/删会话
+  - **验收**：打开/搜索/切换/删会话（2026-05-29）
 
-- [ ] **T3-04-08** 设置模态  
+- [x] **T3-04-08** 设置模态  
   - **替换**：聊天设置 UI → `src/chat/ui/settings-modal.js`  
   - **契约**：`localStorage` `aiChatSettings` 键与字段不变  
-  - **验收**：改设置刷新仍生效
+  - **验收**：改设置刷新仍生效（2026-05-29）
 
-- [ ] **T3-04-09** MCP + 压缩模态  
+- [x] **T3-04-09** MCP + 压缩模态  
   - **替换**：MCP 选择、压缩预览 → `src/chat/ui/mcp-modal.js`、`compact-modal.js`  
-  - **验收**：选 MCP、查看压缩上下文
+  - **验收**：选 MCP、查看压缩上下文（2026-05-29）
 
-- [ ] **T3-04-10** QuickMessage  
+- [x] **T3-04-10** QuickMessage  
   - **替换**：`ai-quickmessage.js` → `src/chat/ui/quickmessage.js`  
-  - **验收**：增删改快捷消息、插入输入框
+  - **验收**：增删改快捷消息、插入输入框（2026-05-29）
 
-- [ ] **T3-04-11** 工具卡片与子 Agent  
+- [x] **T3-04-11** 工具卡片与子 Agent  
   - **替换**：工具结果区、子 Agent 进度 → `src/chat/ui/tool-cards.js`（+ 必要 render 钩子）  
-  - **验收**：工具调用展示、长任务进度可见
+  - **验收**：工具调用展示、长任务进度可见（2026-05-29）
 
-- [ ] **T3-04-12** 切流 — **G4**（单独 PR）  
+- [x] **T3-04-12** 切流 — **G4**（单独 PR）  
   - **改动**：`frontend/ai.html` 构建覆盖 `public/ai.html`；移除动态 `ai.js` loader 链  
   - **禁止**：与本 PR 夹带 04-07～11 未测功能  
-  - **验收**：`/ai.html` 全功能回归；旧 `public/js/ai-*.js` 无引用；**G4 关闭**
+  - **验收**：`/ai.html` 全功能回归；旧 `public/js/ai-*.js` 无引用；**G4 关闭**（2026-05-29）
 
 ---
 
 ## T3-05 契约审计
 
-- [ ] **T3-05-01** 存储契约文档化  
+- [x] **T3-05-01** 存储契约文档化  
   - **新建**：`src/chat/storage-contract.js` — IDB / `localStorage` 常量 + JSDoc  
-  - **验收**：与 04-02、04-08 实现一致，无魔法字符串散落
+  - **验收**：与 04-02、04-08 实现一致，无魔法字符串散落（2026-05-29）
 
-- [ ] **T3-05-02** 入站 body 对照  
+- [x] **T3-05-02** 入站 body 对照  
   - **改动**：`src/chat/api.js` 请求体对齐 `src/channels/web/normalize-web-inbound.ts` 与现有测试  
-  - **验收**：相关测试通过；手工抓包与改造前一致
+  - **验收**：相关测试通过；手工抓包与改造前一致（2026-05-29；`chat-request-body.js` + `pnpm test:frontend`）
 
-- [ ] **T3-05-03** 文档与引用清扫  
+- [x] **T3-05-03** 文档与引用清扫  
   - **改动**：grep `public/js`、`frontend/admin/` 等过时路径；更新 ROADMAP、P*.md  
-  - **验收**：文档指向 `frontend/src/*`
+  - **验收**：文档指向 `frontend/src/*`（2026-05-29）
 
 ---
 
 ## T3-06 Admin 全量重写（可选）
 
-- [ ] **T3-06-01** Admin UI Tailwind 化  
+- [x] **T3-06-01** Admin UI Tailwind 化  
   - **替换**：`src/admin/style.css`（~1100 行手写 CSS）→ utility-first，统一 `theme.css`  
   - **范围**：渠道侧栏、表单、toggle、MCP chips；视觉可焕新，行为不变  
-  - **验收**：`/admin.html` 鉴权、编辑、保存与现网一致；CSS 行数显著下降
+  - **验收**：`/admin.html` 鉴权、编辑、保存与现网一致；CSS 行数显著下降（2026-05-29；~1138→~340 行）
 
 ---
 
 ## T3-07 遗留清理
 
-- [ ] **T3-07-01** 删除遗留静态  
+- [x] **T3-07-01** 删除遗留静态  
   - **删除**：`public/js/ai-*.js`、`settings.js`、`navbar.js`、`public/css/ai-*.css`、`styles.css`  
   - **前提**：五页均已 Vite 切流；grep 零引用  
-  - **验收**：`pnpm start` 无 404；无 HTML 引用上述路径
+  - **验收**：`pnpm start` 无 404；无 HTML 引用上述路径（2026-06-01）
 
-- [ ] **T3-07-02** 更新 ROADMAP  
+- [x] **T3-07-02** 更新 ROADMAP  
   - **改动**：Web UI 块改为 `frontend/` SSOT  
-  - **验收**：与任务书目录一致
+  - **验收**：与任务书目录一致（2026-06-01）
 
-- [ ] **T3-07-03** 总验收  
+- [x] **T3-07-03** 总验收  
   - **勾选**：上文「完成检查」全部项  
-  - **验收**：契约表手工通过
+  - **验收**：契约表手工通过（2026-06-01）
 
 ---
 
 ## 完成检查
 
-- [ ] 五页 `/index.html` `/admin.html` `/ai.html` `/settings.html` `/info.html` 可用；契约表手工通过
-- [ ] 无页依赖 `public/js/ai-ui.js`
-- [ ] `pnpm build` 含 `build:frontend`
-- [ ] 旧 `public/js`、`public/css` 遗留已删
+- [x] 五页 `/index.html` `/admin.html` `/ai.html` `/settings.html` `/info.html` 可用；契约表手工通过（2026-06-01）
+- [x] 无页依赖 `public/js/ai-ui.js`（2026-05-29）
+- [x] `pnpm build` 含 `build:frontend`（2026-06-01）
+- [x] 旧 `public/js`、`public/css` 遗留已删（2026-06-01）
 
 ---
 

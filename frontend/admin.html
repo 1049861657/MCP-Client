@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>渠道管理</title>
 </head>
-<body class="admin-page">
-    <div id="app" class="admin-shell">
-        <header id="page-header" class="page-header hidden">
-            <h1 class="page-title">渠道管理</h1>
-            <div class="page-header-actions">
+<body class="admin-page m-0 min-h-screen text-sm leading-normal text-[var(--color-text)] bg-[var(--color-page-bg)] font-sans antialiased">
+    <div id="app" class="admin-shell mx-auto max-w-7xl px-5 py-4 md:px-6 md:py-5">
+        <header id="page-header" class="page-header mb-2.5 flex items-center justify-between gap-3 border-b border-black/6 pb-2.5 hidden">
+            <h1 class="m-0 text-[17px] font-semibold tracking-tight">渠道管理</h1>
+            <div class="flex items-center gap-2">
                 <span id="auth-status" class="auth-status hidden" aria-live="polite">
                     <span class="auth-status-dot auth-status-dot--on" aria-hidden="true"></span>
                     已连接
@@ -18,14 +18,14 @@
             </div>
         </header>
 
-        <div id="empty-state" class="auth-gate">
-            <div class="auth-gate-panel">
-                <header class="auth-gate-head">
-                    <h1 class="auth-gate-page-title">渠道管理</h1>
-                    <p class="auth-gate-lead">配置钉钉、飞书等 IM 渠道</p>
+        <div id="empty-state" class="auth-gate flex min-h-[calc(100vh-var(--spacing-navbar))] items-center justify-center px-6 py-12">
+            <div class="w-full max-w-[400px] rounded-xl border border-[var(--color-border)] bg-white px-7 py-8 shadow-[0_8px_28px_rgb(0_0_0/0.06)]">
+                <header class="text-center">
+                    <h1 class="m-0 text-[22px] font-semibold tracking-tight">渠道管理</h1>
+                    <p class="auth-gate-lead mt-2.5 text-sm leading-relaxed text-[var(--color-text-muted)]">配置钉钉、飞书等 IM 渠道</p>
                 </header>
-                <form id="auth-form" class="auth-gate-form" autocomplete="off">
-                    <label class="field-label" for="admin-token">密钥</label>
+                <form id="auth-form" class="auth-gate-form mt-7 border-t border-[#eee] pt-6" autocomplete="off">
+                    <label class="mb-2 block text-[13px] font-medium" for="admin-token">密钥</label>
                     <input
                         type="text"
                         id="admin-token"
@@ -38,26 +38,26 @@
                         inputmode="text"
                         data-1p-ignore
                         data-lpignore="true"
-                        class="field-input field-input--secret"
+                        class="field-input field-input--secret min-h-11 w-full text-[15px] tracking-wide"
                     >
-                    <p id="auth-error" class="field-error hidden"></p>
-                    <button type="button" id="btn-connect" class="btn-primary btn-block">连接</button>
+                    <p id="auth-error" class="field-error mt-2.5 hidden"></p>
+                    <button type="button" id="btn-connect" class="btn-primary btn-block mt-5 min-h-11 text-sm">连接</button>
                 </form>
             </div>
         </div>
 
-        <div id="workspace" class="admin-layout hidden">
-            <aside class="channel-sidebar" aria-label="渠道列表">
-                <nav id="channel-rail" class="channel-list" role="tablist"></nav>
+        <div id="workspace" class="admin-layout hidden grid gap-3 min-[860px]:grid-cols-[168px_minmax(0,1fr)] min-[860px]:items-stretch">
+            <aside class="rounded-lg border border-[var(--color-border)] bg-white py-2" aria-label="渠道列表">
+                <nav id="channel-rail" class="channel-list flex flex-row gap-1 overflow-x-auto px-2 min-[860px]:flex-col min-[860px]:overflow-visible min-[860px]:px-1.5" role="tablist"></nav>
             </aside>
 
-            <main class="editor-panel">
-                <header id="editor-header" class="editor-header">
-                    <div class="editor-header-main">
+            <main class="editor-panel flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-white">
+                <header id="editor-header" class="editor-header flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 border-b border-[var(--color-border)] bg-[#fafafa] px-4 py-3">
+                    <div class="flex min-w-0 items-center gap-2.5">
                         <span id="channel-badge" class="channel-badge" aria-hidden="true"></span>
-                        <h2 id="channel-title" class="editor-title"></h2>
+                        <h2 id="channel-title" class="m-0 text-[15px] font-semibold"></h2>
                     </div>
-                    <div class="editor-actions">
+                    <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
                         <p id="save-ok" class="save-feedback save-feedback--ok hidden"></p>
                         <p id="save-err" class="save-feedback save-feedback--err hidden"></p>
                         <span id="dirty-badge" class="status-tag status-tag--warn hidden">未保存</span>
@@ -66,13 +66,13 @@
                     </div>
                 </header>
 
-                <div class="editor-body">
-                    <section class="settings-group" aria-labelledby="sec-model-title">
-                        <div class="settings-group-head">
+                <div class="flex-1">
+                    <section class="border-b border-[var(--color-border)]" aria-labelledby="sec-model-title">
+                        <div class="flex items-center gap-2 px-4 pt-2.5">
                             <span id="sec-model-icon" class="settings-group-icon" aria-hidden="true"></span>
-                            <h3 id="sec-model-title" class="settings-group-title">对话模型</h3>
+                            <h3 id="sec-model-title" class="m-0 text-sm font-semibold">对话模型</h3>
                         </div>
-                        <div class="settings-group-body">
+                        <div class="px-4 pb-3.5 pt-2.5">
                             <div class="field-row field-row--2">
                                 <label class="field-label">
                                     <span>供应商</span>
@@ -83,12 +83,12 @@
                                     <select id="fld-model" class="field-input"></select>
                                 </label>
                             </div>
-                            <details class="advanced-details">
+                            <details class="advanced-details mt-2 border-t border-[#f0f0f0] pt-2">
                                 <summary class="advanced-summary">
                                     <span class="advanced-summary-chevron" aria-hidden="true"></span>
                                     高级参数
                                 </summary>
-                                <div class="field-row field-row--2 advanced-fields">
+                                <div class="field-row field-row--2 advanced-fields mt-2.5">
                                     <label class="field-label">
                                         <span>温度</span>
                                         <input type="number" id="fld-temperature" step="0.1" min="0" max="2" class="field-input">
@@ -102,22 +102,22 @@
                         </div>
                     </section>
 
-                    <section class="settings-group" aria-labelledby="sec-mcp-title">
-                        <div class="settings-group-head settings-group-head--split">
-                            <div class="settings-group-head-main">
+                    <section class="border-b border-[var(--color-border)]" aria-labelledby="sec-mcp-title">
+                        <div class="flex items-center justify-between gap-4 px-4 pt-2.5">
+                            <div class="flex min-w-0 items-start gap-2.5">
                                 <span id="sec-mcp-icon" class="settings-group-icon" aria-hidden="true"></span>
-                                <h3 id="sec-mcp-title" class="settings-group-title">MCP 工具</h3>
+                                <h3 id="sec-mcp-title" class="m-0 text-sm font-semibold">MCP 工具</h3>
                             </div>
-                            <label class="toggle" title="启用 MCP">
+                            <label class="toggle shrink-0" title="启用 MCP">
                                 <input type="checkbox" id="fld-enable-tools" checked>
                                 <span class="toggle-track"><span class="toggle-thumb"></span></span>
                             </label>
                         </div>
-                        <div class="settings-group-body">
+                        <div class="px-4 pb-3.5 pt-2.5">
                             <div id="mcp-panel">
-                                <div class="mcp-toolbar">
+                                <div class="mb-2 flex items-center gap-1">
                                     <button type="button" id="btn-mcp-all" class="btn-text btn-text--sm">全选</button>
-                                    <span class="toolbar-divider" aria-hidden="true">|</span>
+                                    <span class="text-xs text-[#ddd]" aria-hidden="true">|</span>
                                     <button type="button" id="btn-mcp-none" class="btn-text btn-text--sm">清空</button>
                                 </div>
                                 <div id="mcp-chips" class="mcp-list"></div>
@@ -126,40 +126,40 @@
                         </div>
                     </section>
 
-                    <section class="settings-group settings-group--last" aria-labelledby="sec-behavior-title">
-                        <div class="settings-group-head">
+                    <section aria-labelledby="sec-behavior-title">
+                        <div class="flex items-center gap-2 px-4 pt-2.5">
                             <span id="sec-behavior-icon" class="settings-group-icon" aria-hidden="true"></span>
-                            <h3 id="sec-behavior-title" class="settings-group-title">行为与限制</h3>
+                            <h3 id="sec-behavior-title" class="m-0 text-sm font-semibold">行为与限制</h3>
                         </div>
-                        <div class="settings-group-body">
-                            <div class="behavior-stack">
-                                <div class="behavior-block">
-                                    <div class="field-block-head">
-                                        <span class="field-block-title">工具提示词</span>
+                        <div class="px-4 pb-3.5 pt-2.5">
+                            <div class="flex flex-col gap-2.5">
+                                <div class="behavior-block rounded-md border border-[#eee] bg-[#fafafa] p-3">
+                                    <div class="field-block-head flex items-center justify-between gap-3">
+                                        <span class="text-[13px] font-medium">工具提示词</span>
                                         <label class="toggle shrink-0">
                                             <input type="checkbox" id="fld-enable-prompts">
                                             <span class="toggle-track"><span class="toggle-thumb"></span></span>
                                         </label>
                                     </div>
-                                    <div id="prompt-panel" class="behavior-block-body hidden">
+                                    <div id="prompt-panel" class="behavior-block-body mt-2 hidden">
                                         <textarea id="fld-tool-prompt" rows="3" class="field-input field-input--textarea" placeholder="可选"></textarea>
                                     </div>
                                 </div>
 
-                                <div class="behavior-row">
-                                    <div class="behavior-block behavior-block--grow">
-                                        <div class="field-block-head">
-                                            <span class="field-block-title">自动压缩</span>
+                                <div class="behavior-row grid gap-3 min-[720px]:grid-cols-[minmax(0,1fr)_160px] min-[720px]:items-start">
+                                    <div class="behavior-block behavior-block--grow rounded-md border border-[#eee] bg-[#fafafa] p-3">
+                                        <div class="field-block-head flex items-center justify-between gap-3">
+                                            <span class="text-[13px] font-medium">自动压缩</span>
                                             <label class="toggle shrink-0">
                                                 <input type="checkbox" id="fld-enable-compact" checked>
                                                 <span class="toggle-track"><span class="toggle-thumb"></span></span>
                                             </label>
                                         </div>
-                                        <div id="compact-model-wrap" class="behavior-block-body hidden">
+                                        <div id="compact-model-wrap" class="behavior-block-body mt-2 hidden">
                                             <select id="fld-compact-model" class="field-input" aria-label="压缩模型"></select>
                                         </div>
                                     </div>
-                                    <label class="field-label behavior-block behavior-block--fixed">
+                                    <label class="field-label behavior-block behavior-block--fixed m-0 rounded-md border border-[#eee] bg-[#fafafa] p-3">
                                         <span>单轮工具调用上限</span>
                                         <input type="number" id="fld-max-rounds" min="1" max="100" value="25" class="field-input">
                                     </label>

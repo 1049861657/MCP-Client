@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -22,11 +22,22 @@ const app = express();
 
 // 配置中间件
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: ServerConfig.jsonBodyLimit }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 // 配置API路由
 app.use('/api', apiRoutes);
+
+app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+  if (
+    err instanceof Error &&
+    (err.name === 'PayloadTooLargeError' || err.message.includes('request entity too large'))
+  ) {
+    res.status(413).json({ error: '请求体过大，请尝试压缩上下文后重试' });
+    return;
+  }
+  next(err);
+});
 
 /**
  * 启动应用

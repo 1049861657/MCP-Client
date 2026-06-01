@@ -101,6 +101,14 @@ function resolveProfileRecord(
   return profile;
 }
 
+/** Web 入站：body 为 MCP 列表 SSOT；缺省视为未选任何 MCP */
+export function resolveWebMcpServerIds(
+  envelopeChatOptions?: Partial<ChatOptions>
+): string[] {
+  const bodyMcp = envelopeChatOptions?.mcpServerIds;
+  return Array.isArray(bodyMcp) ? [...bodyMcp] : [];
+}
+
 function mergeLayer(
   base: Partial<ChatOptions> & {
     profileId: string;
@@ -108,7 +116,8 @@ function mergeLayer(
     toolPrompt: string;
     vendor?: string;
   },
-  layer: Partial<ChatOptions>
+  layer: Partial<ChatOptions>,
+  channel: ChannelId
 ): void {
   if (layer.model !== undefined) {
     base.model = layer.model;
@@ -137,7 +146,7 @@ function mergeLayer(
   if (layer.compactModel !== undefined) {
     base.compactModel = layer.compactModel;
   }
-  if (layer.mcpServerIds !== undefined) {
+  if (channel !== 'web' && layer.mcpServerIds !== undefined) {
     base.mcpServerIds = [...layer.mcpServerIds];
   }
 }
@@ -163,12 +172,15 @@ function resolveProfileFromProfileRecord(
     maxToolCallRounds: profile.maxToolCallRounds,
     enableAutoCompact: profile.enableAutoCompact ?? ContextConfig.enableAutoCompact,
     compactModel: profile.compactModel ?? undefined,
-    mcpServerIds: [...profile.mcpServerIds],
+    mcpServerIds:
+      ctx.channel === 'web'
+        ? resolveWebMcpServerIds(ctx.envelopeChatOptions)
+        : [...profile.mcpServerIds],
     toolPrompt: profile.toolPrompt ?? '',
     vendor: profile.vendor ?? ctx.vendorFromChannelMeta
   };
 
-  mergeLayer(merged, ctx.envelopeChatOptions ?? {});
+  mergeLayer(merged, ctx.envelopeChatOptions ?? {}, ctx.channel);
 
   return {
     profileId: merged.profileId,

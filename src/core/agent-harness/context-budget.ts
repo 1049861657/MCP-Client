@@ -302,7 +302,7 @@ export interface MainModelContextPreviewOptions {
   contextOverride?: readonly InternalMessage[] | null;
 }
 
-const PREVIEW_TEXT_LIMIT = 240;
+const PREVIEW_TEXT_LIMIT = 0;
 
 function cloneMessages(messages: readonly InternalMessage[]): InternalMessage[] {
   return JSON.parse(JSON.stringify(messages)) as InternalMessage[];
@@ -310,15 +310,19 @@ function cloneMessages(messages: readonly InternalMessage[]): InternalMessage[] 
 
 function contentPreview(content: unknown): string {
   if (typeof content === 'string') {
-    return content.length <= PREVIEW_TEXT_LIMIT
-      ? content
-      : `${content.slice(0, PREVIEW_TEXT_LIMIT)}…`;
+    if (PREVIEW_TEXT_LIMIT <= 0 || content.length <= PREVIEW_TEXT_LIMIT) {
+      return content;
+    }
+    return `${content.slice(0, PREVIEW_TEXT_LIMIT)}…`;
   }
   if (content === null || content === undefined) {
     return '';
   }
   const text = JSON.stringify(content);
-  return text.length <= PREVIEW_TEXT_LIMIT ? text : `${text.slice(0, PREVIEW_TEXT_LIMIT)}…`;
+  if (PREVIEW_TEXT_LIMIT <= 0 || text.length <= PREVIEW_TEXT_LIMIT) {
+    return text;
+  }
+  return `${text.slice(0, PREVIEW_TEXT_LIMIT)}…`;
 }
 
 function sumIncomingContentChars(messages: readonly InternalMessage[]): number {

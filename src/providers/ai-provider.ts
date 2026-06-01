@@ -103,35 +103,29 @@ export class AiProvider {
    * @returns OpenAI工具定义列表
    */
   private async convertMcpToolsToChatFunctions(
-    enabledServerIdsFromProfile?: string[]
+    enabledServerIds?: string[]
   ): Promise<ChatTool[]> {
     try {
-      // 获取MCP服务器上可用的工具
       const serverInfo = await mcpClient.getServerInfo();
       const mcpTools = serverInfo.tools;
-      
-      // 工具为空，返回空数组
+
       if (!mcpTools || mcpTools.length === 0) {
         return [];
       }
-      
-      let enabledServerIds = enabledServerIdsFromProfile;
-      if (enabledServerIds === undefined) {
-        const mcpConfig = await ConfigService.getMCPConfig();
-        enabledServerIds = mcpConfig.enabledToolServerIds || [];
-      }
-      
-      // 如果没有启用的服务器，返回空数组
-      if (enabledServerIds.length === 0) {
+
+      const filterIds =
+        enabledServerIds ??
+        (await ConfigService.getMCPConfig()).enabledToolServerIds ??
+        [];
+
+      if (filterIds.length === 0) {
         return [];
       }
-      
-      // 过滤只包含指定服务器的工具
+
       const serverToolsMap = serverInfo.serverTools || {};
       const filteredTools = mcpTools.filter(tool => {
-        // 查找工具所属的服务器
         for (const serverId in serverToolsMap) {
-          if (enabledServerIds.includes(serverId) && serverToolsMap[serverId].some(t => t.codeName === tool.codeName)) {
+          if (filterIds.includes(serverId) && serverToolsMap[serverId].some(t => t.codeName === tool.codeName)) {
             return true;
           }
         }
@@ -215,17 +209,10 @@ export class AiProvider {
           if (toolPrompStr) parts.push(toolPrompStr);
         }
 
-        // MCP 官方 instructions 字段：只取已启用工具服务器的 instructions，
-        // 与工具过滤逻辑对齐（参考 GitHub MCP Server 官方实现）
-        const profileMcpIds = resolvedProfile?.mcpServerIds;
-        const enabledServerIds: string[] = resolvedProfile
-          ? profileMcpIds && profileMcpIds.length > 0
-            ? profileMcpIds
-            : ((await ConfigService.getMCPConfig()).enabledToolServerIds ?? [])
-          : ((await ConfigService.getMCPConfig()).enabledToolServerIds ?? []);
-        const serverInstructions = mcpClient.getInstructions(
-          enabledServerIds.length > 0 ? enabledServerIds : undefined
-        ).trim();
+        // MCP 官方 instructions：与工具列表同源（resolvedProfile.mcpServerIds）
+        const serverInstructions = mcpClient
+          .getInstructions(resolvedProfile?.mcpServerIds)
+          .trim();
         if (serverInstructions) parts.push(serverInstructions);
 
         if (ToolsConfig.enableSystemTools) {
@@ -259,10 +246,7 @@ export class AiProvider {
     const systemTools = ToolsConfig.enableSystemTools ? getSystemToolSchemas() : [];
 
     try {
-      const profileMcpIds = resolvedProfile?.mcpServerIds;
-      const mcpTools = await this.convertMcpToolsToChatFunctions(
-        profileMcpIds && profileMcpIds.length > 0 ? profileMcpIds : undefined
-      );
+      const mcpTools = await this.convertMcpToolsToChatFunctions(resolvedProfile?.mcpServerIds);
       if (systemTools.length > 0) {
         Logger.info('OPENAI', `使用 ${systemTools.length} 个 System 内置工具`);
       }

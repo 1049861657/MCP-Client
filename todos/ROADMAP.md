@@ -1,6 +1,6 @@
 # MCP-Client Agent Harness 改造总路线图
 
-> 最后更新：2026-05-27  
+> 最后更新：2026-06-01  
 > 定位：从「LLM + MCP 工具网关 + Web UI」升级为「具备控制面的 Agent Client」  
 > 参考文档：章节完整 URL 见 [REFERENCES.md](./REFERENCES.md)
 
@@ -37,8 +37,8 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Web UI (public/ ← frontend/* Vite 构建)                 │
-│  会话展示 · 权限确认 · 工具/进度可视化 · T3 现代化中      │
+│  Web UI (public/ ← frontend/ Vite MPA 构建产物)          │
+│  会话展示 · 权限确认 · 工具/进度可视化 · 源码 frontend/  │
 └────────────────────────┬────────────────────────────────┘
                          │ SSE / REST
 ┌────────────────────────▼────────────────────────────────┐
@@ -121,7 +121,7 @@ gantt
 | **P3** | 3 周 | Todo/Memory/Hook/服务端会话 | 跨会话偏好保留；Hook 可扩展 |
 | **Backlog** | 按需 | 多 Agent、Worktree、CLI | 视产品方向决定 |
 | **T1** | 2–3 周 | 渠道层 + 消息总线（Web + 飞书 + 钉钉） | 各渠道 Envelope + Inbound Queue；Harness 无渠道分支 |
-| **T3** | 4–5 周 | 遗留 Web UI → Vite MPA + Tailwind v4 | URL/API/存储契约不变；`pnpm start` 手工验证；旧 `public/js` 退役 |
+| **T3** | 4–5 周 | 遗留 Web UI → Vite MPA + Tailwind v4 | URL/API/存储契约不变；`frontend/` SSOT；**已完成**（2026-06-01） |
 
 > 进度见 [T1-channel-bus.md](./T1-channel-bus.md)（T1-08 钉钉 E2E 已通过；T1-07-07 飞书 E2E 搁置）。  
 > **T2**：[配置平面 + 管理员平台](./T2-config-plane.md)（多渠道 Profile/Route，Web 聊天不污染 IM）。  

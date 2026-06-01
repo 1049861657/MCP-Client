@@ -82,17 +82,17 @@ src/core/agent-harness/
 
 - [x] **P0-03-01** 扩展前端会话模型，存储完整 turn 结构  
   - 字段：`role`、`content`、`tool_calls[]`、`tool_call_id`、`reasoning_content`  
-  - 涉及：`public/js/ai-data.js`、`public/js/ai-core.js`、`public/js/ai-turn-collector.js`、`public/js/message-history-builder.js`  
+  - 涉及：`frontend/src/chat/data.js`、`core.js`、`turn-collector.js`、`message-history-builder.js`  
   - 验收：刷新页面后工具调用卡片可完整回放  
   - 完成日期：2026-05-21
 
 - [x] **P0-03-02** 请求体携带完整 `messages` 数组（含 tool 消息）  
-  - 涉及：`public/js/ai-api.js`、`src/api/openai.controller.ts`  
+  - 涉及：`frontend/src/chat/api.js`、`chat-request-body.js`、`src/api/ai.controller.ts`  
   - 验收：Network 面板可见 `tool` role 消息  
   - 完成日期：2026-05-21
 
 - [x] **P0-03-03** 将 `enableMessageHistory` 默认改为 `true`，条数默认 20（可配置）  
-  - 涉及：`src/config/feature-config.ts`、`public/ai.html`、`public/js/ai-ui.js`  
+  - 涉及：`src/config/feature-config.ts`、`public/ai.html`（Vite 产物）、`frontend/src/chat/`  
   - 验收：新会话自动带上文；设置页可调整条数  
   - 完成日期：2026-05-21
 
@@ -162,7 +162,7 @@ src/core/agent-harness/
   - 完成日期：2026-05-22
 
 - [x] **P0-06-02** SSE 推送 `requestId` 供前端关联  
-  - 涉及：`openai.controller.ts`、`public/js/ai-api.js`  
+  - 涉及：`ai.controller.ts`、`frontend/src/chat/api.js`  
   - 验收：单次对话所有 chunk 共享同一 `requestId`
   - 完成日期：2026-05-22
 

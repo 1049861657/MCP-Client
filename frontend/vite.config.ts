@@ -9,7 +9,7 @@ const frontendRoot = configDir;
 
 /**
  * 单体 Vite MPA：HTML 平铺在 frontend/ 根目录，实现落在 src/{page}/。
- * legacyNavbar：遗留页（ai/settings/info）统一挂载 shared navbar（固定 JS 路径）。
+ * build:frontend 产出覆盖 public/（含 ai.html，T3-04-12 切流）。
  */
 export default defineConfig({
   plugins: [tailwindcss()],
@@ -26,15 +26,10 @@ export default defineConfig({
         admin: resolve(frontendRoot, 'admin.html'),
         settings: resolve(frontendRoot, 'settings.html'),
         info: resolve(frontendRoot, 'info.html'),
-        legacyNavbar: resolve(frontendRoot, 'src/shared/legacy-navbar.entry.js'),
+        ai: resolve(frontendRoot, 'ai.html'),
       },
       output: {
-        entryFileNames: (chunk) => {
-          if (chunk.name === 'legacyNavbar') {
-            return 'assets/legacy-navbar.js';
-          }
-          return 'assets/[name]-[hash].js';
-        },
+        entryFileNames: 'assets/[name]-[hash].js',
       },
     },
   },

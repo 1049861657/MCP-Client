@@ -1,3 +1,4 @@
+import './navbar-shell.css';
 import { fetchJson } from './fetch-json.js';
 
 const NAV_LINKS = [
@@ -20,36 +21,30 @@ export function mountNavbar(doc = document) {
 
   const currentPath = doc.defaultView?.location.pathname ?? '/';
   const nav = doc.createElement('nav');
-  nav.className =
-    'navbar fixed top-0 left-0 right-0 z-20 flex h-[var(--spacing-navbar)] items-stretch justify-between bg-brand text-white shadow-md';
+  nav.className = 'navbar';
 
   const links = doc.createElement('div');
-  links.className = 'flex h-full';
+  links.className = 'navbar__links';
 
   for (const link of NAV_LINKS) {
     const anchor = doc.createElement('a');
     anchor.href = link.href;
     anchor.textContent = link.label;
-    anchor.className = [
-      'flex h-full items-center px-5 transition-colors hover:bg-white/10',
-      link.match(currentPath) ? 'bg-white/20 font-semibold' : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
+    anchor.className = link.match(currentPath) ? 'navbar__link is-active' : 'navbar__link';
     links.appendChild(anchor);
   }
 
   const clientInfo = doc.createElement('div');
   clientInfo.id = 'client-info';
-  clientInfo.className = 'hidden items-center gap-2 px-4 text-sm';
+  clientInfo.className = 'navbar__client';
   clientInfo.innerHTML = `
-    <svg class="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg class="navbar__client-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
       <line x1="8" y1="21" x2="16" y2="21"></line>
       <line x1="12" y1="17" x2="12" y2="21"></line>
     </svg>
-    <span id="client-name" class="font-semibold"></span>
-    <span id="client-version" class="opacity-80"></span>
+    <span id="client-name" class="navbar__client-name"></span>
+    <span id="client-version" class="navbar__client-version"></span>
   `;
 
   nav.appendChild(links);
@@ -62,7 +57,7 @@ export function mountNavbar(doc = document) {
     body.appendChild(nav);
   }
 
-  body.classList.add('pt-[var(--spacing-navbar)]');
+  body.classList.add('has-navbar');
 
   void loadClientInfo(doc);
 }
@@ -102,7 +97,6 @@ function updateClientInfo(doc, clientInfo) {
   }
 
   if (infoEl) {
-    infoEl.classList.remove('hidden');
-    infoEl.classList.add('flex');
+    infoEl.classList.add('is-visible');
   }
 }

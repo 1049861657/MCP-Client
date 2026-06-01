@@ -27,7 +27,7 @@ function resolveMessages(body: Record<string, unknown>): InternalMessage[] {
   throw new Error('缺少消息参数');
 }
 
-/** 仅映射请求体显式字段，供 Resolver 作 override；未传字段由 web Profile 补全 */
+/** 仅映射请求体显式字段；Web MCP 见 resolveWebMcpServerIds */
 function buildChatOptionsFromBody(body: Record<string, unknown>): ChatOptions | undefined {
   const options: ChatOptions = {};
 

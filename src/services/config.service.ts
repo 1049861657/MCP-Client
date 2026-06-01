@@ -7,6 +7,8 @@ import { prisma } from '../lib/prisma.js';
 import { AIProvidersConfigType, MCPConfigType, AIProvider, QuickMessage } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';
 
+const QUICK_MESSAGE_CATEGORIES_KEY = 'quickMessageCategories';
+
 export class ConfigService {
   /**
    * 获取通用设置
@@ -224,9 +226,33 @@ export class ConfigService {
   }
 
   /**
-   * 获取快捷消息配置
-   * @returns 快捷消息配置
+   * 合并 Setting 中持久化的分类与消息 category 字段，保持顺序。
+   * 无配置且无消息时返回空数组。
    */
+  static async getQuickMessageCategories(messages: QuickMessage[]): Promise<string[]> {
+    const stored = await this.getSetting(QUICK_MESSAGE_CATEGORIES_KEY);
+    const fromMessages = messages
+      .map((msg) => msg.category)
+      .filter((category): category is string => typeof category === 'string' && category.trim().length > 0);
+    const base = Array.isArray(stored)
+      ? stored.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      : [];
+    const merged = [...base];
+    for (const category of fromMessages) {
+      if (!merged.includes(category)) {
+        merged.push(category);
+      }
+    }
+    return merged;
+  }
+
+  static async saveQuickMessageCategories(categories: string[]): Promise<boolean> {
+    const normalized = categories.filter(
+      (category): category is string => typeof category === 'string' && category.trim().length > 0,
+    );
+    return this.saveSetting(QUICK_MESSAGE_CATEGORIES_KEY, normalized);
+  }
+
   static async getQuickMessagesConfig(): Promise<QuickMessage[]> {
     try {
       // 直接从QuickMessage表获取数据
