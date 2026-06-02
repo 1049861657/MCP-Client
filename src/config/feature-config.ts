@@ -8,6 +8,17 @@
  */
 
 /**
+ * 工具执行前权限（P1-03）
+ */
+export const PermissionConfig = {
+  /** 确认模式 pending 最长等待 */
+  pendingTimeoutMs: 30 * 60 * 1000,
+  pendingPollMs: 1000,
+  /** 本会话「始终允许」TTL */
+  sessionAllowTtlMs: 24 * 60 * 60 * 1000
+};
+
+/**
  * 工具相关配置（Resolver 兜底；生产以 AgentProfile 为准）
  */
 export const ToolsConfig = {
@@ -213,5 +224,6 @@ export const FeatureConfig = {
   context: ContextConfig,
   recovery: RecoveryConfig,
   history: HistoryConfig,
-  log: LogConfig
+  log: LogConfig,
+  permission: PermissionConfig
 }; 

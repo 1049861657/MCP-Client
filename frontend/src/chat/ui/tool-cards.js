@@ -70,7 +70,6 @@ export function createToolCardsUi(getApp, ui) {
     index = -1,
     toolId = null,
     executionTime = null,
-    tokenUsage = null,
   ) {
     const toolCallElements = messageDiv?.querySelectorAll('.tool-call');
     if (!toolCallElements?.length) {
@@ -117,9 +116,6 @@ export function createToolCardsUi(getApp, ui) {
           ? `${executionTime}ms`
           : `${(executionTime / 1000).toFixed(2)}s`;
         statusHtml += `<span class="tool-execution-time">${timeText}</span>`;
-      }
-      if (tokenUsage?.totalTokens) {
-        statusHtml += `<span class="tool-token-usage">tokens:${tokenUsage.totalTokens}</span>`;
       }
       statusDiv.innerHTML = statusHtml;
     }
@@ -265,10 +261,148 @@ export function createToolCardsUi(getApp, ui) {
     ui.scrollToBottom?.();
   }
 
+  /**
+   * @param {string} reason
+   * @param {string} toolName
+   */
+  function describePermissionReason(reason, toolName) {
+    const name = escapeHtml(toolName);
+    if (reason === 'interactive_gray') {
+      return `「${name}」可能访问外部服务或产生副作用，需你确认后再执行。`;
+    }
+    if (reason === 'interactive_unlisted') {
+      return `「${name}」非只读工具，需你确认后再执行。`;
+    }
+    return `即将执行「${name}」，请确认是否继续。`;
+  }
+
+  /**
+   * @param {string} raw
+   */
+  function formatPermissionArgsPreview(raw) {
+    if (!raw || raw === '{}') {
+      return '';
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return raw;
+    }
+  }
+
+  /**
+   * @param {HTMLElement | null | undefined} toolCallEl
+   */
+  function clearPermissionUi(toolCallEl) {
+    if (!toolCallEl) {
+      return;
+    }
+    toolCallEl.classList.remove('tool-call--permission-pending');
+    const argsEl = toolCallEl.querySelector('.tool-call-args');
+    if (argsEl) {
+      argsEl.hidden = false;
+    }
+    toolCallEl.querySelector('.tool-permission-gate')?.remove();
+  }
+
+  /**
+   * @param {HTMLElement} messageDiv
+   * @param {{ tool_call_id: string, codeName: string, toolName: string, argsPreview: string, reason: string }} req
+   * @param {{ onApprove: (alwaysAllow: boolean) => void, onDeny: () => void }} handlers
+   */
+  function showPermissionPrompt(messageDiv, req, handlers) {
+    const toolCallElements = messageDiv?.querySelectorAll('.tool-call');
+    let target = null;
+    if (toolCallElements?.length) {
+      target = Array.from(toolCallElements).find(
+        (el) => el.dataset.toolId === req.tool_call_id,
+      ) ?? toolCallElements[toolCallElements.length - 1];
+    }
+    if (!target) {
+      return;
+    }
+
+    target.classList.remove('collapsed');
+    target.classList.add('tool-call--permission-pending');
+
+    const argsEl = target.querySelector('.tool-call-args');
+    if (argsEl) {
+      argsEl.hidden = true;
+    }
+
+    const statusDiv = target.querySelector('.tool-call-status');
+    if (statusDiv) {
+      statusDiv.innerHTML = `
+        <span class="tool-permission-gate__status" aria-live="polite">
+          <span class="tool-permission-gate__status-dot" aria-hidden="true"></span>
+          待确认
+        </span>
+      `;
+    }
+
+    target.querySelector('.tool-permission-gate')?.remove();
+
+    const content = target.querySelector('.tool-call-content');
+    if (!content) {
+      return;
+    }
+
+    const formattedArgs = formatPermissionArgsPreview(req.argsPreview);
+    const argsBlock = formattedArgs
+      ? `
+        <details class="tool-permission-gate__params" open>
+          <summary>调用参数</summary>
+          <pre>${escapeHtml(formattedArgs)}</pre>
+        </details>
+      `
+      : '';
+
+    const gate = document.createElement('div');
+    gate.className = 'tool-permission-gate';
+    gate.setAttribute('role', 'group');
+    gate.setAttribute('aria-label', `确认是否执行 ${req.toolName}`);
+    gate.innerHTML = `
+      <p class="tool-permission-gate__lead">是否允许执行此工具？</p>
+      <p class="tool-permission-gate__explain">${describePermissionReason(req.reason, req.toolName)}</p>
+      ${argsBlock}
+      <label class="tool-permission-gate__remember">
+        <input type="checkbox" class="tool-permission-gate__remember-cb" />
+        <span class="tool-permission-gate__remember-text">
+          <span class="tool-permission-gate__remember-title">记住此工具</span>
+          <span class="tool-permission-gate__remember-desc">本聊天 24 小时内不再询问</span>
+        </span>
+      </label>
+      <div class="tool-permission-gate__actions">
+        <button type="button" class="tool-permission-gate__deny">拒绝</button>
+        <button type="button" class="tool-permission-gate__approve">允许执行</button>
+      </div>
+    `;
+    content.prepend(gate);
+
+    const finish = (fn) => {
+      clearPermissionUi(target);
+      fn();
+    };
+
+    const rememberCb = gate.querySelector('.tool-permission-gate__remember-cb');
+    gate.querySelector('.tool-permission-gate__approve')?.addEventListener('click', () => {
+      const remember = rememberCb instanceof HTMLInputElement && rememberCb.checked;
+      finish(() => handlers.onApprove(remember));
+    });
+    gate.querySelector('.tool-permission-gate__deny')?.addEventListener('click', () => {
+      finish(() => handlers.onDeny());
+    });
+
+    gate.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    ui.scrollToBottom?.();
+  }
+
   return {
     addToolCall,
     updateToolCallResult,
     updateToolCallProgress,
+    showPermissionPrompt,
   };
 }
 

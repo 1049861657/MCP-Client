@@ -111,42 +111,47 @@
 
 ---
 
-## P1-03 权限门
+## P1-03 权限门 ✅
 
-> 参考：[s07 Permission](https://learn.shareai.run/zh/s07/)
+> 参考：[s07 Permission](https://learn.shareai.run/zh/s07/) · **状态：已通过（2026-06-02）**
 
-**背景**：所有 MCP 工具裸执行。2026 生产 MCP 要求 OAuth + scoped credentials + 用户确认。
+**背景**：工具校验通过后仍裸调 MCP / 内置工具。P1 补齐执行前 Gate；凭证与 OAuth 收敛至 P2。
 
-**Client 定位**：Web UI 演示 → 先做 **本地规则 + UI 确认弹窗**，OAuth 留 P2。
+**设计**：规则源 `permission-defaults.ts`（deny glob、allowReadonly）。管道 `deny → mode → allow/ask → execute`。模式：`open`（deny 外 allow）、`interactive`（allowReadonly allow，余 ask）、`locked`（仅 allowReadonly）。灰区 = `interactive` 且未命中 deny/allowReadonly 的 `mcp__*` → ask。
 
-### 管道顺序
-
-```
-deny rules → mode check → allow rules → ask user → execute
-```
+**配置来源**：Web 聊天设置三档（自动/确认/只读，`localStorage` + 请求体 `permissionMode`，可覆盖 Web Profile）；钉钉/飞书 **渠道管理** 两档（自动/只读，`AgentProfile.permissionMode`，IM 禁止 `interactive` 与入站覆盖）。`resolvePermissionMode` 无渠道默认兜底，Profile 必填。
 
 ### 任务
 
-- [ ] **P1-03-01** 新建 `src/core/agent-harness/permission-gate.ts`  
-  - 类型：`IPermissionRule`、`IPermissionDecision`  
-  - 涉及：新建模块  
-  - 验收：`checkPermission(toolName, input) -> { behavior, reason }`
+- [x] **P1-03-01** 新建 `permission-gate.ts`  
+  - 功能：`checkPermission(ctx) -> { behavior, reason }`（`allow|deny|ask`）；按 `open`/`interactive`/`locked` 短路  
+  - 涉及：`src/core/agent-harness/permission-gate.ts`、`src/config/permission.types.ts`  
+  - 验收：deny 优先；三模式下 `executeApi` 分别为 allow / ask / deny  
+  - 完成日期：2026-06-02
 
-- [ ] **P1-03-02** 实现三种模式：`default`（灰区 ask）、`plan`（只读）、`auto`（安全只读过）  
-  - 涉及：`permission-gate.ts`、`feature-config.ts`  
-  - 验收：settings 页可切换 mode
+- [x] **P1-03-02** 内置规则 + 模式配置 + 设置页 + IM 渠道  
+  - 功能：`permission-defaults.ts`；Web 设置页分段（`settings-modal` / `modal-host`）；`profile-resolver` 读 Profile.`permissionMode`；管理端 `admin.html` IM 仅自动/只读；迁移 `AgentProfile.permissionMode`  
+  - 涉及：`permission-defaults.ts`、`profile-resolver.ts`、`config-snapshot.ts`、`admin.controller.ts`、`frontend/src/chat/`、`frontend/src/admin/`  
+  - 验收：defaults 生效；IM 不产生 ask pending；渠道保存后下条消息生效  
+  - 完成日期：2026-06-02
 
-- [ ] **P1-03-03** 默认 deny 规则：写文件类 / 危险 MCP 工具名模式（可配置）  
-  - 涉及：`permission-gate.ts`  
-  - 验收：匹配规则直接返回 deny tool_result
+- [x] **P1-03-03** `interactive` 会话放行缓存  
+  - 功能：Redis `web-chat:{sessionId}+codeName`「本会话始终允许」；`permission-session.ts`  
+  - 涉及：`permission-gate.ts`、`permission-session.ts`、`ai.controller.ts`（grant on approve）  
+  - 验收：确认模式下只读不弹窗；勾选记住后同工具不重复 ask  
+  - 完成日期：2026-06-02
 
-- [ ] **P1-03-04** 前端权限确认 UI（SSE 事件 `permission_request` → 用户 approve/deny）  
-  - 涉及：`frontend/src/chat/`、`ai.controller.ts`  
-  - 验收：ask 类工具阻塞至用户确认
+- [x] **P1-03-04** Web 确认（仅 `interactive`）  
+  - 功能：SSE `permission_request`；`POST /api/chat/permission-resolve`；`permission-pending.ts`；工具卡 gate UI  
+  - 涉及：`agent-loop.ts`、`ai.controller.ts`、`routes.ts`、`tool-cards.js`、`api.js`  
+  - 验收：未 approve 不调 MCP；approve 续跑；`open` 不发 `permission_request`  
+  - 完成日期：2026-06-02
 
-- [ ] **P1-03-05** MCP 工具与本地工具统一过 PermissionGate（[s19 MCP](https://learn.shareai.run/zh/s19/) 要求）  
-  - 涉及：`tool-executor.ts`  
-  - 验收：无 bypass 路径
+- [x] **P1-03-05** 统一过 Gate（[s19 MCP](https://learn.shareai.run/zh/s19/)）  
+  - 功能：`executeOneToolCall` 内在 `callTool`/`executeSystemTool` 前 `checkPermission`；deny/超时/拒绝对模型返回 `tool_result`；审计带 `permissionDecision`  
+  - 涉及：`agent-loop.ts`、`audit.ts`  
+  - 验收：MCP 与 system-tools 无 bypass  
+  - 完成日期：2026-06-02
 
 ---
 
@@ -243,7 +248,7 @@ core + tools + skills_catalog + memory + project_rules + dynamic(date/cwd/mode)
 ## P1 完成检查清单
 
 - [x] LLM 瞬态错误可退避重试（P1-02）
-- [ ] 工具权限 ask/deny 流程可用
+- [x] 工具权限 Gate 可用（三模式 + Web 确认 + IM 渠道自动/只读）
 - [ ] Prompt 分段可维护、可测试
 - [ ] Hook 可插拔至少 1 个自定义脚本
 - [ ] 无新增 `openai.ts` 循环逻辑

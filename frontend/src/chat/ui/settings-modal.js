@@ -251,6 +251,58 @@ function syncSettingsUi(getApp) {
   syncTemperatureUi(elements.temperature);
   syncTokensUi(elements.maxTokens);
   updateSettingsModelPill();
+  syncPermissionModeUi(app.state.permissionMode || 'open');
+}
+
+const VALID_PERMISSION_MODES = ['open', 'interactive', 'locked'];
+
+/** @type {Record<'open'|'interactive'|'locked', string>} 允许范围；交互方式 */
+const PERMISSION_MODE_FOOTNOTES = {
+  open: '除黑名单外自动执行；对话中不询问。',
+  interactive: '只读自动放行；其余工具需确认，可本会话记住。',
+  locked: '仅只读工具可执行；其余一律拒绝、不询问。',
+};
+
+/**
+ * @param {'open'|'interactive'|'locked'} mode
+ */
+function syncPermissionModeUi(mode) {
+  const container = document.getElementById('settings-permission-mode');
+  if (!container) {
+    return;
+  }
+  container.querySelectorAll('[data-permission-mode]').forEach((btn) => {
+    const active = btn.getAttribute('data-permission-mode') === mode;
+    btn.classList.toggle('active', active);
+  });
+
+  const footnote = document.getElementById('settings-permission-footnote');
+  if (footnote && PERMISSION_MODE_FOOTNOTES[mode]) {
+    footnote.textContent = PERMISSION_MODE_FOOTNOTES[mode];
+    footnote.dataset.mode = mode;
+  }
+}
+
+/**
+ * @param {() => object} getApp
+ */
+function bindPermissionMode(getApp) {
+  const container = document.getElementById('settings-permission-mode');
+  if (!container || container.dataset.bound === '1') {
+    return;
+  }
+  container.dataset.bound = '1';
+  container.querySelectorAll('[data-permission-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const mode = btn.getAttribute('data-permission-mode');
+      if (!mode || !VALID_PERMISSION_MODES.includes(mode)) {
+        return;
+      }
+      getApp().state.permissionMode = mode;
+      syncPermissionModeUi(mode);
+      saveSettings();
+    });
+  });
 }
 
 /**
@@ -330,6 +382,7 @@ function bindSettingsModalUi(getApp) {
 
   bindTemperatureControls(elements.temperature);
   bindTokensControls(elements.maxTokens);
+  bindPermissionMode(getApp);
 
   elements.provider?.addEventListener('change', updateSettingsModelPill);
   elements.model?.addEventListener('change', updateSettingsModelPill);
@@ -426,6 +479,9 @@ export function createSettingsModalApi(getApp, ui) {
       settings.enableMessageHistory = state.enableMessageHistory;
       settings.messageHistoryCount = state.messageHistoryCount;
       settings.maxToolCallRounds = state.maxToolCallRounds;
+      if (VALID_PERMISSION_MODES.includes(state.permissionMode)) {
+        settings.permissionMode = state.permissionMode;
+      }
       settings.enabledServerIds = Array.isArray(state.enabledServerIds)
         ? [...state.enabledServerIds]
         : [];
@@ -468,6 +524,8 @@ export function createSettingsModalApi(getApp, ui) {
     if (elements.maxToolCallRounds) {
       elements.maxToolCallRounds.value = '25';
     }
+    state.permissionMode = 'open';
+    syncPermissionModeUi('open');
     if (elements.enableAutoCompact) {
       elements.enableAutoCompact.checked = state.enableAutoCompact;
     }
@@ -550,6 +608,10 @@ export function createSettingsModalApi(getApp, ui) {
       if (typeof settings.maxToolCallRounds === 'number' && elements.maxToolCallRounds) {
         elements.maxToolCallRounds.value = String(settings.maxToolCallRounds);
         state.maxToolCallRounds = settings.maxToolCallRounds;
+      }
+
+      if (VALID_PERMISSION_MODES.includes(settings.permissionMode)) {
+        state.permissionMode = settings.permissionMode;
       }
 
       if (Array.isArray(settings.enabledServerIds)) {

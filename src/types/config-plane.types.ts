@@ -1,4 +1,5 @@
 import type { ChannelId, ChatOptions } from './channel.types.js';
+import type { PermissionMode } from '../config/permission.types.js';
 
 /** @deprecated 历史 seed 残留；Resolver 已改为按渠道默认方案解析，不再兜底到此 ID */
 export const CONFIG_PROFILE_GLOBAL_DEFAULT = 'global-default';
@@ -44,6 +45,7 @@ export interface AgentProfileRecord {
   enablePrompts: boolean;
   enableParamValidation: boolean;
   maxToolCallRounds: number;
+  permissionMode: PermissionMode;
   enableAutoCompact: boolean | null;
   compactModel: string | null;
   mcpServerIds: string[];
@@ -85,6 +87,7 @@ export interface ResolvedChatProfile extends Required<
   compactModel?: string;
   mcpServerIds: string[];
   toolPrompt: string;
+  permissionMode: PermissionMode;
 }
 
 /** 解析路由时的入站上下文（T2-02 Resolver 入参） */

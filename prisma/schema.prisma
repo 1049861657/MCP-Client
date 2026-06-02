@@ -85,6 +85,8 @@ model AgentProfile {
   enablePrompts         Boolean       @default(true)
   enableParamValidation Boolean       @default(false)
   maxToolCallRounds     Int           @default(25)
+  /// open | interactive | locked；IM 管理端仅 open / locked
+  permissionMode        String        @default("locked")
   enableAutoCompact     Boolean?
   compactModel          String?
   mcpServerIds          Json          @default("[]")

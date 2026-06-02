@@ -139,7 +139,6 @@ export class ToolCallManager {
     result: unknown,
     error: boolean = false,
     errorMessage?: string,
-    tokenUsage?: unknown,
     executionTimeMs?: number
   ): void {
     const toolCall = this.indexMap.get(globalIndex);
@@ -166,9 +165,6 @@ export class ToolCallManager {
         toolCall.meta.executionTime = endTime - startTime;
       }
 
-      if (tokenUsage) {
-        toolCall.meta.tokenUsage = tokenUsage;
-      }
     }
 
     this.onChunk({
@@ -178,8 +174,7 @@ export class ToolCallManager {
         error,
         index: globalIndex,
         tool_call_id: toolCall.id,
-        execution_time: toolCall.meta?.executionTime,
-        token_usage: tokenUsage || toolCall.meta?.tokenUsage
+        execution_time: toolCall.meta?.executionTime
       }
     }, false);
   }
@@ -263,8 +258,7 @@ export class ToolCallManager {
             index: globalIndex,
             tool_call_id: tc.id,
             error: true,
-            execution_time: executionTime,
-            token_usage: tc.meta.tokenUsage
+            execution_time: executionTime
           }
         }, false);
       }

@@ -146,6 +146,15 @@
                                     </div>
                                 </div>
 
+                                <div class="behavior-block rounded-md border border-[#eee] bg-[#fafafa] p-3">
+                                    <div class="mb-2 text-[13px] font-medium">工具执行方式</div>
+                                    <div class="admin-segmented" id="fld-permission-mode" role="group" aria-label="工具执行方式">
+                                        <button type="button" class="admin-seg-btn active" data-permission-mode="open">自动</button>
+                                        <button type="button" class="admin-seg-btn" data-permission-mode="locked">只读</button>
+                                    </div>
+                                    <p id="fld-permission-footnote" class="admin-permission-footnote" role="status"></p>
+                                </div>
+
                                 <div class="behavior-row grid gap-3 min-[720px]:grid-cols-[minmax(0,1fr)_160px] min-[720px]:items-start">
                                     <div class="behavior-block behavior-block--grow rounded-md border border-[#eee] bg-[#fafafa] p-3">
                                         <div class="field-block-head flex items-center justify-between gap-3">

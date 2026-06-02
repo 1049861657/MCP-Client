@@ -14,7 +14,23 @@ import {
   recordTurnEnd
 } from './loop-state.js';
 import { withLlmRetry } from './llm-retry.js';
+import {
+  buildArgsPreview,
+  checkPermission
+} from './permission-gate.js';
+import {
+  initPermissionPending,
+  waitForPermissionDecision
+} from './permission-pending.js';
 import { ToolCallManager } from './tool-call-manager.js';
+import {
+  addUsage,
+  emitStepUsage,
+  emptyUsage,
+  hasUsage
+} from './usage-telemetry.js';
+import type { PermissionMode } from '../../config/permission.types.js';
+import type { ChannelId } from '../../types/channel.types.js';
 import {
   executeSystemTool,
   isSystemTool
@@ -75,6 +91,13 @@ export interface AgentLoopProvider {
   formatToolResult(toolResult: unknown): string;
 }
 
+/** P1-03：Harness 工具权限上下文 */
+export interface AgentPermissionContext {
+  channel: ChannelId;
+  sessionKey: string;
+  permissionMode: PermissionMode;
+}
+
 export interface RunAgentLoopParams {
   messages: InternalMessage[];
   chatTools: ChatTool[];
@@ -91,6 +114,7 @@ export interface RunAgentLoopParams {
   onContextCompacted?: (summaryContent: string) => void;
   onChunk: (chunk: ChunkResponse, done: boolean) => void;
   provider: AgentLoopProvider;
+  permission?: AgentPermissionContext;
 }
 
 /**
@@ -110,7 +134,8 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     summarizeFn,
     onContextCompacted,
     onChunk,
-    provider
+    provider,
+    permission
   } = params;
 
   const prepareContext = async (round: number): Promise<void> => {
@@ -166,8 +191,84 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
           success: false,
           error: errorMessage
         });
-        toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, usage, durationMs);
+        toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, durationMs);
         return { tool_call_id: current.id, content: errorMessage };
+      }
+
+      let permissionAudit: string | undefined;
+      if (permission) {
+        const perm = await checkPermission({
+          codeName: current.codeName,
+          toolName: current.name,
+          arguments: current.arguments,
+          mode: permission.permissionMode,
+          channel: permission.channel,
+          sessionKey: permission.sessionKey,
+          requestId
+        });
+        permissionAudit = `${perm.behavior}:${perm.reason}`;
+
+        if (perm.behavior === 'deny') {
+          let errorMessage: string;
+          if (perm.reason === 'matched_deny_rule') {
+            errorMessage = '该工具在系统黑名单内，无法执行';
+          } else if (perm.reason === 'mode:locked_not_allowlisted') {
+            errorMessage = '只读模式下，仅只读工具可执行';
+          } else {
+            errorMessage = `工具未获允许（${perm.reason}）`;
+          }
+          const durationMs = Date.now() - startedAt;
+          logToolCallAudit({
+            ...auditBase,
+            durationMs,
+            success: false,
+            error: errorMessage,
+            permissionDecision: `deny:${perm.reason}`
+          });
+          toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, durationMs);
+          return { tool_call_id: current.id, content: errorMessage };
+        }
+
+        if (perm.behavior === 'ask') {
+          await initPermissionPending(requestId, current.id);
+          onChunk(
+            {
+              permission_request: {
+                tool_call_id: current.id,
+                codeName: current.codeName,
+                toolName: current.name,
+                argsPreview: buildArgsPreview(current.arguments),
+                reason: perm.reason,
+                permissionSessionKey: permission.sessionKey
+              }
+            },
+            false
+          );
+
+          const waitOutcome = await waitForPermissionDecision(
+            requestId,
+            current.id,
+            signal
+          );
+
+          if (waitOutcome === 'denied' || waitOutcome === 'timeout') {
+            const errorMessage =
+              waitOutcome === 'timeout'
+                ? '确认超时，工具未执行'
+                : '你已拒绝执行该工具';
+            const durationMs = Date.now() - startedAt;
+            logToolCallAudit({
+              ...auditBase,
+              durationMs,
+              success: false,
+              error: errorMessage,
+              permissionDecision: `ask_${waitOutcome}`
+            });
+            toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, durationMs);
+            return { tool_call_id: current.id, content: errorMessage };
+          }
+          permissionAudit = 'allow:ask_approved';
+        }
       }
 
       const isExecuteApi = current.name === 'executeApi';
@@ -195,9 +296,10 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       logToolCallAudit({
         ...auditBase,
         durationMs,
-        success: true
+        success: true,
+        permissionDecision: permissionAudit
       });
-      toolManager.setToolResult(globalIndex, persistedContent, false, undefined, usage, durationMs);
+      toolManager.setToolResult(globalIndex, persistedContent, false, undefined, durationMs);
       return { tool_call_id: current.id, content: persistedContent };
     } catch (error) {
       if (error instanceof Error && (error.name === 'AbortError' || error.name === 'APIUserAbortError')) {
@@ -211,7 +313,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         success: false,
         error: errorMessage
       });
-      toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, usage, durationMs);
+      toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, durationMs);
       return { tool_call_id: current.id, content: errorMessage };
     }
   };
@@ -223,6 +325,15 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   let fullContent = '';
   let fullReasoningContent = '';
   let usage: UsageInfo | null = null;
+  let cumulativeLlmUsage = emptyUsage();
+
+  const recordLlmStepUsage = (round: number, stepUsage: UsageInfo | null | undefined): void => {
+    if (!hasUsage(stepUsage)) {
+      return;
+    }
+    cumulativeLlmUsage = addUsage(cumulativeLlmUsage, stepUsage);
+    emitStepUsage(onChunk, round, stepUsage, cumulativeLlmUsage);
+  };
   let finishReasonResult: string | undefined | null = null;
 
   const invokeModelRound = async (
@@ -345,6 +456,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       fullReasoningContent = result.fullReasoningContent;
       usage = result.usage;
       finishReasonResult = result.finishReasonResult;
+      recordLlmStepUsage(round, result.usage);
 
       const harnessTurn = round + 1;
       const reason = result.hasNewToolCalls ? 'tool_result' : 'end';
@@ -392,6 +504,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   fullReasoningContent = initialResult.fullReasoningContent;
   usage = initialResult.usage;
   finishReasonResult = initialResult.finishReasonResult;
+  recordLlmStepUsage(0, initialResult.usage);
 
   const initialToolCount = toolManager.hasValidToolCalls()
     ? toolManager.getToolCallsByRound(0).length
@@ -440,16 +553,16 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
 
   onChunk({}, true);
 
+  const finalUsage = hasUsage(cumulativeLlmUsage)
+    ? cumulativeLlmUsage
+    : usage ?? emptyUsage();
+
   return {
     content: fullContent,
     reasoning_content: fullReasoningContent,
     tool_calls: toolManager.getAllToolCalls(),
     model,
     finish_reason: finishReasonResult || undefined,
-    usage: usage || {
-      promptTokens: 0,
-      completionTokens: 0,
-      totalTokens: 0
-    }
+    usage: finalUsage
   };
 }

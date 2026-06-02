@@ -14,6 +14,8 @@ export interface AgentEnvelopeCore {
 /** Web 入站 channelMeta（序列化 JSON，不含 abortSignal） */
 export interface WebChannelMetaSerialized {
   requestId: string;
+  /** 前端 IndexedDB 会话 ID；权限「本会话始终允许」与 Gate 会话键 */
+  webChatSessionId: string;
   vendor?: string;
 }
 
@@ -65,6 +67,8 @@ export interface ChatOptions {
   compactModel?: string;
   /** Web body override：当次启用的 MCP 服务器 ID 列表 */
   mcpServerIds?: string[];
+  /** P1-03：open | interactive | locked */
+  permissionMode?: 'open' | 'interactive' | 'locked';
 }
 
 /** 入站 payload */

@@ -61,6 +61,13 @@ function buildChatOptionsFromBody(body: Record<string, unknown>): ChatOptions | 
   if (Array.isArray(body.mcpServerIds)) {
     options.mcpServerIds = body.mcpServerIds.filter((id): id is string => typeof id === 'string');
   }
+  if (
+    body.permissionMode === 'open' ||
+    body.permissionMode === 'interactive' ||
+    body.permissionMode === 'locked'
+  ) {
+    options.permissionMode = body.permissionMode;
+  }
 
   return Object.keys(options).length > 0 ? options : undefined;
 }
@@ -72,6 +79,11 @@ export function normalizeWebInbound(input: WebInboundInput): WebAgentMessageEnve
   const { body, requestId, abortSignal } = input;
   const messages = resolveMessages(body);
   const vendor = typeof body.vendor === 'string' ? body.vendor : undefined;
+  const webChatSessionId =
+    typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+  if (!webChatSessionId) {
+    throw new Error('缺少 sessionId（Web 聊天会话标识）');
+  }
 
   const chatOptions = buildChatOptionsFromBody(body);
 
@@ -84,6 +96,7 @@ export function normalizeWebInbound(input: WebInboundInput): WebAgentMessageEnve
     sessionKey: buildWebSessionKey(requestId),
     channelMeta: {
       requestId,
+      webChatSessionId,
       ...(vendor !== undefined ? { vendor } : {}),
       ...(abortSignal !== undefined ? { abortSignal } : {})
     },

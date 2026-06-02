@@ -168,7 +168,7 @@ export function createMinimalChatUi(getApp) {
           </div>
           <div class="ai-message-footer">
             <span class="ai-message-meta message-time">${app.timeManager.getTimeString()}</span>
-            <div class="token-info" aria-label="Token 统计"></div>
+            <div class="token-info" aria-label="Token usage"></div>
           </div>
         </div>
       `;

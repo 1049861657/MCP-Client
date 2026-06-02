@@ -49,6 +49,7 @@ export function compactBaselineStorageKey(sessionId) {
  * @property {boolean} [enableMessageHistory]
  * @property {number} [messageHistoryCount] 送入 API 的历史条数上限
  * @property {number} [maxToolCallRounds] 1–100
+ * @property {'open'|'interactive'|'locked'} [permissionMode]
  * @property {string[]} [enabledServerIds] 用户勾选的 MCP server id
  */
 
@@ -66,6 +67,7 @@ export const CHAT_SETTINGS_FIELDS = [
   'enableMessageHistory',
   'messageHistoryCount',
   'maxToolCallRounds',
+  'permissionMode',
   'enabledServerIds',
 ];
 

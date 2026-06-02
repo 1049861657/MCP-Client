@@ -6,6 +6,7 @@ import {
   runConfigPlaneSeed
 } from '../config-plane/config-snapshot.js';
 import type { ChannelId } from '../types/channel.types.js';
+import { parseImPermissionMode } from '../config/permission.types.js';
 import type { AgentProfileRecord } from '../types/config-plane.types.js';
 import { EDITABLE_IM_CHANNEL_PROFILE_IDS } from '../types/config-plane.types.js';
 import { mcpClient } from '../core/mcp/index.js';
@@ -73,6 +74,7 @@ function mapProfileRow(row: {
   enablePrompts: boolean;
   enableParamValidation: boolean;
   maxToolCallRounds: number;
+  permissionMode: string;
   enableAutoCompact: boolean | null;
   compactModel: string | null;
   mcpServerIds: unknown;
@@ -94,6 +96,7 @@ function mapProfileRow(row: {
     enablePrompts: row.enablePrompts,
     enableParamValidation: row.enableParamValidation,
     maxToolCallRounds: row.maxToolCallRounds,
+    permissionMode: parseImPermissionMode(row.permissionMode),
     enableAutoCompact: row.enableAutoCompact,
     compactModel: row.compactModel,
     mcpServerIds,
@@ -182,6 +185,9 @@ export class AdminController {
       }
       if (typeof body.maxToolCallRounds === 'number') {
         data.maxToolCallRounds = Math.floor(body.maxToolCallRounds);
+      }
+      if (body.permissionMode !== undefined) {
+        data.permissionMode = parseImPermissionMode(body.permissionMode);
       }
       if (typeof body.enableAutoCompact === 'boolean') data.enableAutoCompact = body.enableAutoCompact;
       if (body.enableAutoCompact === null) data.enableAutoCompact = null;

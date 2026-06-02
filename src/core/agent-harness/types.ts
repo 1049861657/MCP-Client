@@ -70,7 +70,12 @@ export interface ChunkResponse {
     tool_call_id?: string;
     index?: number;
     execution_time?: number;
-    token_usage?: unknown;
+  };
+  /** 单轮 LLM 完成后的 token 统计（与 tool_call_result 解耦） */
+  step_usage?: {
+    round: number;
+    step: UsageInfo;
+    cumulative: UsageInfo;
   };
   tool_progress?: {
     index: number;
@@ -90,6 +95,16 @@ export interface ChunkResponse {
   contextCompacted?: boolean;
   /** 自动压缩生成的摘要正文（供客户端固化基线） */
   summaryContent?: string;
+  /** P1-03：工具执行前需用户确认（仅 interactive 确认模式 + Web） */
+  permission_request?: {
+    tool_call_id: string;
+    codeName: string;
+    toolName: string;
+    argsPreview: string;
+    reason: string;
+    /** 与 grant/check 一致的权限会话键 */
+    permissionSessionKey: string;
+  };
   [key: string]: unknown;
 }
 
@@ -129,7 +144,6 @@ export interface ToolCallRecord {
     errorMessage?: string;
     interruptReason?: string;
     executionTime?: number;
-    tokenUsage?: unknown;
   };
 }
 

@@ -10,6 +10,7 @@ export interface ToolCallAuditLog {
   durationMs: number;
   success: boolean;
   error?: string;
+  permissionDecision?: string;
 }
 
 export function logToolCallAudit(entry: ToolCallAuditLog): void {

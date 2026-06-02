@@ -78,6 +78,7 @@ function createInitialState() {
     enableMessageHistory: true,
     messageHistoryCount: 20,
     maxToolCallRounds: 25,
+    permissionMode: 'open',
     sessionId: '',
     isEventsInitialized: false,
     isLoading: false,

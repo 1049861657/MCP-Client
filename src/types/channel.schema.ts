@@ -15,7 +15,8 @@ const chatOptionsSchema = z.object({
   maxToolCallRounds: z.number().optional(),
   enableAutoCompact: z.boolean().optional(),
   compactModel: z.string().optional(),
-  mcpServerIds: z.array(z.string()).optional()
+  mcpServerIds: z.array(z.string()).optional(),
+  permissionMode: z.enum(['open', 'interactive', 'locked']).optional()
 }) satisfies z.ZodType<ChatOptions>;
 
 /** 宽松校验 messages[]，Worker 仍走 normalizeMessages */
@@ -28,6 +29,7 @@ const agentInboundPayloadSchema = z.object({
 
 const webChannelMetaSerializedSchema = z.object({
   requestId: z.string().min(1),
+  webChatSessionId: z.string().min(1),
   vendor: z.string().optional()
 });
 

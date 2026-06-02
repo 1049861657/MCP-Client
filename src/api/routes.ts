@@ -15,6 +15,7 @@ router.post('/chat', AiController.chat);
 router.post('/chat/stream', AiController.chatStream);
 router.post('/chat/context-preview', AiController.contextPreview);
 router.post('/chat/compact', AiController.compact);
+router.post('/chat/permission-resolve', AiController.permissionResolve);
 
 // 配置路由
 router.get('/config/features', ConfigController.getFeatureConfig);

@@ -3,12 +3,17 @@ import type {
   AgentMessageEnvelopeSerialized,
   DingtalkAgentMessageEnvelope,
   FeishuAgentMessageEnvelope,
-  WebAgentMessageEnvelope
+  WebAgentMessageEnvelope,
+  WebChannelMetaSerialized
 } from '../types/channel.types.js';
 import { parseAgentMessageEnvelopeSerialized } from '../types/channel.schema.js';
 
 function serializeWebInbound(envelope: WebAgentMessageEnvelope): AgentMessageEnvelopeSerialized {
-  const { requestId, vendor } = envelope.channelMeta;
+  const { requestId, vendor, webChatSessionId } = envelope.channelMeta;
+  const channelMeta: WebChannelMetaSerialized = { requestId, webChatSessionId };
+  if (vendor !== undefined) {
+    channelMeta.vendor = vendor;
+  }
   return {
     id: envelope.id,
     source: envelope.source,
@@ -16,7 +21,7 @@ function serializeWebInbound(envelope: WebAgentMessageEnvelope): AgentMessageEnv
     time: envelope.time,
     channel: envelope.channel,
     sessionKey: envelope.sessionKey,
-    channelMeta: vendor !== undefined ? { requestId, vendor } : { requestId },
+    channelMeta,
     payload: envelope.payload,
     trace: envelope.trace
   };

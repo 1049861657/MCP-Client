@@ -1503,6 +1503,14 @@
     @apply border-t border-[rgb(15_23_42/0.05)] pt-1;
   }
 
+  .settings-field-row--permission {
+    @apply gap-2 border-t border-[rgb(15_23_42/0.05)] py-3;
+  }
+
+  .settings-permission-footnote {
+    @apply m-0 min-h-[2.6em] text-xs leading-[1.5] text-[var(--color-text-muted)];
+  }
+
   .settings-field-label {
     @apply text-xs font-semibold text-[var(--color-text-muted)];
   }

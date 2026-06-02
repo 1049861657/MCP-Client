@@ -304,6 +304,26 @@
   .icon {
     @apply block h-[1em] w-[1em];
   }
+
+  .admin-segmented {
+    @apply inline-flex rounded-sm border border-[var(--color-border)] bg-white p-0.5;
+  }
+
+  .admin-seg-btn {
+    @apply cursor-pointer rounded-[2px] border-0 bg-transparent px-3 py-1.5 text-[13px] leading-tight text-[var(--color-text-muted)] transition-colors;
+  }
+
+  .admin-seg-btn:hover {
+    @apply text-[var(--color-text)];
+  }
+
+  .admin-seg-btn.active {
+    @apply bg-[var(--color-brand)] font-medium text-white;
+  }
+
+  .admin-permission-footnote {
+    @apply mt-2 min-h-[2.5em] text-xs leading-relaxed text-[var(--color-text-muted)];
+  }
 }
 
 .admin-shell:not(.admin-shell--connected) {

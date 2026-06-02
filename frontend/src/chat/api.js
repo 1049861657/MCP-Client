@@ -8,6 +8,7 @@ import {
   buildToolCallsFromStored,
   stringifyToolContent,
 } from './message-history-builder.js';
+import { applyFinalUsageToMessage, applyStepUsageToMessage } from './usage-telemetry.js';
 
 /**
  * @typedef {object} ChatApiDeps
@@ -43,7 +44,6 @@ export function createChatApi(deps) {
   /** @type {string | null} */
   let autoCompactSummaryFromStream = null;
 
-  let accumulatedToolTokens = 0;
   /** @type {Map<string, { arguments: string }>} */
   const toolCallArgumentsMap = new Map();
 
@@ -321,6 +321,30 @@ export function createChatApi(deps) {
       turnCollector?.onToolProgress(jsonData.tool_progress);
     }
 
+    if (jsonData.permission_request) {
+      const pr = jsonData.permission_request;
+      UI.showPermissionPrompt(aiMessageDiv, pr, {
+        onApprove: (alwaysAllow) => {
+          void resolveToolPermission(
+            pr.tool_call_id,
+            'approve',
+            alwaysAllow,
+            pr.codeName,
+            pr.permissionSessionKey,
+          );
+        },
+        onDeny: () => {
+          void resolveToolPermission(
+            pr.tool_call_id,
+            'deny',
+            false,
+            pr.codeName,
+            pr.permissionSessionKey,
+          );
+        },
+      });
+    }
+
     if (jsonData.tool_call_result) {
       console.log('jsonData(工具调用结果):', jsonData);
 
@@ -343,13 +367,6 @@ export function createChatApi(deps) {
         }
       }
 
-      if (
-        jsonData.tool_call_result.token_usage &&
-        jsonData.tool_call_result.token_usage.totalTokens
-      ) {
-        accumulatedToolTokens += jsonData.tool_call_result.token_usage.totalTokens;
-      }
-
       turnCollector?.onToolCallResult(jsonData.tool_call_result);
 
       UI.updateToolCallResult(
@@ -360,8 +377,11 @@ export function createChatApi(deps) {
         jsonData.tool_call_result.index,
         jsonData.tool_call_result.tool_call_id,
         jsonData.tool_call_result.execution_time,
-        jsonData.tool_call_result.token_usage,
       );
+    }
+
+    if (jsonData.step_usage) {
+      applyStepUsageToMessage(aiMessageDiv, jsonData.step_usage);
     }
 
     if (jsonData.content) {
@@ -437,14 +457,7 @@ export function createChatApi(deps) {
         const usageData = JSON.parse(eventData);
         console.log('Usage数据:', usageData);
 
-        const tokenInfo = aiMessageDiv.querySelector('.token-info');
-        if (tokenInfo) {
-          const totalTokens = accumulatedToolTokens + usageData.totalTokens;
-          tokenInfo.innerHTML = `
-            <span class="total-token-usage" title="累计 Tokens: ${totalTokens}">共 ${totalTokens}</span>
-            <span class="tool-token-usage" title="本次 Tokens: ${usageData.totalTokens}">${usageData.totalTokens} tok</span>
-          `;
-        }
+        applyFinalUsageToMessage(aiMessageDiv, usageData);
 
         if (usageData.elapsedTime) {
           const timeInfo = aiMessageDiv.querySelector('.ai-message-meta.message-time')
@@ -608,6 +621,49 @@ export function createChatApi(deps) {
    * @param {object[] | undefined} messages
    * @returns {Record<string, unknown>}
    */
+  /**
+   * @param {string} toolCallId
+   * @param {'approve'|'deny'} decision
+   * @param {boolean} alwaysAllowSession
+   * @param {string} codeName
+   */
+  async function resolveToolPermission(
+    toolCallId,
+    decision,
+    alwaysAllowSession,
+    codeName,
+    permissionSessionKey,
+  ) {
+    if (!requestId) {
+      console.warn('[permission] 缺少 requestId，无法确认');
+      return;
+    }
+    if (typeof permissionSessionKey !== 'string' || !permissionSessionKey.length) {
+      console.warn('[permission] 缺少 permissionSessionKey，无法确认');
+      return;
+    }
+    try {
+      const res = await fetch('/api/chat/permission-resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId,
+          toolCallId,
+          decision,
+          alwaysAllowSession,
+          sessionKey: permissionSessionKey,
+          codeName,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        console.warn('[permission] resolve 失败', data);
+      }
+    } catch (err) {
+      console.error('[permission] resolve 请求异常', err);
+    }
+  }
+
   function buildStreamRequestBody(app, message, model, temperature, maxTokens, enableTools, messages) {
     const provider = app.elements.provider.value;
     const mcpServerIds = enableTools ? app.getSelectableMcpServerIds() : undefined;
@@ -626,6 +682,8 @@ export function createChatApi(deps) {
       enableAutoCompact: app.state.enableAutoCompact,
       compactModel: app.state.compactModel || app.elements.compactModel?.value,
       mcpServerIds,
+      permissionMode: app.state.permissionMode || 'open',
+      sessionId: app.state.sessionId,
     });
   }
 
@@ -644,7 +702,6 @@ export function createChatApi(deps) {
       return;
     }
 
-    accumulatedToolTokens = 0;
     userAborted = false;
     requestId = null;
     turnCollector = new TurnCollector();
@@ -715,8 +772,6 @@ export function createChatApi(deps) {
       UI.showTooltip('无效的供应商配置');
       return;
     }
-
-    accumulatedToolTokens = 0;
 
     const startTime = Date.now();
     const { responseContent, tokenUsage } = app.elements;
@@ -1137,12 +1192,6 @@ export function createChatApi(deps) {
   }
 
   return {
-    get accumulatedToolTokens() {
-      return accumulatedToolTokens;
-    },
-    set accumulatedToolTokens(value) {
-      accumulatedToolTokens = value;
-    },
     toolCallArgumentsMap,
     saveCompactedBaselineToStorage,
     loadCompactedBaselineFromStorage,

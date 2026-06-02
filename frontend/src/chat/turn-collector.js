@@ -46,7 +46,6 @@ export class TurnCollector {
       result: null,
       isError: false,
       executionTime: undefined,
-      tokenUsage: undefined,
       progressSteps: [],
     });
   }
@@ -68,9 +67,9 @@ export class TurnCollector {
   }
 
   /**
-   * @param {{ tool_call_id: string; result: unknown; error?: boolean; execution_time?: number; token_usage?: object }} info
+   * @param {{ tool_call_id: string; result: unknown; error?: boolean; execution_time?: number }} info
    */
-  onToolCallResult({ tool_call_id, result, error, execution_time, token_usage }) {
+  onToolCallResult({ tool_call_id, result, error, execution_time }) {
     const tc = this._toolCallsMap.get(tool_call_id);
     if (!tc) {
       return;
@@ -78,7 +77,6 @@ export class TurnCollector {
     tc.result = this._maybeTruncate(result);
     tc.isError = error === true;
     tc.executionTime = execution_time;
-    tc.tokenUsage = token_usage;
   }
 
   /**

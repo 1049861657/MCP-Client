@@ -14,6 +14,11 @@ import { getWebChannelAdapter } from '../channels/web/web-channel.adapter.js';
 import { normalizeWebInbound } from '../channels/web/normalize-web-inbound.js';
 import { SSE_KEEP_ALIVE_INTERVAL_MS } from '../channels/web/sse-config.js';
 import { publishInbound } from '../message-bus/inbound-queue.js';
+import { resolvePermissionPending } from '../core/agent-harness/permission-pending.js';
+import {
+  assertPermissionSessionKey,
+  grantSessionToolAllow
+} from '../core/agent-harness/permission-session.js';
 
 /**
  * AI Chat API 控制器
@@ -397,6 +402,46 @@ export class AiController {
       res.status(500).json({
         error: message
       });
+    }
+  }
+
+  /**
+   * P1-03：用户确认 pending 工具调用（确认模式）
+   */
+  static async permissionResolve(req: Request, res: Response): Promise<void> {
+    try {
+      const body = req.body as Record<string, unknown>;
+      const requestId = typeof body.requestId === 'string' ? body.requestId : '';
+      const toolCallId = typeof body.toolCallId === 'string' ? body.toolCallId : '';
+      const decision = body.decision === 'approve' ? 'approve' : body.decision === 'deny' ? 'deny' : null;
+
+      if (!requestId || !toolCallId || !decision) {
+        res.status(400).json({ success: false, error: '缺少 requestId、toolCallId 或 decision' });
+        return;
+      }
+
+      const applied = await resolvePermissionPending(requestId, toolCallId, decision);
+      if (!applied) {
+        res.status(409).json({ success: false, error: '确认已处理或已过期' });
+        return;
+      }
+
+      if (decision === 'approve' && body.alwaysAllowSession === true) {
+        if (typeof body.sessionKey !== 'string' || typeof body.codeName !== 'string') {
+          res.status(400).json({ success: false, error: '记住此工具需要 sessionKey 与 codeName' });
+          return;
+        }
+        await grantSessionToolAllow(
+          assertPermissionSessionKey(body.sessionKey),
+          body.codeName
+        );
+      }
+
+      res.json({ success: true, requestId, toolCallId, decision });
+    } catch (error: unknown) {
+      const errMessage = error instanceof Error ? error.message : String(error);
+      Logger.error('API', 'permission-resolve 失败:', error);
+      res.status(500).json({ success: false, error: errMessage });
     }
   }
 

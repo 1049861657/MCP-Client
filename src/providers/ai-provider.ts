@@ -1,6 +1,10 @@
 import { OpenAI as OpenAIClient } from 'openai';
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
-import { AgentLoopProvider, runAgentLoop } from '../core/agent-harness/agent-loop.js';
+import {
+  AgentLoopProvider,
+  AgentPermissionContext,
+  runAgentLoop
+} from '../core/agent-harness/agent-loop.js';
 import { ToolCallManager } from '../core/agent-harness/tool-call-manager.js';
 import { normalizeMessages } from '../core/agent-harness/message-normalizer.js';
 import {
@@ -378,7 +382,8 @@ export class AiProvider {
     maxToolCallRounds: number = ToolsConfig.maxToolCallRounds,
     requestId: string = '',
     enableAutoCompact?: boolean,
-    compactModel?: string
+    compactModel?: string,
+    permissionCtx?: AgentPermissionContext
   ): Promise<ChatResponse> {
     try {
       if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
@@ -400,7 +405,8 @@ export class AiProvider {
         requestId,
         summarizeFn,
         onChunk: () => {},
-        provider: this.getAgentLoopProvider()
+        provider: this.getAgentLoopProvider(),
+        permission: permissionCtx
       });
     } catch (error: unknown) {
       const errMessage = error instanceof Error ? error.message : String(error);
@@ -731,7 +737,8 @@ export class AiProvider {
     requestId: string = '',
     enableAutoCompact?: boolean,
     compactModel?: string,
-    resolvedProfile?: ResolvedChatProfile
+    resolvedProfile?: ResolvedChatProfile,
+    permissionCtx?: AgentPermissionContext
   ): Promise<ChatResponse> {
     try {
       if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
@@ -761,7 +768,8 @@ export class AiProvider {
           onChunk({ contextCompacted: true, summaryContent }, false);
         },
         onChunk,
-        provider: this.getAgentLoopProvider()
+        provider: this.getAgentLoopProvider(),
+        permission: permissionCtx
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

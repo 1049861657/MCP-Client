@@ -23,6 +23,8 @@ export const CHAT_OPTION_BODY_FIELDS = [
   'maxTokens',
   'compactModel',
   'mcpServerIds',
+  'permissionMode',
+  'sessionId',
 ];
 
 /**
@@ -37,6 +39,8 @@ export const CHAT_OPTION_BODY_FIELDS = [
  * @property {boolean} enableParamValidation
  * @property {boolean} enablePrompts
  * @property {number} maxToolCallRounds
+ * @property {'open'|'interactive'|'locked'} [permissionMode]
+ * @property {string} sessionId 前端聊天会话 ID（权限会话键，必填）
  * @property {boolean} enableAutoCompact
  * @property {string | undefined} compactModel
  * @property {string[] | undefined} mcpServerIds enableTools 为 true 时写入 body（含空数组表示不启用 MCP）
@@ -63,6 +67,8 @@ export function buildChatStreamRequestBody(input) {
     enableAutoCompact,
     compactModel,
     mcpServerIds,
+    permissionMode,
+    sessionId,
   } = input;
 
   /** @type {Record<string, unknown>} */
@@ -79,6 +85,19 @@ export function buildChatStreamRequestBody(input) {
     enableAutoCompact,
     compactModel,
   };
+
+  if (
+    permissionMode === 'open' ||
+    permissionMode === 'interactive' ||
+    permissionMode === 'locked'
+  ) {
+    body.permissionMode = permissionMode;
+  }
+
+  if (typeof sessionId !== 'string' || !sessionId.trim()) {
+    throw new Error('缺少 sessionId');
+  }
+  body.sessionId = sessionId.trim();
 
   if (enableTools) {
     body.mcpServerIds = Array.isArray(mcpServerIds) ? mcpServerIds : [];

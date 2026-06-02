@@ -11,6 +11,7 @@ import {
 } from '../types/channel.types.js';
 import type { ChunkResponse } from '../core/agent-harness/types.js';
 import { envelopeToHarnessInput } from '../channels/envelope-mapper.js';
+import { resolvePermissionSessionKey } from '../channels/session-key.js';
 import { resolveProfile } from '../config-plane/profile-resolver.js';
 import { getDingtalkChannelAdapter } from '../channels/dingtalk/dingtalk-channel.adapter.js';
 import { getFeishuChannelAdapter } from '../channels/feishu/feishu-channel.adapter.js';
@@ -82,7 +83,7 @@ async function runHarnessForEnvelope(
 
   Logger.info(
     'BUS',
-    `Harness start channel=${envelope.channel} requestId=${requestId} profileId=${resolved.profileId} vendor=${vendor ?? 'default'} mcpCount=${resolved.mcpServerIds.length}`
+    `Harness start channel=${envelope.channel} requestId=${requestId} profileId=${resolved.profileId} vendor=${vendor ?? 'default'} mcpCount=${resolved.mcpServerIds.length} permissionMode=${resolved.permissionMode}`
   );
 
   const result = await service.chatStream(
@@ -120,7 +121,12 @@ async function runHarnessForEnvelope(
     requestId,
     resolved.enableAutoCompact,
     resolved.compactModel,
-    resolved
+    resolved,
+    {
+      channel: envelope.channel,
+      sessionKey: resolvePermissionSessionKey(envelope),
+      permissionMode: resolved.permissionMode
+    }
   );
 
   if (signal?.aborted) {

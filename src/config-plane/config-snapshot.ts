@@ -6,6 +6,7 @@ import {
   ToolsConfig
 } from '../config/feature-config.js';
 import { Logger } from '../utils/logger.js';
+import { parsePermissionMode } from '../config/permission.types.js';
 import type { ChannelId } from '../types/channel.types.js';
 import type { AgentProfileRecord, RouteRuleRecord } from '../types/config-plane.types.js';
 import {
@@ -43,6 +44,7 @@ function mapProfileRow(row: {
   enablePrompts: boolean;
   enableParamValidation: boolean;
   maxToolCallRounds: number;
+  permissionMode: string;
   enableAutoCompact: boolean | null;
   compactModel: string | null;
   mcpServerIds: unknown;
@@ -61,6 +63,7 @@ function mapProfileRow(row: {
     enablePrompts: row.enablePrompts,
     enableParamValidation: row.enableParamValidation,
     maxToolCallRounds: row.maxToolCallRounds,
+    permissionMode: parsePermissionMode(row.permissionMode),
     enableAutoCompact: row.enableAutoCompact,
     compactModel: row.compactModel,
     mcpServerIds: parseMcpServerIds(row.mcpServerIds),
@@ -158,6 +161,8 @@ async function buildSeedProfileData(
     enablePrompts: false,
     enableParamValidation: ToolsConfig.enableParamValidation,
     maxToolCallRounds: ToolsConfig.maxToolCallRounds,
+    permissionMode:
+      profileId === CONFIG_PROFILE_WEB_DEFAULT ? 'open' : 'locked',
     enableAutoCompact: true,
     compactModel: null,
     mcpServerIds,
@@ -199,6 +204,7 @@ async function createSeedProfile(profileId: string, displayName: string): Promis
       enablePrompts: profile.enablePrompts,
       enableParamValidation: profile.enableParamValidation,
       maxToolCallRounds: profile.maxToolCallRounds,
+      permissionMode: profile.permissionMode,
       enableAutoCompact: profile.enableAutoCompact,
       compactModel: profile.compactModel,
       mcpServerIds: profile.mcpServerIds,

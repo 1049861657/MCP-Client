@@ -209,6 +209,16 @@ const MODALS_HTML = `
                 </div>
               </div>
 
+              <div class="settings-field-row settings-field-row--permission">
+                <span class="settings-field-label">工具执行方式</span>
+                <div class="settings-segmented" id="settings-permission-mode">
+                  <button type="button" class="settings-seg-btn active" data-permission-mode="open">自动</button>
+                  <button type="button" class="settings-seg-btn" data-permission-mode="interactive">确认</button>
+                  <button type="button" class="settings-seg-btn" data-permission-mode="locked">只读</button>
+                </div>
+                <p class="settings-permission-footnote" id="settings-permission-footnote" role="status"></p>
+              </div>
+
               <div class="settings-item">
                 <div class="settings-item-text">
                   <div class="settings-item-title">参数校验</div>

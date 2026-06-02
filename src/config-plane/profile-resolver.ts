@@ -6,6 +6,8 @@ import {
   resolveMaxToolCallRounds,
   ToolsConfig
 } from '../config/feature-config.js';
+import { resolvePermissionMode } from '../core/agent-harness/permission-gate.js';
+import type { PermissionMode } from '../config/permission.types.js';
 import type {
   AgentMessageEnvelopeSerialized,
   ChannelId,
@@ -115,6 +117,7 @@ function mergeLayer(
     mcpServerIds: string[];
     toolPrompt: string;
     vendor?: string;
+    permissionMode: PermissionMode;
   },
   layer: Partial<ChatOptions>,
   channel: ChannelId
@@ -149,6 +152,12 @@ function mergeLayer(
   if (channel !== 'web' && layer.mcpServerIds !== undefined) {
     base.mcpServerIds = [...layer.mcpServerIds];
   }
+  if (layer.permissionMode !== undefined) {
+    if (channel !== 'web') {
+      throw new Error('非 Web 渠道不得在入站消息中覆盖 permissionMode');
+    }
+    base.permissionMode = layer.permissionMode;
+  }
 }
 
 /** 将指定 Profile 与入站覆盖链合并为 ResolvedChatProfile */
@@ -161,6 +170,7 @@ function resolveProfileFromProfileRecord(
     mcpServerIds: string[];
     toolPrompt: string;
     vendor?: string;
+    permissionMode: PermissionMode;
   } = {
     profileId: profile.profileId,
     model: profile.defaultModel,
@@ -170,6 +180,7 @@ function resolveProfileFromProfileRecord(
     enableParamValidation: profile.enableParamValidation,
     enablePrompts: profile.enablePrompts,
     maxToolCallRounds: profile.maxToolCallRounds,
+    permissionMode: profile.permissionMode,
     enableAutoCompact: profile.enableAutoCompact ?? ContextConfig.enableAutoCompact,
     compactModel: profile.compactModel ?? undefined,
     mcpServerIds:
@@ -196,7 +207,8 @@ function resolveProfileFromProfileRecord(
     enableAutoCompact: resolveEnableAutoCompact(merged.enableAutoCompact),
     compactModel: merged.compactModel,
     mcpServerIds: merged.mcpServerIds,
-    toolPrompt: merged.toolPrompt
+    toolPrompt: merged.toolPrompt,
+    permissionMode: resolvePermissionMode(ctx.channel, merged.permissionMode)
   };
 }
 

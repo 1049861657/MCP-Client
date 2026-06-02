@@ -7,6 +7,11 @@ mountNavbar();
 const API = '/api/admin';
 const SESSION_TOKEN_KEY = 'mcp-admin-token';
 
+const IM_PERMISSION_FOOTNOTES = {
+  open: '除黑名单外自动执行；对话中不询问。',
+  locked: '仅只读工具可执行；其余一律拒绝、不询问。',
+};
+
 const IM_CHANNELS = [
   { key: 'dingtalk', profileId: 'dingtalk-default', label: '钉钉', badge: '钉' },
   { key: 'feishu', profileId: 'feishu-default', label: '飞书', badge: '飞' }
@@ -41,6 +46,8 @@ const els = {
   compactModelWrap: document.getElementById('compact-model-wrap'),
   compactModel: document.getElementById('fld-compact-model'),
   maxRounds: document.getElementById('fld-max-rounds'),
+  permissionMode: document.getElementById('fld-permission-mode'),
+  permissionFootnote: document.getElementById('fld-permission-footnote'),
   editorHeader: document.getElementById('editor-header'),
   saveOk: document.getElementById('save-ok'),
   saveErr: document.getElementById('save-err'),
@@ -77,7 +84,8 @@ function emptyForm() {
     compactModel: '',
     maxToolCallRounds: 25,
     mcpIds: [],
-    toolPrompt: ''
+    toolPrompt: '',
+    permissionMode: 'locked',
   };
 }
 
@@ -113,7 +121,8 @@ function formSnapshot(f) {
     compactModel: f.compactModel,
     maxToolCallRounds: f.maxToolCallRounds,
     mcpIds: [...f.mcpIds].sort(),
-    toolPrompt: f.toolPrompt
+    toolPrompt: f.toolPrompt,
+    permissionMode: f.permissionMode,
   });
 }
 
@@ -136,7 +145,8 @@ function profileToForm(row) {
     compactModel: row.compactModel ? String(row.compactModel) : String(row.defaultModel || ''),
     maxToolCallRounds: row.maxToolCallRounds ?? 25,
     mcpIds: row.enableTools ? mcpIds : [],
-    toolPrompt: row.toolPrompt != null ? String(row.toolPrompt) : ''
+    toolPrompt: row.toolPrompt != null ? String(row.toolPrompt) : '',
+    permissionMode: row.permissionMode === 'open' ? 'open' : 'locked',
   };
 }
 
@@ -415,6 +425,7 @@ function bindFormToDom() {
   if (els.toolPrompt) els.toolPrompt.value = f.toolPrompt;
   if (els.enableCompact) els.enableCompact.checked = f.enableAutoCompact;
   if (els.maxRounds) els.maxRounds.value = String(f.maxToolCallRounds);
+  syncPermissionModeUi(f.permissionMode);
   syncMcpVisibility();
   syncCompactVisibility();
   syncPromptVisibility();
@@ -436,6 +447,22 @@ function readFormFromDom() {
   state.form.toolPrompt = els.toolPrompt ? els.toolPrompt.value : '';
   state.form.maxToolCallRounds = Number(els.maxRounds?.value || 25);
   if (!state.form.enableTools) state.form.mcpIds = [];
+  const activePerm = els.permissionMode?.querySelector('[data-permission-mode].active');
+  const permAttr = activePerm?.getAttribute('data-permission-mode');
+  state.form.permissionMode = permAttr === 'open' ? 'open' : 'locked';
+}
+
+function syncPermissionModeUi(mode) {
+  const container = els.permissionMode;
+  if (!container) return;
+  const resolved = mode === 'open' ? 'open' : 'locked';
+  container.querySelectorAll('[data-permission-mode]').forEach((btn) => {
+    const active = btn.getAttribute('data-permission-mode') === resolved;
+    btn.classList.toggle('active', active);
+  });
+  if (els.permissionFootnote) {
+    els.permissionFootnote.textContent = IM_PERMISSION_FOOTNOTES[resolved] ?? '';
+  }
 }
 
 function markSavedBaseline() {
@@ -633,6 +660,7 @@ function buildPayload() {
     mcpServerIds: f.enableTools ? [...f.mcpIds] : [],
     toolPrompt: f.toolPrompt.trim() ? f.toolPrompt.trim() : null,
     maxToolCallRounds: Math.floor(rounds),
+    permissionMode: f.permissionMode === 'open' ? 'open' : 'locked',
     temperature: f.temperature !== '' && f.temperature != null ? Number(f.temperature) : null,
     maxTokens: f.maxTokens !== '' && f.maxTokens != null ? Number(f.maxTokens) : null
   };
@@ -740,6 +768,16 @@ function bindFormListeners() {
     onPromptsToggle();
   });
   els.vendor?.addEventListener('change', onVendorChange);
+
+  els.permissionMode?.querySelectorAll('[data-permission-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const mode = btn.getAttribute('data-permission-mode');
+      if (mode !== 'open' && mode !== 'locked') return;
+      syncPermissionModeUi(mode);
+      readFormFromDom();
+      onFormInput();
+    });
+  });
 
   document.getElementById('btn-mcp-all')?.addEventListener('click', () => {
     setMcpSelection(state.mcpServers.map((s) => s.id));

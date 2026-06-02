@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>渠道管理</title>
-  <script type="module" crossorigin src="/assets/admin-DG0OdUZa.js"></script>
+  <script type="module" crossorigin src="/assets/admin-faNbLWJC.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/navbar-B50aCHnt.js">
   <link rel="stylesheet" crossorigin href="/assets/navbar-DDaLc_Td.css">
-  <link rel="stylesheet" crossorigin href="/assets/admin-CU6X5r6g.css">
+  <link rel="stylesheet" crossorigin href="/assets/admin-p02ja2Oc.css">
 </head>
 <body class="admin-page m-0 min-h-screen text-sm leading-normal text-[var(--color-text)] bg-[var(--color-page-bg)] font-sans antialiased">
     <div id="app" class="admin-shell mx-auto max-w-7xl px-5 py-4 md:px-6 md:py-5">
@@ -148,6 +148,15 @@
                                     <div id="prompt-panel" class="behavior-block-body mt-2 hidden">
                                         <textarea id="fld-tool-prompt" rows="3" class="field-input field-input--textarea" placeholder="可选"></textarea>
                                     </div>
+                                </div>
+
+                                <div class="behavior-block rounded-md border border-[#eee] bg-[#fafafa] p-3">
+                                    <div class="mb-2 text-[13px] font-medium">工具执行方式</div>
+                                    <div class="admin-segmented" id="fld-permission-mode" role="group" aria-label="工具执行方式">
+                                        <button type="button" class="admin-seg-btn active" data-permission-mode="open">自动</button>
+                                        <button type="button" class="admin-seg-btn" data-permission-mode="locked">只读</button>
+                                    </div>
+                                    <p id="fld-permission-footnote" class="admin-permission-footnote" role="status"></p>
                                 </div>
 
                                 <div class="behavior-row grid gap-3 min-[720px]:grid-cols-[minmax(0,1fr)_160px] min-[720px]:items-start">

@@ -187,7 +187,7 @@ P3-* 可在 P1 完成后按需启动
 
 - [ ] 上下文压缩三层策略可用
 - [ ] 三类错误自动恢复（continuation / compact / backoff）
-- [ ] 工具权限 ask/deny/allow 管道
+- [x] 工具权限 ask/deny/allow 管道（P1-03，2026-06-02）
 - [ ] System Prompt 分段 Builder
 
 ### M3 — MCP 平台完整（P2 完成）
