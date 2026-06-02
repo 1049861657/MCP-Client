@@ -219,6 +219,7 @@ export async function persistLargeOutput(toolUseId: string, output: string): Pro
     `<persisted-output>\n` +
     `输出过大（${output.length} 字符），完整内容已保存至：${filePath}${ttlHint}\n` +
     `预览（前 ${ContextConfig.persistPreviewChars} 字符）：\n${preview}\n` +
+    `续读请调用工具 read_persisted_output（path 可用 tool_call_id 或上述路径；大文件用 offset/limit 分页）。\n` +
     `</persisted-output>`
   );
 }

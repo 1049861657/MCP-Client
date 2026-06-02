@@ -39,9 +39,10 @@ import { AIProvider } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';
 import { verifyToolArguments as verifyToolArgumentsImpl } from '../core/agent-harness/tool-validation.js';
 import {
-  buildSystemToolsPromptHint,
-  getSystemToolSchemas
-} from '../core/agent-harness/system-tools/system-tool-registry.js';
+  applyPromptPipelineToMessages,
+  type PromptPipelineOptions
+} from '../core/agent-harness/prompt-pipeline.js';
+import { getSystemToolSchemas } from '../core/agent-harness/system-tools/system-tool-registry.js';
 
 /**
  * AI 提供商客户端（Provider 层：模型 I/O + 流式解析，OpenAI SDK 兼容 Chat Completions）
@@ -184,6 +185,14 @@ export class AiProvider {
    * @param enablePrompts 是否启用提示词
    * @returns 格式化后的消息数组
    */
+  private buildPromptPipelineOptions(
+    enableTools: boolean,
+    enablePrompts: boolean,
+    resolvedProfile?: ResolvedChatProfile
+  ): PromptPipelineOptions {
+    return { enableTools, enablePrompts, resolvedProfile };
+  }
+
   private async formatMessages(
     message: string | InternalMessage[],
     enableTools: boolean = false,
@@ -193,47 +202,11 @@ export class AiProvider {
     const messages: InternalMessage[] = typeof message === 'string'
       ? [{ role: 'user', content: message, _source: 'user' }]
       : [...message];
-    
-    // 启用工具时，将 MCP 服务端 instructions 与用户配置的提示词合并注入 system message
-    if (enableTools) {
-      const hasSystemMessage = messages.some(msg => msg.role === 'system');
 
-      if (!hasSystemMessage) {
-        const parts: string[] = [];
-
-        // 工具提示词：渠道 Profile 独立配置；无 Profile 时回退 Web Setting
-        if (enablePrompts) {
-          let toolPrompStr = '';
-          if (resolvedProfile) {
-            toolPrompStr = resolvedProfile.toolPrompt.trim();
-          } else {
-            const toolPromp = await ConfigService.getSetting('mcpToolPrompt');
-            toolPrompStr = String(toolPromp ?? '').trim();
-          }
-          if (toolPrompStr) parts.push(toolPrompStr);
-        }
-
-        // MCP 官方 instructions：与工具列表同源（resolvedProfile.mcpServerIds）
-        const serverInstructions = mcpClient
-          .getInstructions(resolvedProfile?.mcpServerIds)
-          .trim();
-        if (serverInstructions) parts.push(serverInstructions);
-
-        if (ToolsConfig.enableSystemTools) {
-          parts.push(buildSystemToolsPromptHint());
-        }
-
-        if (parts.length > 0) {
-          messages.unshift({
-            role: 'system',
-            content: parts.join('\n\n'),
-            _source: 'system'
-          });
-        }
-      }
-    }
-    
-    return messages;
+    return applyPromptPipelineToMessages(
+      messages,
+      this.buildPromptPipelineOptions(enableTools, enablePrompts, resolvedProfile)
+    );
   }
   
   /**

@@ -159,31 +159,35 @@
 
 > 参考：[s10 Prompt Pipeline](https://learn.shareai.run/zh/s10/)
 
-**背景**：当前 `formatMessages()` 将 `mcpToolPrompt` + 各服 `instructions` 简单拼接，无分段、无动态/静态边界。
+**背景**：原 `formatMessages()` 将 `mcpToolPrompt` + 各服 `instructions` 简单拼接，无分段。网关场景不注入日期/cwd/权限模式类「动态环境」（执行由 `permission-gate` 负责；P3 计划/Todo 等再走 `_source: reminder`）。
 
 ### 分段结构
 
 ```
-core + tools + skills_catalog + memory + project_rules + dynamic(date/cwd/mode)
+core + tools + skills_catalog + memory + project_rules
 ```
 
 ### 任务
 
-- [ ] **P1-04-01** 新建 `src/core/agent-harness/prompt-pipeline.ts` — `SystemPromptBuilder`  
-  - 涉及：新建模块；从 `openai.ts` `formatMessages` 抽出  
-  - 验收：每段独立 `_buildXxx()` 方法
+- [x] **P1-04-01** 新建 `src/core/agent-harness/prompt-pipeline.ts` — `SystemPromptBuilder`  
+  - 涉及：新建模块；从 `ai-provider.ts` `formatMessages` 抽出  
+  - 验收：每段独立 `_buildXxx()` 方法  
+  - 完成日期：2026-06-02
 
-- [ ] **P1-04-02** 动态段与稳定段分离；reminder 不进 system prompt  
+- [x] **P1-04-02** 稳定段进 system；`_source: reminder` 用户消息不并入 system  
   - 涉及：`prompt-pipeline.ts`  
-  - 验收：每轮 reminder 作为独立 user 块注入
+  - 验收：不注入日期/cwd/权限模式流水线 reminder（已移除动态环境段）  
+  - 完成日期：2026-06-02；2026-06-02 精简：去掉动态环境注入
 
-- [ ] **P1-04-03** MCP instructions 按启用工具的服务器过滤注入（已有逻辑迁移）  
+- [x] **P1-04-03** MCP instructions 按启用工具的服务器过滤注入（已有逻辑迁移）  
   - 涉及：`prompt-pipeline.ts`、`client.ts`  
-  - 验收：禁用服务器的 instructions 不出现
+  - 验收：禁用服务器的 instructions 不出现  
+  - 完成日期：2026-06-02
 
-- [ ] **P1-04-04** settings 页分段预览（可选）  
+- [x] **P1-04-04** settings 页分段预览（可选）  
   - 涉及：`public/settings.html`、`settings.js`  
-  - 验收：用户可见最终 prompt 各段来源
+  - 验收：用户可见最终 prompt 各段来源  
+  - 完成日期：2026-06-02（聊天页「编辑工具提示词」弹窗 + `GET /api/settings/system-prompt-sections`）
 
 ---
 

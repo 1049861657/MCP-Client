@@ -29,6 +29,7 @@ router.get('/settings/provider-types', SettingsController.getProviderTypes);
 router.post('/settings/providers/reload', SettingsController.reloadProviders);
 router.get('/settings/tool-prompt', SettingsController.getToolPrompt);
 router.post('/settings/tool-prompt', SettingsController.saveToolPrompt);
+router.get('/settings/system-prompt-sections', SettingsController.getSystemPromptSections);
 
 // MCP信息路由
 router.get('/info', InfoController.getInfo);

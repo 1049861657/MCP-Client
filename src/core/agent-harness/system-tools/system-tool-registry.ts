@@ -30,8 +30,10 @@ const REGISTRY: SystemToolEntry[] = [
     codeName: READ_PERSISTED_OUTPUT_CODE_NAME,
     outputPolicy: 'slice_only',
     description:
-      '读取此前落盘的大 tool 输出。含 <persisted-output> 时 path 传 tool_call_id 或落盘路径；' +
-      '大文件默认 PARTIAL 预览，续读请传 offset/limit 分页。',
+      '读取 agentOutputs 中落盘的大段 tool 输出（Harness 超阈自动落盘）。' +
+      '当且仅当某次 tool 结果含 <persisted-output> 且需要完整内容或更多行时调用；' +
+      '无该标签或预览已够回答用户时不要调用。' +
+      'path 为 tool_call_id、文件名或落盘消息中的路径；大文件先不传 offset/limit 得 PARTIAL，续读用 1-based 的 offset/limit 分页。',
     parameters: readPersistedOutputSchema,
     execute: (args, _ctx) => executeReadPersistedOutput(args)
   }
@@ -70,12 +72,4 @@ export async function executeSystemTool(
   }
 
   return entry.execute(args, ctx);
-}
-
-/** 系统 prompt 补充：落盘读回说明 */
-export function buildSystemToolsPromptHint(): string {
-  return (
-    '当 tool 结果出现 <persisted-output> 时，用 read_persisted_output 读取；' +
-    '大文件默认只返回 PARTIAL 预览，需 offset/limit 分页续读。'
-  );
 }

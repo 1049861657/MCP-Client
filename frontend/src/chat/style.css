@@ -1694,4 +1694,230 @@
   .settings-footer-note {
     @apply text-xs text-[var(--color-text-light)];
   }
+
+  .prompts-modal-panel {
+    @apply flex max-h-[min(88vh,680px)] flex-col overflow-hidden;
+  }
+
+  .prompts-modal-scroll {
+    @apply min-h-0 flex-1 overflow-y-auto px-4 py-4;
+  }
+
+  .prompts-modal-footer {
+    @apply m-0 shrink-0 border-t border-[var(--color-border)] bg-[#f8fafc] px-4 py-3;
+  }
+
+  .prompts-editor-section {
+    @apply mb-4;
+  }
+
+  .prompts-field-label {
+    @apply mb-1 block text-sm font-semibold text-[var(--color-text)];
+  }
+
+  .prompts-field-hint {
+    @apply mb-2.5 text-xs leading-relaxed text-[var(--color-text-muted)];
+  }
+
+  .prompts-textarea {
+    @apply mt-0 min-h-[160px] max-h-[280px] resize-y;
+  }
+
+  .prompt-assembled-preview {
+    @apply mb-3 rounded-lg border border-[rgb(25_118_210/0.22)] bg-[#f0f7ff];
+  }
+
+  .prompt-assembled-preview.is-disabled,
+  .prompt-assembled-preview.is-empty {
+    @apply border-[rgb(15_23_42/0.08)] bg-[#f8fafc];
+  }
+
+  .prompt-assembled-header {
+    @apply flex flex-wrap items-center gap-2 px-3 py-2;
+  }
+
+  .prompt-assembled-preview:not(.is-collapsed) .prompt-assembled-header {
+    @apply border-b border-[rgb(25_118_210/0.12)];
+  }
+
+  .prompt-assembled-title {
+    @apply m-0 flex-1 text-[13px] font-semibold text-[var(--color-text)];
+  }
+
+  .prompt-assembled-status {
+    @apply h-2 w-2 shrink-0 rounded-full;
+  }
+
+  .prompt-assembled-status--loading {
+    @apply animate-pulse bg-[rgb(25_118_210/0.35)];
+  }
+
+  .prompt-assembled-status--idle {
+    @apply bg-[rgb(15_23_42/0.18)];
+  }
+
+  .prompt-assembled-status--off {
+    @apply border border-[rgb(15_23_42/0.2)] bg-transparent;
+  }
+
+  .prompt-assembled-status--ready {
+    @apply hidden;
+  }
+
+  .prompt-assembled-status--error {
+    @apply bg-red-400;
+  }
+
+  .prompt-assembled-meta {
+    @apply m-0 text-xs text-[var(--color-text-muted)];
+  }
+
+  .prompt-assembled-preview.is-collapsed .prompt-assembled-meta {
+    @apply hidden;
+  }
+
+  .prompt-assembled-collapsible {
+    @apply block;
+  }
+
+  .prompt-assembled-preview.is-collapsed .prompt-assembled-collapsible {
+    @apply hidden;
+  }
+
+  .prompt-assembled-body {
+    @apply m-0 max-h-[240px] overflow-y-auto whitespace-pre-wrap break-words px-3 py-2.5 font-mono text-xs leading-relaxed text-[var(--color-text)];
+  }
+
+  .prompt-assembled-body.is-loading {
+    @apply mx-3 my-2.5 min-h-[2rem] animate-pulse rounded bg-[rgb(15_23_42/0.06)];
+  }
+
+  .prompt-assembled-footnote {
+    @apply m-0 border-t border-[rgb(25_118_210/0.1)] px-3 py-2 text-[11px] leading-relaxed text-[var(--color-text-light)];
+  }
+
+  .prompt-assembled-footnote code {
+    @apply rounded bg-white/80 px-1 py-0.5 font-mono text-[10px];
+  }
+
+  .prompt-sections-preview {
+    @apply rounded-lg border border-[rgb(15_23_42/0.08)] bg-[#f8fafc];
+  }
+
+  .prompt-sections-summary {
+    @apply flex cursor-pointer list-none flex-col gap-0.5 px-3 py-2.5 text-left marker:content-none;
+  }
+
+  .prompt-sections-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .prompt-sections-summary::before {
+    content: '';
+    @apply hidden;
+  }
+
+  .prompt-sections-summary-text {
+    @apply text-[13px] font-semibold text-[var(--color-brand)];
+  }
+
+  .prompt-sections-summary-text::before {
+    content: '▸ ';
+    @apply inline-block text-[var(--color-text-muted)] transition-transform duration-150;
+  }
+
+  .prompt-sections-preview[open] .prompt-sections-summary-text::before {
+    content: '▾ ';
+  }
+
+  .prompt-sections-summary-hint {
+    @apply text-xs text-[var(--color-text-light)];
+  }
+
+  .prompt-sections-list {
+    @apply flex flex-col gap-1.5 border-t border-[rgb(15_23_42/0.06)] px-2 pb-2 pt-1.5;
+  }
+
+  .prompt-sections-list.is-loading {
+    @apply px-3 py-3;
+  }
+
+  .prompt-sections-list.is-loading::before {
+    content: '';
+    @apply mx-auto block h-2 w-8 animate-pulse rounded-full bg-[rgb(15_23_42/0.1)];
+  }
+
+  .prompt-sections-list.is-empty {
+    @apply hidden;
+  }
+
+  .prompt-sections-list.is-error::before {
+    content: '';
+    @apply mx-auto block h-2 w-2 rounded-full bg-[rgb(220_38_38/0.45)];
+  }
+
+  .prompt-sections-list.is-error {
+    @apply px-3 py-3;
+  }
+
+  .prompt-section-item {
+    @apply overflow-hidden rounded-md border border-[rgb(15_23_42/0.06)] bg-white;
+  }
+
+  .prompt-section-row {
+    @apply flex items-center justify-between gap-2 rounded-md border border-dashed border-[rgb(15_23_42/0.1)] bg-white/60 px-2.5 py-2;
+  }
+
+  .prompt-section-row-main {
+    @apply flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5;
+  }
+
+  .prompt-section-row-label {
+    @apply text-[13px] text-[var(--color-text-muted)];
+  }
+
+  .prompt-section-row-hint {
+    @apply text-[11px] text-[var(--color-text-light)];
+  }
+
+  .prompt-section-indicator {
+    @apply h-2 w-2 shrink-0 rounded-full;
+  }
+
+  .prompt-section-indicator--idle {
+    @apply border border-[rgb(15_23_42/0.2)] bg-transparent;
+  }
+
+  .prompt-section-indicator--filled {
+    @apply bg-[var(--color-brand)];
+  }
+
+  .prompt-section-indicator--skipped {
+    @apply border border-amber-400 bg-amber-100;
+  }
+
+  .prompt-section-item > summary {
+    @apply flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 marker:content-none;
+  }
+
+  .prompt-section-item > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .prompt-section-item-label {
+    @apply min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--color-text)];
+  }
+
+  .prompt-section-item-body {
+    @apply border-t border-[rgb(15_23_42/0.05)] px-2.5 pb-2 pt-1;
+  }
+
+  .prompt-section-source {
+    @apply mb-1.5 text-[11px] text-[var(--color-text-light)];
+  }
+
+  .prompt-section-content {
+    @apply m-0 max-h-[140px] overflow-y-auto whitespace-pre-wrap break-words rounded bg-[#f1f5f9] p-2 text-xs leading-relaxed text-[var(--color-text)];
+  }
+
 }

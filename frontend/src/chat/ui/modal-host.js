@@ -229,8 +229,8 @@ const MODALS_HTML = `
 
               <div class="settings-item">
                 <div class="settings-item-text">
-                  <div class="settings-item-title">系统提示词</div>
-                  <div class="settings-item-hint">注入 Agent 系统级指令</div>
+                  <div class="settings-item-title">用户提示词</div>
+                  <div class="settings-item-hint">开启后才会把本页编辑的提示词发给模型</div>
                 </div>
                 <button type="button" class="settings-toggle on" id="settings-toggle-prompts" aria-pressed="true"></button>
               </div>
@@ -516,20 +516,50 @@ const MODALS_HTML = `
 </div>
 
 <div id="prompts-modal" class="chat-modal hidden" aria-hidden="true">
-  <div class="chat-modal-panel chat-modal-panel-wide">
+  <div class="chat-modal-panel chat-modal-panel-wide prompts-modal-panel">
     <div class="chat-modal-header">
-      <h2 class="chat-modal-title">编辑工具提示词</h2>
+      <h2 class="chat-modal-title">编辑用户提示词</h2>
       <button type="button" class="chat-modal-close" data-close-modal="prompts-modal" aria-label="关闭">&times;</button>
     </div>
-    <div class="chat-modal-body">
-      <label class="chat-field">提示词内容
-        <textarea id="tool-prompt-content" class="chat-input chat-code-area" rows="16"></textarea>
-      </label>
-      <div class="chat-modal-footer">
-        <button type="button" id="prompt-cancel" class="btn-secondary">取消</button>
-        <button type="button" id="prompt-save" class="btn-primary">保存</button>
-      </div>
+    <div class="prompts-modal-scroll">
+      <section class="prompts-editor-section">
+        <label class="prompts-field-label" for="tool-prompt-content">提示词内容</label>
+        <p class="prompts-field-hint">可选。不填则只使用各连接服务自带的服务提示词。</p>
+        <textarea
+          id="tool-prompt-content"
+          class="chat-input chat-code-area prompts-textarea"
+          rows="8"
+          placeholder="如：调用前先说明步骤；敏感操作先确认"
+        ></textarea>
+      </section>
+      <section id="prompt-assembled-preview" class="prompt-assembled-preview is-collapsed" aria-live="polite">
+        <div class="prompt-assembled-header">
+          <h3 class="prompt-assembled-title">实际提示词</h3>
+          <span
+            id="prompt-assembled-status"
+            class="prompt-assembled-status"
+            role="status"
+            aria-label="暂无提示词"
+          ></span>
+          <p id="prompt-assembled-meta" class="prompt-assembled-meta"></p>
+        </div>
+        <div id="prompt-assembled-collapsible" class="prompt-assembled-collapsible">
+          <pre id="prompt-assembled-body" class="prompt-assembled-body"></pre>
+          <p class="prompt-assembled-footnote">为合并后的正文；不含聊天记录与工具列表。</p>
+        </div>
+      </section>
+      <details id="prompt-sections-preview" class="prompt-sections-preview">
+        <summary class="prompt-sections-summary">
+          <span class="prompt-sections-summary-text">提示词组成</span>
+          <span class="prompt-sections-summary-hint">未填写的段不会发给模型</span>
+        </summary>
+        <div id="prompt-sections-list" class="prompt-sections-list" aria-live="polite"></div>
+      </details>
     </div>
+    <footer class="chat-modal-footer prompts-modal-footer">
+      <button type="button" id="prompt-cancel" class="btn-secondary">取消</button>
+      <button type="button" id="prompt-save" class="btn-primary">保存</button>
+    </footer>
   </div>
 </div>
 `;

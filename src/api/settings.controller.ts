@@ -5,6 +5,11 @@ import { ProviderTypes } from '../config/app.config.js';
 import { reloadAiProviders } from '../providers/ai-providers.js';
 import { ConfigService } from '../services/config.service.js';
 import { ToolsConfig } from '../config/feature-config.js';
+import {
+  buildAssembledSystemPreview,
+  buildSystemPromptSectionPreviews,
+  type PromptPipelineOptions
+} from '../core/agent-harness/prompt-pipeline.js';
 
 /**
  * 配置管理控制器
@@ -120,6 +125,64 @@ export class SettingsController {
   /**
    * 保存工具提示词
    */
+  /**
+   * System Prompt 分段预览（P1-04-04）
+   */
+  static async getSystemPromptSections(req: Request, res: Response): Promise<void> {
+    try {
+      const enableTools = req.query.enableTools !== 'false';
+      const enablePrompts =
+        req.query.enablePrompts !== 'false' && ToolsConfig.enablePrompts;
+      const mcpServerIdsRaw = req.query.mcpServerIds;
+      const mcpServerIds =
+        typeof mcpServerIdsRaw === 'string' && mcpServerIdsRaw.length > 0
+          ? mcpServerIdsRaw.split(',').map(s => s.trim()).filter(Boolean)
+          : undefined;
+      const toolPromptOverride =
+        typeof req.query.toolPrompt === 'string'
+          ? req.query.toolPrompt
+          : undefined;
+      const storedToolPrompt = String(
+        (await ConfigService.getSetting('mcpToolPrompt')) ?? ''
+      );
+
+      const options: PromptPipelineOptions = {
+        enableTools,
+        enablePrompts,
+        toolPromptOverride,
+        resolvedProfile:
+          mcpServerIds && mcpServerIds.length > 0
+            ? {
+                profileId: 'preview',
+                enableTools: true,
+                enableParamValidation: ToolsConfig.enableParamValidation,
+                enablePrompts,
+                maxToolCallRounds: ToolsConfig.maxToolCallRounds,
+                enableAutoCompact: false,
+                model: '',
+                temperature: 0,
+                maxTokens: 0,
+                mcpServerIds,
+                toolPrompt: toolPromptOverride ?? storedToolPrompt,
+                permissionMode: 'open'
+              }
+            : undefined
+      };
+
+      const [sections, assembled] = await Promise.all([
+        buildSystemPromptSectionPreviews(options),
+        buildAssembledSystemPreview(options)
+      ]);
+      res.json({ success: true, sections, assembled });
+    } catch (error: unknown) {
+      Logger.error('SETTINGS', '获取 System Prompt 分段预览失败:', error);
+      res.status(500).json({
+        error: '获取分段预览失败',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
   static async saveToolPrompt(req: Request, res: Response): Promise<void> {
       try {
         const { prompt } = req.body;
