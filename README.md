@@ -1,117 +1,131 @@
-# MCP Client（TypeScript + Web UI）
+# MCP Client
 
-基于 Model Context Protocol (MCP) 的 AI 工具调用客户端，支持多模型、多服务器连接，提供完整的 Web 聊天界面。
+基于 Model Context Protocol (MCP) 的 AI 工具调用客户端：连接多个 MCP 服务器与 OpenAI 兼容模型，提供 Web 聊天界面，并支持钉钉、飞书等 IM 渠道接入。
 
-## 什么是 MCP
+## Quick Start
 
-MCP（Model Context Protocol）是一个开放协议，标准化了大型语言模型与外部工具的交互方式：
+### 前置依赖
 
-- **工具发现**：模型动态发现可用工具及其参数定义
-- **标准化调用**：统一的工具调用接口与数据格式
-- **进度通知**：长耗时工具可通过 `notifications/progress` 实时推送执行进度
-- **传输层灵活**：支持 stdio（本地进程）与 Streamable HTTP（远程服务）
+- **Node.js** 20+ 与 [pnpm](https://pnpm.io/)
+- **Redis**：消息总线（BullMQ）依赖 `REDIS_URL`，未配置时进程启动失败
+- **SQLite**：由 Prisma 管理，默认数据库路径见 `.env.example`
 
-## 核心功能
-
-- **多服务器管理**：同时连接多个 MCP 服务器，自动发现并聚合所有工具
-- **多模型接入**：兼容 OpenAI、DeepSeek 等标准 OpenAI API 格式的模型
-- **流式对话**：SSE 实时推送 AI 响应与工具调用过程
-- **工具调用可视化**：展示工具名称、参数、执行结果及耗时
-- **子 Agent 进度面板**：对长耗时子 Agent 工具，实时展示每步执行情况及单步耗时
-- **超时自适应**：长耗时工具收到进度通知后自动重置计时，避免单步超时打断
-- **参数智能验证**：调用前自动通过 `getApiDetails` 核验必填参数
-- **配置持久化**：基于 SQLite（Prisma）存储服务器配置、模型配置及系统设置
-
-## 项目结构
-
-```
-MCP-Client/
-├── src/              # 后端源码（API / MCP 客户端核心 / 模型服务 / 配置）
-├── frontend/         # Web UI 源码（Vite MPA + Tailwind v4）
-│   ├── shared/       # 设计 token、navbar、fetch-json、ui primitives
-│   ├── admin/        # 渠道管理（已迁移）
-│   └── landing/      # 首页（T3 迁移中）
-├── public/           # Express 静态托管（含 Vite 构建产物）
-├── prisma/           # 数据库 Schema
-└── dist/             # 后端编译产物
-```
-
-## 安装与运行
-
-推荐使用 [pnpm](https://pnpm.io/)：
+### 安装与启动
 
 ```bash
+cp .env.example .env
+# Windows: copy .env.example .env
 
-# 安装依赖
 pnpm install
-
-# 初始化数据库
-pnpm exec prisma migrate deploy
-
-# 构建并启动
+pnpm db:migrate
 pnpm start
 ```
 
-应用默认在 `http://localhost:3000` 启动。
+`pnpm start` 会执行完整构建（后端 TypeScript + 前端 Vite）并启动服务。若已构建，可单独运行 `pnpm run server`。
 
-## 页面说明
+启动成功后访问 **http://localhost:3000**（默认端口 3000，可在配置管理中修改）。首页可进入 AI 对话；访问 `/info.html` 可查看 MCP 服务器与工具列表。
 
-### AI 聊天（ai.html）
+## 功能
 
-- 选择 AI 提供商与模型，发起对话
-- 流式展示 AI 响应与工具调用过程
-- 工具调用卡片显示参数、耗时、token 用量
-- 支持 `supportsProgress` 的子 Agent 工具显示实时进度面板（步骤时间线 + 工具 chip）
+- **多服务器管理**：同时连接多个 MCP 服务器，自动发现并聚合工具
+- **多模型接入**：兼容 OpenAI API 格式的提供商（API Key、Base URL、模型名可配置）
+- **流式对话**：SSE 实时推送 AI 响应与工具调用过程
+- **工具调用可视化**：展示工具名称、参数、执行结果、耗时与 token 用量
+- **子 Agent 进度**：对声明 `supportsProgress` 的长耗时工具，展示步骤时间线与单步耗时
+- **超时自适应**：默认单步工具超时 60s；收到进度通知后自动重置计时
+- **参数校验**：可选在调用前通过 `getApiDetails` 核验必填参数
+- **配置持久化**：SQLite（Prisma）存储 MCP 服务器、模型与系统设置
+- **IM 渠道**：可选接入钉钉、飞书；通过 Admin API 管理渠道 Profile 与路由
 
-### 服务器信息（info.html）
+## 背景：MCP
+
+MCP（Model Context Protocol）是标准化大模型与外部工具交互的开放协议：
+
+- **工具发现**：模型动态发现可用工具及参数定义
+- **标准化调用**：统一的工具调用接口与数据格式
+- **进度通知**：长耗时工具可通过 `notifications/progress` 推送执行进度
+- **传输灵活**：支持 stdio（本地进程）与 Streamable HTTP（远程服务）
+
+## 架构概览
+
+```
+MCP-Client/
+├── src/              # 后端：API、Agent Harness、MCP 客户端、渠道适配、消息总线
+├── frontend/         # Web UI 源码（Vite MPA + Tailwind v4）
+├── public/           # Express 静态托管（含 Vite 构建产物）
+├── prisma/           # 数据库 Schema 与迁移
+└── dist/             # 后端编译产物
+```
+
+## 使用说明
+
+### 首页（`/` 或 `index.html`）
+
+- 产品概览与快捷入口（AI 对话、服务状态）
+
+### AI 聊天（`ai.html`）
+
+- 选择提供商与模型，发起流式对话
+- 工具调用卡片展示参数、耗时与 token
+- 支持 `supportsProgress` 的子 Agent 工具显示实时进度面板
+
+### 服务器信息（`info.html`）
 
 - 查看已连接的 MCP 服务器状态
-- 浏览所有可用工具及其参数定义
+- 浏览可用工具及参数定义
 
-### 配置管理（settings.html）
+### 配置管理（`settings.html`）
 
 - 管理 AI 提供商与模型
-- 配置 MCP 服务器连接（stdio / HTTP）
-- 设置系统参数（System Prompt、快捷消息等）
+- 配置 MCP 服务器（stdio / HTTP）
+- 系统参数（System Prompt、快捷消息等）
 
-### 渠道管理（/admin）
+### 渠道管理（`admin.html`）
 
-- 配置钉钉、飞书等 IM 渠道的默认模型与 MCP 工具（需 `ADMIN_API_TOKEN`）
-- 与 AI 聊天页分离：聊天偏好存浏览器 `localStorage`，IM 能力存 AgentProfile
+- 配置钉钉、飞书等渠道的默认模型与 MCP 工具（需 `ADMIN_API_TOKEN`）
+- 聊天页偏好存浏览器 `localStorage`；IM 渠道能力存 AgentProfile
 
-## 环境变量
+## 配置
+
+### 环境变量
 
 | 变量 | 用途 |
 |------|------|
-| `ADMIN_API_TOKEN` | 渠道管理 Admin API 鉴权（请求头 `X-Admin-Token`） |
-| `DATABASE_URL` | SQLite 数据库路径 |
-| `REDIS_URL` | 消息总线（BullMQ） |
+| `DATABASE_URL` | Prisma SQLite 路径 |
+| `REDIS_URL` | 消息总线（必填） |
+| `ADMIN_API_TOKEN` | Admin API 鉴权（请求头 `X-Admin-Token`） |
+| `INBOUND_WORKER_CONCURRENCY` | Inbound Worker 并发数（可选，默认 5） |
+| `FEISHU_APP_ID` / `FEISHU_APP_SECRET` | 飞书渠道（未配置则不启动） |
+| `FEISHU_DOMAIN` | 国际 Lark 租户设为 `lark`（可选） |
+| `DINGTALK_CLIENT_ID` / `DINGTALK_CLIENT_SECRET` | 钉钉渠道（未配置则不启动） |
 
-Admin API（`/api/admin/*`）与公开聊天 API（`/api/chat/*`）分离：前者改 Profile/Route，后者仅处理终端用户对话。
+完整示例与说明见 [`.env.example`](./.env.example)。
 
-## 工具超时机制
+Admin API（`/api/admin/*`）与公开聊天 API（`/api/chat/*`）分离：前者管理 Profile/Route，后者处理终端用户对话。
 
-- 默认单步超时 60s
-- 声明 `supportsProgress` 的工具收到进度通知后自动重置计时，支持长耗时任务
-
-## 子 Agent 进度协议
-
-针对服务端子 Agent 循环执行的长耗时工具，服务端需：
-
-1. 在 `getApiDetails` 响应中声明对应 API 的 `supportsProgress: true`
-2. 通过 MCP 标准的 `notifications/progress` 推送进度（`progress` / `total` / `message`）
-3. 以 `progress === total` 作为完成信号
-
-客户端会自动启用对应的进度处理，并在 UI 中展示步骤时间线与单步耗时。
-
-## 扩展开发
+## 扩展与集成
 
 ### 接入新的 AI 模型
 
-在配置管理页面添加 AI 提供商，填写 API Key、Base URL 及模型名称（兼容 OpenAI API 格式即可）。
+在配置管理页添加提供商，填写 API Key、Base URL 与模型名称（OpenAI API 兼容即可）。
 
 ### 接入新的 MCP 服务器
 
-在配置管理页面添加服务器配置：
-- **stdio**：填写命令行启动参数
-- **HTTP**：填写服务器 URL 及可选 Headers
+在配置管理页添加服务器：
+
+- **stdio**：命令行启动参数
+- **HTTP**：服务 URL 与可选 Headers
+
+### IM 渠道（钉钉 / 飞书）
+
+在 `.env` 中配置对应应用凭证后重启服务；在 `admin.html` 中通过 Admin API 维护 Profile 与路由规则。
+
+### 长耗时工具与进度协议
+
+若 MCP 服务端提供子 Agent 类长任务工具：
+
+1. 在 `getApiDetails` 响应中声明 `supportsProgress: true`
+2. 通过 `notifications/progress` 推送进度（`progress` / `total` / `message`）
+3. 以 `progress === total` 作为完成信号
+
+客户端会自动启用进度处理并在 UI 展示步骤时间线；收到进度通知后重置单步空闲超时（默认 60s）。
