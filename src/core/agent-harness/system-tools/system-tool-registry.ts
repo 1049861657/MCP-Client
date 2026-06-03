@@ -5,7 +5,7 @@ import {
   readPersistedOutputSchema
 } from './read-persisted-output.js';
 
-/** System 工具输出策略：slice_only 在工具内分页/限幅，仍走统一 persistLargeOutput */
+/** System 工具输出策略：slice_only 在工具内分页/限幅，仍走 materializeToolOutput */
 export type SystemToolOutputPolicy = 'default' | 'slice_only';
 
 export interface SystemToolContext {
@@ -30,10 +30,8 @@ const REGISTRY: SystemToolEntry[] = [
     codeName: READ_PERSISTED_OUTPUT_CODE_NAME,
     outputPolicy: 'slice_only',
     description:
-      '读取 agentOutputs 中落盘的大段 tool 输出（Harness 超阈自动落盘）。' +
-      '当且仅当某次 tool 结果含 <persisted-output> 且需要完整内容或更多行时调用；' +
-      '无该标签或预览已够回答用户时不要调用。' +
-      'path 为 tool_call_id、文件名或落盘消息中的路径；大文件先不传 offset/limit 得 PARTIAL，续读用 1-based 的 offset/limit 分页。',
+      '读取 agentOutputs 落盘文件。仅当 tool 结果为 type=tool_output_artifact 且需全文或更多行时调用。' +
+      'path 为 toolCallId；大文件用 offset/limit（1-based 行号）分页。',
     parameters: readPersistedOutputSchema,
     execute: (args, _ctx) => executeReadPersistedOutput(args)
   }

@@ -53,7 +53,7 @@
 | T2（配置平面+Admin） | 24 | 21 | 88% |
 | T3（前端现代化） | 31 | 31 | 100% |
 | P0 | 19 | 19 | 100% |
-| P1 | 31 | 16 | 52% |
+| P1 | 32 | 17 | 53% |
 | P2 | 21 | 0 | 0% |
 | P3 | 26 | 0 | 0% |
 | Backlog | 24 | 0 | — |
@@ -77,7 +77,7 @@ src/core/agent-harness/     # Harness：agent-loop、tool-call-manager、system-
 src/providers/              # AiProvider、ai-providers（LLM Chat）
 src/api/ai.controller.ts    # 路由 /api/chat/*（T1 瘦身为入队）
 src/core/mcp/               # MCPClientManager、server-connection
-src/mcp-servers/            # echo-mcp、large-json-mcp（独立 MCP 进程）
+src/mcp-servers/            # echo、large-json、studio-product-list（独立 MCP 进程）
 src/types/                  # config.types、mcp.types、api.types
 src/config/feature-config.ts
 frontend/src/settings/      # T3：Settings 页 ESM

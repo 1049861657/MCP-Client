@@ -1,5 +1,20 @@
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
 
+/** P1-01-12：大 tool 输出落盘元数据（Harness / SSE / UI） */
+export const TOOL_OUTPUT_ARTIFACT_TYPE = 'tool_output_artifact' as const;
+
+export interface ToolOutputArtifact {
+  type: typeof TOOL_OUTPUT_ARTIFACT_TYPE;
+  toolCallId: string;
+  bytes: number;
+  filePath: string;
+  createdAt: string;
+}
+
+export interface MessageInternalMeta {
+  artifact?: ToolOutputArtifact;
+}
+
 /** 内部消息来源（Harness 上下文构建 / 审计，不发送给 LLM API） */
 export type MessageSource = 'user' | 'tool' | 'reminder' | 'compact' | 'system' | 'summary';
 
@@ -13,7 +28,7 @@ export type MessageSource = 'user' | 'tool' | 'reminder' | 'compact' | 'system' 
  */
 export interface InternalMessageExtensions {
   _source?: MessageSource;
-  _internal?: unknown;
+  _internal?: MessageInternalMeta;
   _timestamp?: string;
   /** DeepSeek 等 reasoning 模型扩展字段，发送 API 前由 normalizeMessages 保留 */
   reasoning_content?: string;
@@ -70,6 +85,8 @@ export interface ChunkResponse {
     tool_call_id?: string;
     index?: number;
     execution_time?: number;
+    /** P1-01-12：大结果落盘元数据（UI 卡片） */
+    artifact?: ToolOutputArtifact;
   };
   /** 单轮 LLM 完成后的 token 统计（与 tool_call_result 解耦） */
   step_usage?: {
@@ -144,6 +161,8 @@ export interface ToolCallRecord {
     errorMessage?: string;
     interruptReason?: string;
     executionTime?: number;
+    /** P1-01-12：落盘元数据（会话重放写入 _internal） */
+    artifact?: ToolOutputArtifact;
   };
 }
 

@@ -377,6 +377,7 @@ export function createChatApi(deps) {
         jsonData.tool_call_result.index,
         jsonData.tool_call_result.tool_call_id,
         jsonData.tool_call_result.execution_time,
+        jsonData.tool_call_result.artifact ?? null,
       );
     }
 

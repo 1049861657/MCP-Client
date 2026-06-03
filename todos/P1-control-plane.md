@@ -16,8 +16,8 @@
 
 ### 三层策略
 
-1. **大结果落盘**：超阈值写 `.agent-outputs/`，上下文只留 preview；`read_persisted_output` 可读回（P1-01-11）  
-2. **微压缩**：只保留最近 N 个完整 tool_result，旧的改占位  
+1. **大结果落盘**：超阈值写 `.agent-outputs/` + **Artifact stub**（P1-01-12）；`read_persisted_output` 读回（P1-01-11）  
+2. **微压缩**：只保留最近 N 个完整 tool_result，旧的改占位（P1-01-12 后占位含 artifact id）  
 3. **摘要压缩**：整体历史超预算时 LLM 摘要，保留目标/文件/决定/下一步
 
 ### 任务
@@ -90,6 +90,14 @@
   - 涉及：`agent-loop.ts`、`openai.ts`、`context-budget.ts`、`feature-config.ts`；`agent-harness/system-tools/`  
   - 验收：agent 能读回已落盘全文；路径穿越返回明确错误  
   - 完成日期：2026-05-26
+
+- [x] **P1-01-12** Tool Output Artifact（TOA）— 落盘结果一等公民  
+  - 背景：超阈值 tool 输出落盘；**存储（文件 + `_internal.artifact`）与模型视图（短 JSON stub）分离**，避免 2K 预览导致模型不读盘。  
+  - 功能：`materializeToolOutput`；`ToolOutputArtifact` 元数据；`read_persisted_output` 仅认 `type=tool_output_artifact`；`microCompact` / SSE `artifact` 消费元数据。  
+  - 涉及：`context-budget.ts`、`types.ts`、`agent-loop.ts`、`system-tool-registry.ts`、`tool-call-manager.ts`、`frontend` tool-cards  
+  - 验收：超阈值仅 stub 进 messages；`_internal.artifact` 存在；`read_persisted_output({ path: toolCallId })` 可读回；microCompact 占位含 artifact id/bytes  
+  - 非目标：legacy `<persisted-output>`、MCP Resource、PreToolUse `$file`（见 P1-05）  
+  - 完成日期：2026-06-02
 
 ---
 

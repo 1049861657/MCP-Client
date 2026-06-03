@@ -82,7 +82,7 @@ export const ContextConfig = {
   /** 超过此字符数的 tool 输出落盘（对齐 Claude Code ~30K 落盘阈值） */
   persistThresholdChars: 30_000,
 
-  /** 落盘后在消息中保留的 preview 字符数（对齐 Claude Code 2K preview） */
+  /** read_persisted_output 默认 PARTIAL 行预览上限（字符） */
   persistPreviewChars: 2000,
 
   /** 大结果落盘目录（相对项目根） */

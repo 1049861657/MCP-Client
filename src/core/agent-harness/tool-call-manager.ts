@@ -1,7 +1,7 @@
 import { ToolNameCodec } from '../../utils/tool-name-codec.js';
 import { isSystemTool } from './system-tools/system-tool-registry.js';
 import { StreamingToolExecuteFn, StreamingToolScheduler } from './streaming-tool-scheduler.js';
-import { ChunkResponse, ToolCallRecord } from './types.js';
+import { ChunkResponse, ToolCallRecord, ToolOutputArtifact } from './types.js';
 
 function resolveToolCallSource(codeName: string): 'system' | 'mcp' {
   return isSystemTool(codeName) ? 'system' : 'mcp';
@@ -139,12 +139,16 @@ export class ToolCallManager {
     result: unknown,
     error: boolean = false,
     errorMessage?: string,
-    executionTimeMs?: number
+    executionTimeMs?: number,
+    artifact?: ToolOutputArtifact
   ): void {
     const toolCall = this.indexMap.get(globalIndex);
     if (!toolCall) return;
 
     toolCall.result = result;
+    if (artifact && toolCall.meta) {
+      toolCall.meta.artifact = artifact;
+    }
 
     if (toolCall.meta) {
       toolCall.meta.status = error ? 'error' : 'completed';
@@ -174,7 +178,8 @@ export class ToolCallManager {
         error,
         index: globalIndex,
         tool_call_id: toolCall.id,
-        execution_time: toolCall.meta?.executionTime
+        execution_time: toolCall.meta?.executionTime,
+        artifact
       }
     }, false);
   }

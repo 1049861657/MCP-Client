@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-/** 默认条目数：序列化后约 35k+ 字符，可触发 Client 侧 persistLargeOutput（阈值 30000） */
+/** 默认条目数：序列化后约 35k+ 字符，可触发 Client 侧 materializeToolOutput（阈值 30000） */
 const DEFAULT_ITEM_COUNT = 180;
 
 const server = new McpServer({
@@ -45,7 +45,7 @@ server.registerTool(
     const payload = {
       tool: 'largeJson',
       itemCount,
-      charHint: 'intentionally large for persistLargeOutput smoke test',
+      charHint: 'intentionally large for tool output artifact smoke test',
       generatedAt: new Date().toISOString(),
       items
     };

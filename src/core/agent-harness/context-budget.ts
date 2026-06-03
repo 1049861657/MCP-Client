@@ -3,7 +3,52 @@ import { join } from 'node:path';
 
 import { ContextConfig } from '../../config/feature-config.js';
 import { Logger } from '../../utils/logger.js';
-import { InternalMessage } from './types.js';
+import {
+  InternalMessage,
+  TOOL_OUTPUT_ARTIFACT_TYPE,
+  ToolOutputArtifact
+} from './types.js';
+
+export type { ToolOutputArtifact } from './types.js';
+
+const READ_PERSISTED_OUTPUT_TOOL = 'read_persisted_output';
+
+export interface MaterializedToolOutput {
+  content: string;
+  artifact?: ToolOutputArtifact;
+}
+
+function buildArtifactRecord(
+  toolCallId: string,
+  bytes: number,
+  filePath: string
+): ToolOutputArtifact {
+  return {
+    type: TOOL_OUTPUT_ARTIFACT_TYPE,
+    toolCallId,
+    bytes,
+    filePath,
+    createdAt: new Date().toISOString()
+  };
+}
+
+function buildArtifactModelView(artifact: ToolOutputArtifact): string {
+  return JSON.stringify({
+    type: TOOL_OUTPUT_ARTIFACT_TYPE,
+    toolCallId: artifact.toolCallId,
+    bytes: artifact.bytes,
+    readTool: READ_PERSISTED_OUTPUT_TOOL,
+    path: artifact.toolCallId
+  });
+}
+
+function formatMicroCompactPlaceholder(msg: InternalMessage): string {
+  const artifact = msg._internal?.artifact;
+  if (artifact) {
+    return `[tool compacted · artifact ${artifact.toolCallId} · ${artifact.bytes} chars]`;
+  }
+  return '[tool compacted]';
+}
 
 /** 将消息 content 转为可计数字符串 */
 function messageContentAsText(content: InternalMessage['content']): string {
@@ -197,11 +242,14 @@ async function maybeCleanupExpiredAgentOutputs(): Promise<void> {
 }
 
 /**
- * 大工具结果落盘，上下文仅保留 preview（P1-01-02）
+ * 超大 tool 输出：落盘 + Artifact stub（P1-01-12）
  */
-export async function persistLargeOutput(toolUseId: string, output: string): Promise<string> {
+export async function materializeToolOutput(
+  toolUseId: string,
+  output: string
+): Promise<MaterializedToolOutput> {
   if (output.length <= ContextConfig.persistThresholdChars) {
-    return output;
+    return { content: output };
   }
 
   await maybeCleanupExpiredAgentOutputs();
@@ -212,16 +260,11 @@ export async function persistLargeOutput(toolUseId: string, output: string): Pro
   const filePath = join(dir, `${safeId}.txt`);
   await writeFile(filePath, output, 'utf8');
 
-  const ttlDays = ContextConfig.agentOutputsTtlDays;
-  const ttlHint = ttlDays > 0 ? `（保留 ${ttlDays} 天）` : '';
-  const preview = output.slice(0, ContextConfig.persistPreviewChars);
-  return (
-    `<persisted-output>\n` +
-    `输出过大（${output.length} 字符），完整内容已保存至：${filePath}${ttlHint}\n` +
-    `预览（前 ${ContextConfig.persistPreviewChars} 字符）：\n${preview}\n` +
-    `续读请调用工具 read_persisted_output（path 可用 tool_call_id 或上述路径；大文件用 offset/limit 分页）。\n` +
-    `</persisted-output>`
-  );
+  const artifact = buildArtifactRecord(toolUseId, output.length, filePath);
+  return {
+    content: buildArtifactModelView(artifact),
+    artifact
+  };
 }
 
 /** 已手动/自动应用、带 [上下文摘要] 前缀的用户消息 */
@@ -265,7 +308,7 @@ export function microCompact(
     if (msg._source === 'compact') {
       continue;
     }
-    msg.content = '[已压缩的历史工具结果]';
+    msg.content = formatMicroCompactPlaceholder(msg);
     msg._source = 'compact';
   }
 }

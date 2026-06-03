@@ -559,6 +559,14 @@
     @apply border-l-[3px] border-l-[var(--tool-accent)] pl-2.5;
   }
 
+  .tool-artifact-banner {
+    @apply mb-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs leading-relaxed text-amber-950;
+  }
+
+  .tool-artifact-banner code {
+    @apply rounded bg-amber-100/80 px-1 font-mono text-[11px];
+  }
+
   .tool-call-result pre {
     @apply m-0 max-h-[300px] overflow-auto rounded-sm bg-[#f6f8fa] p-2 text-[13px] leading-normal break-words whitespace-pre-wrap;
   }

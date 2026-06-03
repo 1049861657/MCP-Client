@@ -1,6 +1,6 @@
 # MCP-Client Agent Harness 改造总路线图
 
-> 最后更新：2026-06-01  
+> 最后更新：2026-06-02  
 > 定位：从「LLM + MCP 工具网关 + Web UI」升级为「具备控制面的 Agent Client」  
 > 参考文档：章节完整 URL 见 [REFERENCES.md](./REFERENCES.md)
 
@@ -168,7 +168,7 @@ P3-* 可在 P1 完成后按需启动
 | 工具调用 OAuth + 最小权限 | P2-03, P1-03 | AWS MCP Strategies |
 | Workflow-scoped 工具过滤 | P1-06 | AWS：减少 context 占用 |
 | 错误分类 + 有预算重试 | P1-02 | [ShareAI s11 Error Recovery](https://learn.shareai.run/zh/s11/) |
-| 大输出落盘 + preview | P1-01 | [ShareAI s06 Context Compact](https://learn.shareai.run/zh/s06/) |
+| 大输出落盘 + Artifact（stub/可读回） | P1-01（-11/-12） | [ShareAI s06](https://learn.shareai.run/zh/s06/) · 对标 Claude Code 落盘+Read |
 | MCP Resources/Prompts 一等公民 | P2-02 | MCP Spec 2025–2026 |
 | 结构化 tool call 审计日志 | P1-07 | 生产可观测性共识 |
 | Client capabilities 声明 | P2-01 | MCP 握手规范 |

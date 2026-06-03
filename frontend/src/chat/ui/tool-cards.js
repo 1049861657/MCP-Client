@@ -62,6 +62,19 @@ export function createToolCardsUi(getApp, ui) {
   /**
    * @param {HTMLElement} messageDiv
    */
+  function formatArtifactBanner(artifact) {
+    if (!artifact?.toolCallId) {
+      return '';
+    }
+    const kb = (artifact.bytes / 1024).toFixed(1);
+    return (
+      '<p class="tool-artifact-banner">' +
+      `大结果已落盘（约 ${kb} KB）· id <code>${escapeHtml(artifact.toolCallId)}</code> · ` +
+      '模型需 <code>read_persisted_output</code> 读回全文' +
+      '</p>'
+    );
+  }
+
   function updateToolCallResult(
     messageDiv,
     _toolName,
@@ -70,6 +83,7 @@ export function createToolCardsUi(getApp, ui) {
     index = -1,
     toolId = null,
     executionTime = null,
+    artifact = null,
   ) {
     const toolCallElements = messageDiv?.querySelectorAll('.tool-call');
     if (!toolCallElements?.length) {
@@ -100,9 +114,10 @@ export function createToolCardsUi(getApp, ui) {
       resultStr = typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result);
     }
 
+    const artifactBanner = !isError ? formatArtifactBanner(artifact) : '';
     resultDiv.innerHTML = isError
       ? `<strong class="error">错误:</strong><pre class="error-result">${escapeHtml(resultStr)}</pre>`
-      : `<strong>结果:</strong><pre>${escapeHtml(resultStr)}</pre>`;
+      : `${artifactBanner}<strong>结果:</strong><pre>${escapeHtml(resultStr)}</pre>`;
     resultDiv.classList.toggle('error', isError);
 
     const statusDiv = target.querySelector('.tool-call-status');

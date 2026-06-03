@@ -5,8 +5,9 @@ import { logToolCallAudit } from './audit.js';
 import {
   applyContextBeforeLlm,
   isContextSummaryMessage,
-  persistLargeOutput
+  materializeToolOutput
 } from './context-budget.js';
+import type { MessageInternalMeta } from './types.js';
 import {
   buildPartialResults,
   createLoopState,
@@ -40,10 +41,17 @@ import {
   ChunkResponse,
   InternalMessage,
   ToolCallRecord,
+  ToolOutputArtifact,
   ModelResponseResult,
   ChatTool,
   UsageInfo
 } from './types.js';
+
+interface ToolResultPayload {
+  tool_call_id: string;
+  content: string;
+  artifact?: ToolOutputArtifact;
+}
 
 /** Provider 层能力：Harness 通过此接口调用 LLM，不直接依赖 OpenAI 类 */
 export interface AgentLoopProvider {
@@ -152,7 +160,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
 
   const executeOneToolCall = async (
     toolCall: ToolCallRecord
-  ): Promise<{ tool_call_id: string; content: string }> => {
+  ): Promise<ToolResultPayload> => {
     const globalIndex = toolCall.meta?.globalIndex as number;
     const current = toolManager.getToolCall(globalIndex) ?? toolCall;
 
@@ -291,7 +299,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       const resultText = isSystemTool(current.codeName)
         ? (typeof toolResult === 'string' ? toolResult : String(toolResult))
         : provider.formatToolResult(toolResult);
-      const persistedContent = await persistLargeOutput(current.id, resultText);
+      const materialized = await materializeToolOutput(current.id, resultText);
       const durationMs = Date.now() - startedAt;
       logToolCallAudit({
         ...auditBase,
@@ -299,8 +307,19 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         success: true,
         permissionDecision: permissionAudit
       });
-      toolManager.setToolResult(globalIndex, persistedContent, false, undefined, durationMs);
-      return { tool_call_id: current.id, content: persistedContent };
+      toolManager.setToolResult(
+        globalIndex,
+        materialized.content,
+        false,
+        undefined,
+        durationMs,
+        materialized.artifact
+      );
+      return {
+        tool_call_id: current.id,
+        content: materialized.content,
+        artifact: materialized.artifact
+      };
     } catch (error) {
       if (error instanceof Error && (error.name === 'AbortError' || error.name === 'APIUserAbortError')) {
         throw error;
@@ -422,7 +441,8 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       if (current.meta?.status === 'completed' || current.meta?.status === 'error') {
         return {
           tool_call_id: current.id,
-          content: String(current.result ?? current.meta?.errorMessage ?? '')
+          content: String(current.result ?? current.meta?.errorMessage ?? ''),
+          artifact: current.meta?.artifact
         };
       }
 
@@ -430,11 +450,15 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     }));
 
     for (const result of toolResultMessages) {
+      const internal: MessageInternalMeta | undefined = result.artifact
+        ? { artifact: result.artifact }
+        : undefined;
       messages.push({
         role: 'tool',
         content: result.content,
         tool_call_id: result.tool_call_id,
-        _source: 'tool'
+        _source: 'tool',
+        _internal: internal
       });
     }
 
