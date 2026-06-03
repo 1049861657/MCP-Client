@@ -1,20 +1,9 @@
 # MCP-Client Agent Harness 改造总路线图
 
-> 最后更新：2026-06-02  
+> 最后更新：2026-06-03  
 > 定位：从「LLM + MCP 工具网关 + Web UI」升级为「具备控制面的 Agent Client」  
-> 参考文档：章节完整 URL 见 [REFERENCES.md](./REFERENCES.md)
-
-## 零、实现铁律
-
-改造以 **精简、高效** 为基底，以 **先进、高性能、可扩展** 为目标；遵守 `.cursor/rules/main-rule.mdc` 与 roadmap skill。
-
-| 原则 | 做 | 不做 |
-|------|----|------|
-| 一步到位 | 目标架构直接落地，删旧路径 | 双轨、回退开关、渐进迁移残留 |
-| fail-fast | 缺配置/契约显式失败 | 静默兜底、空 catch、假默认值 |
-| 精简高效 | 最小模块与类型，扩展现有落点 | 平行实现、无收益抽象、重复造轮子 |
-| 先进可扩展 | 显式类型与管道契约 | 隐式探测、字符串魔法、推迟目标形态 |
-| 范围 | 仅改验收涉及处 | 超范围重构 |
+> 参考文档：章节完整 URL 见 [REFERENCES.md](./REFERENCES.md)  
+> **进度 SSOT**：各阶段以对应**任务书**勾选为准（`P0-core-harness.md` … `P3-agent-runtime.md`、`T*-*.md`）。§七 里程碑仅为总览，与任务书冲突时**以任务书为准**。
 
 ## 一、现状评估
 
@@ -45,7 +34,7 @@
 
 参考 OpenAI Agents SDK、GitHub Copilot Agent Mode、AWS MCP Prescriptive Guidance 的共识。
 
-**T1 已落地**：流式聊天经渠道层 + Inbound Queue（BullMQ/Redis），Harness 仍无渠道分支。
+**T1 已验收**（2026-06-03）：流式聊天经渠道层 + Inbound Queue（BullMQ/Redis），Harness 仍无渠道分支。
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -70,8 +59,9 @@
 └────────────────────────┬────────────────────────────────┘
                          │ resolveProfile (T2)
 ┌────────────────────────▼────────────────────────────────┐
-│  Config Plane (src/config-plane/)  ← T2 配置平面         │
-│  AgentProfile · RouteRule · Admin API · 内存快照 reload │
+│  Config Plane (src/config-plane/)  ← T2 已验收           │
+│  resolveProfile · 快照 reload · /api/admin/* Profile/Route│
+│  Web：localStorage 全局 + body 覆盖；IM：仅 Profile      │
 └────────────────────────┬────────────────────────────────┘
                          │ ResolvedChatProfile
                          │ InternalMessage[] + onChunk
@@ -102,7 +92,7 @@
                └─────────────────┘
 ```
 
-**架构原则**（须同时满足 [§零](#零实现铁律)）
+**架构原则**
 
 1. **Harness 拥有控制面，MCP 拥有执行面** — Loop、恢复、压缩、权限在 Harness；MCP 只管连接与调用
 2. **外部能力与原生工具同路由、同权限、同 tool_result 格式** — [s19 MCP](https://learn.shareai.run/zh/s19/) 要求
@@ -135,8 +125,8 @@ gantt
 | **T1** | 2–3 周 | 渠道层 + 消息总线（Web + 飞书 + 钉钉） | 各渠道 Envelope + Inbound Queue；Harness 无渠道分支 |
 | **T3** | 4–5 周 | 遗留 Web UI → Vite MPA + Tailwind v4 | URL/API/存储契约不变；`frontend/` SSOT；**已完成**（2026-06-01） |
 
-> 进度见 [T1-channel-bus.md](./T1-channel-bus.md)（T1-08 钉钉 E2E 已通过；T1-07-07 飞书 E2E 搁置）。  
-> **T2**：[配置平面 + 管理员平台](./T2-config-plane.md)（多渠道 Profile/Route，Web 聊天不污染 IM）。  
+> **T1**：[渠道层 + 消息总线](./T1-channel-bus.md)（**已验收** 2026-06-03；钉钉 E2E 已通过；飞书 E2E T1-07-07 搁置收口）。  
+> **T2**：[配置平面 + 管理员平台](./T2-config-plane.md)（**已验收** 2026-06-03；Profile/Route + Admin，Web 不污染 IM）。  
 > **T3**：[遗留 Web UI 现代化](./T3-frontend-modernization.md)（Vite 8 MPA + Tailwind v4；功能等价、界面可重做）。
 
 ## 四、阶段依赖
@@ -164,7 +154,7 @@ P3-* 可在 P1 完成后按需启动
 
 | 跳过/延后 | 原因 |
 |-----------|------|
-| **兼容层 / 双轨 / 无验收兜底** | 与 §零 冲突；增加分支与维护成本，掩盖真实缺口 |
+| 兼容层 / 双轨 / 无验收兜底 | 增加分支与维护成本，掩盖真实缺口 |
 | 自建向量 RAG | 当前无知识库场景；MCP Resources 更合适 |
 | 完整多 Agent 团队（[s15](https://learn.shareai.run/zh/s15/)–[s18](https://learn.shareai.run/zh/s18/)） | Client 定位是网关 + UI，编排应在 IDE/服务端 |
 | 秒级 Cron 调度 | Web 演示应用无后台常驻需求 |
@@ -189,32 +179,38 @@ P3-* 可在 P1 完成后按需启动
 
 ## 七、里程碑验收
 
-### M1 — Harness 可用（P0 完成）
+> 下列勾选**仅**反映任务书当前状态（2026-06-03 对照）；不依据代码推断。详单见各阶段文件。
 
-- [x] 新建 `src/core/agent-harness/` 目录，Loop 从 Provider 层抽出（T0 + P0）
-- [x] 前端历史默认开启，含 tool_calls / tool / reasoning
-- [ ] 非流式 `chat()` 支持完整多轮工具循环
-- [ ] `temperature` / `max_tokens` 正确传给 API
+### M1 — Harness 可用（[P0-core-harness.md](./P0-core-harness.md)）
 
-### M2 — 生产级控制面（P1 完成）
+- [x] 新建 `src/core/agent-harness/` 目录，Loop 从 Provider 层抽出（P0-01）
+- [x] 前端历史默认开启，含 tool_calls / tool / reasoning（P0-03）
+- [x] 非流式 `chat()` 支持完整多轮工具循环（P0-04-01）
+- [x] `temperature` / `max_tokens` 正确传给 API（P0-04-03）
 
-- [ ] 上下文压缩三层策略可用
-- [ ] 三类错误自动恢复（continuation / compact / backoff）
-- [x] 工具权限 ask/deny/allow 管道（P1-03，2026-06-02）
-- [ ] System Prompt 分段 Builder
+> P0 **子项** 19/19 已勾；**完成检查清单**（流式一致性、10+ 轮 E2E 等）仍见任务书未勾项。
 
-### M3 — MCP 平台完整（P2 完成）
+### M2 — 生产级控制面（[P1-control-plane.md](./P1-control-plane.md)）
+
+- [x] 上下文压缩三层策略可用（P1-01）
+- [x] LLM 瞬态错误退避重试（P1-02-01；任务书范围不含 s11 全量 continuation / reactive compact）
+- [x] 工具权限 ask/deny/allow 管道（P1-03）
+- [x] System Prompt 分段 Builder（P1-04）
+
+> P1 **子项** 30/30 已勾；**完成检查清单** 6/6 已勾（2026-06-03）。Hook（P1-05）、工具过滤（P1-06）、审计（P1-07）见任务书，不在此节逐条展开。
+
+### M3 — MCP 平台完整（[P2-mcp-platform.md](./P2-mcp-platform.md)）
 
 - [ ] listResources / listPrompts 接入 UI 与 Harness
 - [ ] 连接状态机：connected / pending / needs-auth / failed
 - [ ] OAuth 流程（至少 Streamable HTTP）
 
-### M4 — Agent Client 完整（P3 完成）
+### M4 — Agent Client 完整（[P3-agent-runtime.md](./P3-agent-runtime.md)）
 
-- [ ] 会话内 Todo 规划工具
-- [ ] 跨会话 Memory（SQLite）
-- [ ] Hook 扩展点（PreToolUse / PostToolUse）
-- [ ] 服务端 Session API
+- [ ] 会话内 Todo 规划工具（P3-01）
+- [ ] 跨会话 Memory（SQLite）（P3-02）
+- [ ] Hook 扩展点深化（P3 任务书；基础 Hook 已由 P1-05 交付，以 P3 书为准再勾）
+- [ ] 服务端 Session API（P3-04）
 
 ---
 

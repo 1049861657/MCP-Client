@@ -257,17 +257,17 @@ core + tools + skills_catalog + memory + project_rules
 
 ---
 
-## P1-07 结构化审计与指标
+## P1-07 结构化审计
+
+> **范围**：扩展 `logs/app.log` 结构化审计。`tool_call_audit` 仅记工具执行与 `permissionDecision`（P0/P1-03）；**token 仅** `llm_step_audit` + `agent_run_audit`（协议与 OTel 不把 usage 挂在 tool span）。另补 `recoveryKind` 与 `recovery_audit`。排障按 `requestId` 过滤审计 JSON。
 
 ### 任务
 
-- [ ] **P1-07-01** 扩展 P0 审计日志：含 `tokens`、`recoveryKind`、`permissionDecision`  
-  - 涉及：`audit.ts`  
-  - 验收：单次 Agent 运行可重建决策链
-
-- [ ] **P1-07-02** 新增 `/api/metrics/session-summary`（可选，调试用）  
-  - 涉及：`src/api/routes.ts`  
-  - 验收：返回最近 N 次会话 tool 统计
+- [x] **P1-07-01** 扩展 P0 审计：`recoveryKind` + 运行级 token（`permissionDecision` 已有）  
+  - 事件：`tool_call_audit`（执行事实，无 tokens）、`llm_step_audit`（每轮 usage + 重试）、`recovery_audit`（compact / LLM 失败）、`agent_run_audit`（收尾 token 汇总）；`recoveryKind` 仅记录已实现路径：`backoff`（P1-02）、`compact`（`applyContextBeforeLlm` 主动摘要），不实现 s11 的 continuation / reactive compact  
+  - 涉及：`audit.ts`、`llm-retry.ts`、`agent-loop.ts`、`hook-builtin.ts`  
+  - 验收：同一 `requestId` 在 `logs/app.log` 可按时序重建「LLM → 权限/工具 → 恢复 → 结束」决策链  
+  - 完成日期：2026-06-03
 
 ---
 
@@ -275,6 +275,7 @@ core + tools + skills_catalog + memory + project_rules
 
 - [x] LLM 瞬态错误可退避重试（P1-02）
 - [x] 工具权限 Gate 可用（三模式 + Web 确认 + IM 渠道自动/只读）
-- [ ] Prompt 分段可维护、可测试
+- [x] Prompt 分段可维护、可测试（P1-04，2026-06-02）
 - [x] Hook 可插拔至少 1 个自定义脚本
-- [ ] 无新增 `openai.ts` 循环逻辑
+- [x] 结构化 Agent 审计可重建决策链（P1-07-01，2026-06-03）
+- [x] 无新增 `openai.ts` 循环逻辑（循环在 `agent-loop.ts`，`ai-provider.ts` 仅 Provider；仓库已无 `openai.ts`，2026-06-03）

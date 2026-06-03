@@ -1,6 +1,6 @@
 # T2 — 配置平面 + 管理员平台（多渠道能力隔离）
 
-> **状态**：进行中（T2-08 已交付；T2-09 待做）  
+> **状态**：**已验收**（2026-06-03；含 T2-09 E2E 与完成检查清单）  
 > **范围**：在 T1 渠道 + Bus 之上增加 **Config Plane**；**独立管理员平台**按渠道配置能力；Web 聊天页改动**不污染**钉钉/飞书  
 > **前置**：T1 已交付（Envelope → Inbound Worker → Harness）；现有 `Setting` / `AIProvider` / `MCPServer` 可迁移  
 > **预估**：**18** 子项（约 **2–3 人日**，分 3 PR）  
@@ -254,19 +254,24 @@ Channels → Bus → inbound-worker ──► AiProvider (resolved only)
 
 ## T2-09 验收
 
-- [ ] **T2-09-01** E2E：Admin 将 `dingtalk-default.enableTools=false` → 钉钉 @ 机器人无 tool call；Web 同 Profile 配置下仍可工具（若 `web-default` 为 true）  
-- [ ] **T2-09-02** E2E：Admin 改 `dingtalk-default` model → 下一条钉钉用新模型；**无需**改 Web 聊天页  
-- [ ] **T2-09-03** 更新 [ROADMAP.md](./ROADMAP.md) 架构图（Config Plane 块）与 [README.md](./README.md) 进度表  
+- [x] **T2-09-01** E2E：Admin 将 `dingtalk-default.enableTools=false` → 钉钉 @ 机器人无 tool call；Web 同 Profile 配置下仍可工具（若 `web-default` 为 true）  
+  - 完成日期：2026-06-03
+
+- [x] **T2-09-02** E2E：Admin 改 `dingtalk-default` model → 下一条钉钉用新模型；**无需**改 Web 聊天页  
+  - 完成日期：2026-06-03
+
+- [x] **T2-09-03** 更新 [ROADMAP.md](./ROADMAP.md) 架构图（Config Plane 块）与 [README.md](./README.md) 进度表  
+  - 完成日期：2026-06-03
 
 ---
 
 ## 完成检查
 
-- [ ] 各渠道能力由 **Profile + Route** 决定，normalize 无 `ToolsConfig` 写死  
-- [ ] 管理员平台可独立配置钉钉/飞书/Web，互不影响  
+- [x] 各渠道能力由 **Profile + Route** 决定，normalize 无 `ToolsConfig` 写死  
+- [x] 管理员平台可独立配置钉钉/飞书/Web，互不影响  
 - [x] Web 聊天偏好为 **浏览器全局**（非 per-session 服务端存储），作用域 ≤ `channel=web`（经 body 进 Resolver）  
-- [ ] Inbound Worker 单一解析点 `resolveProfile`  
-- [ ] Harness 无 `channel` 分支（与 T1 一致）  
+- [x] Inbound Worker 单一解析点 `resolveProfile`  
+- [x] Harness 无 `channel` 分支（与 T1 一致）  
 
 ---
 

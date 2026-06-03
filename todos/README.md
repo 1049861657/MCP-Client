@@ -11,7 +11,7 @@
 | 文件 | 内容 |
 |------|------|
 | [REFERENCES.md](./REFERENCES.md) | **外部参考索引**（s01–s19 完整网页路径） |
-| [ROADMAP.md](./ROADMAP.md) | 总览：§零 实现铁律、阶段划分、依赖、目标架构 |
+| [ROADMAP.md](./ROADMAP.md) | 总览：阶段划分、依赖、目标架构 |
 | [P0-core-harness.md](./P0-core-harness.md) | **P0** 核心 Harness（必须先做） |
 | [P1-control-plane.md](./P1-control-plane.md) | **P1** 控制面（权限、压缩、恢复、Prompt 流水线） |
 | [P2-mcp-platform.md](./P2-mcp-platform.md) | **P2** MCP 平台化（Resources/Prompts/OAuth/连接治理） |
@@ -23,6 +23,8 @@
 | [T3-frontend-modernization.md](./T3-frontend-modernization.md) | **T3** 个人任务：遗留 Web UI 全面现代化（Vite + Tailwind · 功能等价） |
 
 > AI 改造任务：启用项目 Skill `.cursor/skills/roadmap/`（薄路由，正文以本目录为准）
+
+**进度唯一基准（SSOT）**：各 `P*-*.md` / `T*-*.md` 中带 ID 的子项（`- [ ] **P1-01-01**` 等）及该文件内「完成检查清单」。`ROADMAP.md` §七 里程碑仅为总览索引；实施中若与任务书不一致，**只以任务书为准**，并回写任务书勾选与下表数字。
 
 ## P 与 T 两套编号
 
@@ -49,20 +51,22 @@
 | 阶段 | 总数 | 已完成 | 进度 |
 |------|------|--------|------|
 | T0（架构·精简） | 5 | 5 | 100% |
-| T1（渠道+总线） | 34 | 33 | 97% |
-| T2（配置平面+Admin） | 24 | 21 | 88% |
+| T1（渠道+总线） | 34 | 34 | 100% |
+| T2（配置平面+Admin） | 24 | 24 | 100% |
 | T3（前端现代化） | 31 | 31 | 100% |
 | P0 | 19 | 19 | 100% |
-| P1 | 32 | 24 | 75% |
+| P1 | 30 | 30 | 100% |
 | P2 | 21 | 0 | 0% |
 | P3 | 26 | 0 | 0% |
 | Backlog | 24 | 0 | — |
 
-> 每次勾选任务后，同步更新上表数字。
+> 上表「总数/已完成」仅统计各任务书中 **带 ID 的子项**（`- **Px-yy-zz**` / `- **Tx-yy-zz**`），不含各文件末尾「完成检查清单」。每次勾选子项后同步改数字。
 
 ## 当前阶段
 
-**P1 — 控制面**（T1 渠道+总线已交付；**T2 配置平面+Admin** 见 [T2-config-plane.md](./T2-config-plane.md)；**T3 前端现代化** 见 [T3-frontend-modernization.md](./T3-frontend-modernization.md)；T1-07-07 飞书 E2E 搁置）
+**P2 — MCP 平台化**（主线： [P1-control-plane.md](./P1-control-plane.md) 子项 30/30 已勾 → 按路线图进入 P2；[P0-core-harness.md](./P0-core-harness.md) 子项 19/19 已勾，完成检查清单仍有未勾 E2E 项）
+
+并行 **T**： [T1-channel-bus.md](./T1-channel-bus.md)、[T2-config-plane.md](./T2-config-plane.md) **均已验收**（2026-06-03；T1-07-07 飞书 E2E 为搁置收口）
 
 ## 相关代码入口
 

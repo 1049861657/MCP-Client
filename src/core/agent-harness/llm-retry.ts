@@ -146,21 +146,34 @@ export interface WithLlmRetryOptions {
   signal?: AbortSignal;
 }
 
+/** P1-07：LLM 重试结果元数据 */
+export interface LlmRetryOutcome {
+  recoveryKind: 'none' | 'backoff';
+  retryAttempts: number;
+}
+
+export interface WithLlmRetryResult<T> {
+  value: T;
+  recovery: LlmRetryOutcome;
+}
+
 /**
  * LLM 瞬态错误退避重试（P1-02）：最多额外重试 RecoveryConfig.llmMaxRetries 次。
  */
 export async function withLlmRetry<T>(
   fn: () => Promise<T>,
   options: WithLlmRetryOptions = {}
-): Promise<T> {
+): Promise<WithLlmRetryResult<T>> {
   const maxAttempts = RecoveryConfig.llmMaxRetries + 1;
   const { label = 'llm', providerName = '', signal } = options;
   const prefix = providerName ? `[${providerName}] ` : '';
 
   let lastError: unknown;
+  let retryAttempts = 0;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (attempt > 0) {
+      retryAttempts = attempt;
       const delayMs = RecoveryConfig.llmRetryDelaysMs[attempt - 1]
         ?? RecoveryConfig.llmRetryDelaysMs[RecoveryConfig.llmRetryDelaysMs.length - 1]
         ?? 0;
@@ -172,7 +185,14 @@ export async function withLlmRetry<T>(
     }
 
     try {
-      return await fn();
+      const value = await fn();
+      return {
+        value,
+        recovery: {
+          recoveryKind: retryAttempts > 0 ? 'backoff' : 'none',
+          retryAttempts
+        }
+      };
     } catch (error) {
       lastError = error;
       const kind = classifyLlmError(error);

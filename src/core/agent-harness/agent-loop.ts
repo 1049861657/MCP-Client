@@ -1,7 +1,13 @@
 import { Logger } from '../../utils/logger.js';
 import { ToolsConfig } from '../../config/feature-config.js';
 import { mcpClient } from '../mcp/index.js';
-import type { ToolCallAuditLog } from './audit.js';
+import {
+  logAgentRunAudit,
+  logLlmStepAudit,
+  logRecoveryAudit,
+  toAuditUsage,
+  type ToolCallAuditLog
+} from './audit.js';
 import {
   applyContextBeforeLlm,
   isContextSummaryMessage,
@@ -15,7 +21,7 @@ import {
   emitMaxToolCallsReached,
   recordTurnEnd
 } from './loop-state.js';
-import { withLlmRetry } from './llm-retry.js';
+import { classifyLlmError, withLlmRetry, type LlmRetryOutcome } from './llm-retry.js';
 import {
   buildArgsPreview,
   checkPermission
@@ -152,6 +158,14 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   const prepareContext = async (round: number): Promise<void> => {
     const compacted = await applyContextBeforeLlm(messages, { requestId, round, summarizeFn });
     if (compacted) {
+      if (requestId) {
+        logRecoveryAudit({
+          requestId,
+          round,
+          recoveryKind: 'compact',
+          reason: 'auto_compact_before_llm'
+        });
+      }
       const summary = messages.find(m => isContextSummaryMessage(m));
       const summaryContent =
         summary && typeof summary.content === 'string' ? summary.content : '';
@@ -406,13 +420,35 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     cumulativeLlmUsage = addUsage(cumulativeLlmUsage, stepUsage);
     emitStepUsage(onChunk, round, stepUsage, cumulativeLlmUsage);
   };
+
+  const auditLlmStep = (
+    round: number,
+    stepUsage: UsageInfo | null | undefined,
+    recovery: LlmRetryOutcome
+  ): void => {
+    if (!requestId) {
+      return;
+    }
+    if (!hasUsage(stepUsage) && recovery.retryAttempts === 0) {
+      return;
+    }
+    logLlmStepAudit({
+      requestId,
+      round,
+      stepTokens: hasUsage(stepUsage) ? toAuditUsage(stepUsage) : undefined,
+      cumulativeTokens: toAuditUsage(cumulativeLlmUsage),
+      recoveryKind: recovery.recoveryKind,
+      retryAttempts: recovery.retryAttempts > 0 ? recovery.retryAttempts : undefined
+    });
+  };
+
   let finishReasonResult: string | undefined | null = null;
 
   const invokeModelRound = async (
     round: number,
     requestParams: Record<string, unknown>
   ): Promise<ModelResponseResult> => {
-    return withLlmRetry(
+    const { value, recovery } = await withLlmRetry(
       async () => {
         if (stream) {
           const responseStream = await provider.createCompletionStream(requestParams, signal);
@@ -446,6 +482,9 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         signal
       }
     );
+    recordLlmStepUsage(round, value.usage);
+    auditLlmStep(round, value.usage, recovery);
+    return value;
   };
 
   interface ToolRoundResult {
@@ -540,8 +579,6 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       fullReasoningContent = result.fullReasoningContent;
       usage = result.usage;
       finishReasonResult = result.finishReasonResult;
-      recordLlmStepUsage(round, result.usage);
-
       const harnessTurn = round + 1;
       const reason = result.hasNewToolCalls ? 'tool_result' : 'end';
       recordTurnEnd(
@@ -559,12 +596,22 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         nextAssistantReasoning
       };
     } catch (error) {
+      const errMessage = error instanceof Error ? error.message : String(error);
       Logger.error(
         'OPENAI',
-        `[${provider.providerName}] 回合${round}: 获取模型回复失败: ${error instanceof Error ? error.message : String(error)}`
+        `[${provider.providerName}] 回合${round}: 获取模型回复失败: ${errMessage}`
       );
+      if (requestId) {
+        const kind = classifyLlmError(error);
+        logRecoveryAudit({
+          requestId,
+          round,
+          recoveryKind: kind === 'fail_fast' ? 'fail_fast' : 'fail',
+          reason: errMessage
+        });
+      }
       onChunk({
-        error: `获取模型回复失败: ${error instanceof Error ? error.message : String(error)}`
+        error: `获取模型回复失败: ${errMessage}`
       }, false);
       recordTurnEnd(loopState, round + 1, 'end', 0, provider.providerName);
     }
@@ -588,8 +635,6 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   fullReasoningContent = initialResult.fullReasoningContent;
   usage = initialResult.usage;
   finishReasonResult = initialResult.finishReasonResult;
-  recordLlmStepUsage(0, initialResult.usage);
-
   const initialToolCount = toolManager.hasValidToolCalls()
     ? toolManager.getToolCallsByRound(0).length
     : 0;
@@ -640,6 +685,29 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   const finalUsage = hasUsage(cumulativeLlmUsage)
     ? cumulativeLlmUsage
     : usage ?? emptyUsage();
+
+  if (requestId) {
+    const allTools = toolManager.getAllToolCalls();
+    let toolSuccess = 0;
+    let toolFail = 0;
+    for (const tc of allTools) {
+      if (tc.meta?.status === 'error') {
+        toolFail += 1;
+      } else if (tc.meta?.status === 'completed') {
+        toolSuccess += 1;
+      }
+    }
+    logAgentRunAudit({
+      requestId,
+      sessionKey: permission?.sessionKey,
+      turnCount: loopState.turnCount,
+      transitionReason: loopState.transitionReason,
+      totalTokens: toAuditUsage(finalUsage),
+      toolSuccess,
+      toolFail,
+      providerName: provider.providerName
+    });
+  }
 
   return {
     content: fullContent,
