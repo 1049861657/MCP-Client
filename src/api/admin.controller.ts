@@ -9,7 +9,7 @@ import type { ChannelId } from '../types/channel.types.js';
 import { parseImPermissionMode } from '../config/permission.types.js';
 import type { AgentProfileRecord } from '../types/config-plane.types.js';
 import { EDITABLE_IM_CHANNEL_PROFILE_IDS } from '../types/config-plane.types.js';
-import { mcpClient } from '../core/mcp/index.js';
+import { McpReachabilityService } from '../services/mcp-reachability.service.js';
 import { Logger } from '../utils/logger.js';
 import { assertAdminAuth } from './admin-auth.js';
 
@@ -200,13 +200,13 @@ export class AdminController {
           typeof body.enableTools === 'boolean' ? body.enableTools : existing.enableTools;
         if (enableTools && mcpServerIds.length > 0) {
           const { reachableIds, unreachable } =
-            await mcpClient.resolveReachableServerIds(mcpServerIds);
+            await McpReachabilityService.filterReachableServerIds(mcpServerIds);
           data.mcpServerIds = reachableIds;
           removedMcpServers = unreachable;
           if (removedMcpServers.length > 0) {
             Logger.warn(
               'ADMIN',
-              `Profile ${profileId} 移除未连接 MCP: ${removedMcpServers.map((s) => s.name).join('、')}`
+              `Profile ${profileId} 移除不可达或未配置 MCP: ${removedMcpServers.map((s) => s.name).join('、')}`
             );
           }
         } else {

@@ -61,6 +61,11 @@ function buildChatOptionsFromBody(body: Record<string, unknown>): ChatOptions | 
   if (Array.isArray(body.mcpServerIds)) {
     options.mcpServerIds = body.mcpServerIds.filter((id): id is string => typeof id === 'string');
   }
+  if (Array.isArray(body.enabledToolNames)) {
+    options.enabledToolNames = body.enabledToolNames.filter(
+      (name): name is string => typeof name === 'string'
+    );
+  }
   if (
     body.permissionMode === 'open' ||
     body.permissionMode === 'interactive' ||

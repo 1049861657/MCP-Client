@@ -85,4 +85,6 @@ export interface MCPServerInfo {
   connectedServers?: ServerInfo[];
   /** 每个服务器的工具映射 {serverId: ToolInfo[]} */
   serverTools?: Record<string, ToolInfo[]>;
+  /** 各服务器 per-tool 启用偏好（缺省启用） */
+  toolPreferences?: Record<string, Record<string, boolean>>;
 }

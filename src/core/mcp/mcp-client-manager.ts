@@ -360,7 +360,7 @@ export class MCPClientManager {
    * 调用工具
    * options 由调用方在运行时显式传入（如 openai.ts 对 executeApi 统一注入 supportsProgress）。
    */
-  async callTool<T>(codeName: string, args: any, options?: CallToolOptions): Promise<T> {
+  async callTool<T>(codeName: string, args: unknown, options?: CallToolOptions): Promise<T> {
     const connection = this.findServerForTool(codeName);
     const toolName = ToolNameCodec.decode(codeName);
     if (!connection) {
@@ -368,6 +368,47 @@ export class MCPClientManager {
     }
 
     return await connection.callTool<T>(toolName, args, options);
+  }
+
+  /**
+   * 解析指定服务器上的工具原名（支持 codeName 或原名）
+   */
+  async resolveToolNameOnServer(serverId: string, toolNameOrCodeName: string): Promise<string> {
+    if (toolNameOrCodeName.startsWith('mcp__')) {
+      return ToolNameCodec.decode(toolNameOrCodeName);
+    }
+
+    let tools = this.toolsCache.get(serverId);
+    const connection = this.connections.get(serverId);
+    if (!tools && connection?.isConnected()) {
+      await this.updateToolServerMap(serverId);
+      tools = this.toolsCache.get(serverId);
+    }
+
+    const matched = tools?.find(
+      (t) => t.name === toolNameOrCodeName || t.codeName === toolNameOrCodeName
+    );
+    if (!matched) {
+      throw new Error(`工具 ${toolNameOrCodeName} 不存在于服务器 ${serverId}`);
+    }
+    return matched.name;
+  }
+
+  /**
+   * 在指定已连接服务器上调用工具（Info 页试跑）
+   */
+  async callToolOnServer<T>(
+    serverId: string,
+    toolNameOrCodeName: string,
+    args: Record<string, unknown>,
+    options?: CallToolOptions
+  ): Promise<T> {
+    const connection = this.connections.get(serverId);
+    if (!connection?.isConnected()) {
+      throw new Error(`服务器 ${serverId} 未连接`);
+    }
+    const toolName = await this.resolveToolNameOnServer(serverId, toolNameOrCodeName);
+    return connection.callTool<T>(toolName, args, options);
   }
 
   /**
@@ -464,46 +505,6 @@ export class MCPClientManager {
     }
 
     return success;
-  }
-
-  /**
-   * 校验 MCP 服务器连通性；不可达或未配置的 ID 归入 unreachable。
-   */
-  async resolveReachableServerIds(serverIds: string[]): Promise<{
-    reachableIds: string[];
-    unreachable: Array<{ id: string; name: string }>;
-  }> {
-    const reachableIds: string[] = [];
-    const unreachable: Array<{ id: string; name: string }> = [];
-
-    await Promise.all(
-      serverIds.map(async (serverId) => {
-        const connection = this.connections.get(serverId);
-        if (!connection) {
-          unreachable.push({ id: serverId, name: serverId });
-          return;
-        }
-
-        const info = await connection.getServerInfo();
-        const name = info.name || serverId;
-        let ok = connection.isConnected();
-        if (!ok) {
-          try {
-            ok = await this.connect(serverId);
-          } catch {
-            ok = false;
-          }
-        }
-        if (ok) {
-          reachableIds.push(serverId);
-          return;
-        }
-        unreachable.push({ id: serverId, name });
-      })
-    );
-
-    reachableIds.sort();
-    return { reachableIds, unreachable };
   }
 
   /**

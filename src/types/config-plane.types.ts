@@ -86,6 +86,8 @@ export interface ResolvedChatProfile extends Required<
   maxTokens: number;
   compactModel?: string;
   mcpServerIds: string[];
+  /** 工具 codeName 白名单；缺省在 AiProvider 中按 toolPreferences 解析 */
+  enabledToolNames?: string[];
   toolPrompt: string;
   permissionMode: PermissionMode;
 }

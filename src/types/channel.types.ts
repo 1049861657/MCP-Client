@@ -67,6 +67,8 @@ export interface ChatOptions {
   compactModel?: string;
   /** Web body override：当次启用的 MCP 服务器 ID 列表 */
   mcpServerIds?: string[];
+  /** Web body override：当次启用的工具 codeName 白名单；缺省由服务端按 toolPreferences 解析 */
+  enabledToolNames?: string[];
   /** P1-03：open | interactive | locked */
   permissionMode?: 'open' | 'interactive' | 'locked';
 }

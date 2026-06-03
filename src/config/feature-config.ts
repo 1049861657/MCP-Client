@@ -8,6 +8,20 @@
  */
 
 /**
+ * Hook 扩展点（P1-05）
+ */
+export const HookConfig = {
+  /** 内置 PostToolUse 审计日志 */
+  enableAuditHook: true,
+  /** 内置 PreToolUse 参数体积检查 */
+  enableArgsSizeCheck: true,
+  /** 工具 arguments JSON 字符上限 */
+  maxToolArgsChars: 100_000,
+  /** 外部 command hook 超时（毫秒） */
+  externalHookTimeoutMs: 30_000
+};
+
+/**
  * 工具执行前权限（P1-03）
  */
 export const PermissionConfig = {
@@ -225,5 +239,6 @@ export const FeatureConfig = {
   recovery: RecoveryConfig,
   history: HistoryConfig,
   log: LogConfig,
-  permission: PermissionConfig
+  permission: PermissionConfig,
+  hook: HookConfig
 }; 

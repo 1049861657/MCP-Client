@@ -115,6 +115,7 @@ function mergeLayer(
   base: Partial<ChatOptions> & {
     profileId: string;
     mcpServerIds: string[];
+    enabledToolNames?: string[];
     toolPrompt: string;
     vendor?: string;
     permissionMode: PermissionMode;
@@ -152,6 +153,12 @@ function mergeLayer(
   if (channel !== 'web' && layer.mcpServerIds !== undefined) {
     base.mcpServerIds = [...layer.mcpServerIds];
   }
+  if (layer.enabledToolNames !== undefined) {
+    if (channel !== 'web') {
+      throw new Error('非 Web 渠道不得在入站消息中覆盖 enabledToolNames');
+    }
+    base.enabledToolNames = [...layer.enabledToolNames];
+  }
   if (layer.permissionMode !== undefined) {
     if (channel !== 'web') {
       throw new Error('非 Web 渠道不得在入站消息中覆盖 permissionMode');
@@ -168,6 +175,7 @@ function resolveProfileFromProfileRecord(
   const merged: Partial<ChatOptions> & {
     profileId: string;
     mcpServerIds: string[];
+    enabledToolNames?: string[];
     toolPrompt: string;
     vendor?: string;
     permissionMode: PermissionMode;
@@ -207,6 +215,7 @@ function resolveProfileFromProfileRecord(
     enableAutoCompact: resolveEnableAutoCompact(merged.enableAutoCompact),
     compactModel: merged.compactModel,
     mcpServerIds: merged.mcpServerIds,
+    enabledToolNames: merged.enabledToolNames,
     toolPrompt: merged.toolPrompt,
     permissionMode: resolvePermissionMode(ctx.channel, merged.permissionMode)
   };

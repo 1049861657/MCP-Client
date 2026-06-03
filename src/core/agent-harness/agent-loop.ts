@@ -1,12 +1,13 @@
 import { Logger } from '../../utils/logger.js';
 import { ToolsConfig } from '../../config/feature-config.js';
 import { mcpClient } from '../mcp/index.js';
-import { logToolCallAudit } from './audit.js';
+import type { ToolCallAuditLog } from './audit.js';
 import {
   applyContextBeforeLlm,
   isContextSummaryMessage,
   materializeToolOutput
 } from './context-budget.js';
+import { runHooks } from './hook-runner.js';
 import type { MessageInternalMeta } from './types.js';
 import {
   buildPartialResults,
@@ -36,6 +37,7 @@ import {
   executeSystemTool,
   isSystemTool
 } from './system-tools/system-tool-registry.js';
+import { ToolPolicyService } from '../../services/tool-policy.service.js';
 import {
   ChatResponse,
   ChunkResponse,
@@ -51,6 +53,7 @@ interface ToolResultPayload {
   tool_call_id: string;
   content: string;
   artifact?: ToolOutputArtifact;
+  injectedMessage?: string;
 }
 
 /** Provider 层能力：Harness 通过此接口调用 LLM，不直接依赖 OpenAI 类 */
@@ -157,6 +160,34 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   };
 
   const toolManager = new ToolCallManager(provider.providerName, onChunk);
+  const allowedCodeNames = ToolPolicyService.buildAllowedCodeNames(chatTools);
+
+  const sessionHook = await runHooks('SessionStart', {
+    requestId,
+    model,
+    messageCount: messages.length
+  });
+  if (sessionHook.exit_code === 2 && sessionHook.message.trim().length > 0) {
+    messages.push({
+      role: 'user',
+      content: sessionHook.message,
+      _source: 'hook'
+    });
+  }
+
+  const emitPostToolUse = async (
+    audit: ToolCallAuditLog,
+    output: string
+  ): Promise<string | undefined> => {
+    const post = await runHooks('PostToolUse', {
+      ...audit,
+      output
+    });
+    if (post.exit_code === 2 && post.message.trim().length > 0) {
+      return post.message;
+    }
+    return undefined;
+  };
 
   const executeOneToolCall = async (
     toolCall: ToolCallRecord
@@ -186,21 +217,36 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     toolManager.markExecutionStart(globalIndex);
     const startedAt = Date.now();
 
+    const finishWithError = async (
+      errorMessage: string,
+      permissionDecision?: string
+    ): Promise<ToolResultPayload> => {
+      const durationMs = Date.now() - startedAt;
+      const injectedMessage = await emitPostToolUse(
+        {
+          ...auditBase,
+          durationMs,
+          success: false,
+          error: errorMessage,
+          permissionDecision
+        },
+        errorMessage
+      );
+      toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, durationMs);
+      return {
+        tool_call_id: current.id,
+        content: errorMessage,
+        injectedMessage
+      };
+    };
+
     try {
       const validation = await provider.verifyToolArguments(current.name, current.arguments);
 
       if (!validation.isValid) {
         const errorMessage = `参数验证失败: ${validation.message}`;
         Logger.warn('OPENAI', errorMessage);
-        const durationMs = Date.now() - startedAt;
-        logToolCallAudit({
-          ...auditBase,
-          durationMs,
-          success: false,
-          error: errorMessage
-        });
-        toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, durationMs);
-        return { tool_call_id: current.id, content: errorMessage };
+        return finishWithError(errorMessage);
       }
 
       let permissionAudit: string | undefined;
@@ -225,16 +271,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
           } else {
             errorMessage = `工具未获允许（${perm.reason}）`;
           }
-          const durationMs = Date.now() - startedAt;
-          logToolCallAudit({
-            ...auditBase,
-            durationMs,
-            success: false,
-            error: errorMessage,
-            permissionDecision: `deny:${perm.reason}`
-          });
-          toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, durationMs);
-          return { tool_call_id: current.id, content: errorMessage };
+          return finishWithError(errorMessage, `deny:${perm.reason}`);
         }
 
         if (perm.behavior === 'ask') {
@@ -264,19 +301,39 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
               waitOutcome === 'timeout'
                 ? '确认超时，工具未执行'
                 : '你已拒绝执行该工具';
-            const durationMs = Date.now() - startedAt;
-            logToolCallAudit({
-              ...auditBase,
-              durationMs,
-              success: false,
-              error: errorMessage,
-              permissionDecision: `ask_${waitOutcome}`
-            });
-            toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, durationMs);
-            return { tool_call_id: current.id, content: errorMessage };
+            return finishWithError(errorMessage, `ask_${waitOutcome}`);
           }
           permissionAudit = 'allow:ask_approved';
         }
+      }
+
+      const preTool = await runHooks('PreToolUse', {
+        requestId,
+        round,
+        toolName: current.name,
+        codeName: current.codeName,
+        input: current.arguments
+      });
+      if (preTool.exit_code === 1) {
+        const blockMessage = preTool.message.trim().length > 0
+          ? preTool.message
+          : '工具调用被 Hook 阻止';
+        return finishWithError(blockMessage);
+      }
+      if (preTool.exit_code === 2 && preTool.message.trim().length > 0) {
+        messages.push({
+          role: 'user',
+          content: preTool.message,
+          _source: 'hook'
+        });
+      }
+
+      const policy = ToolPolicyService.assertToolCallable(
+        current.codeName,
+        allowedCodeNames
+      );
+      if (!policy.allowed) {
+        return finishWithError(policy.message, 'deny:tool_not_enabled');
       }
 
       const isExecuteApi = current.name === 'executeApi';
@@ -301,12 +358,15 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         : provider.formatToolResult(toolResult);
       const materialized = await materializeToolOutput(current.id, resultText);
       const durationMs = Date.now() - startedAt;
-      logToolCallAudit({
-        ...auditBase,
-        durationMs,
-        success: true,
-        permissionDecision: permissionAudit
-      });
+      const injectedMessage = await emitPostToolUse(
+        {
+          ...auditBase,
+          durationMs,
+          success: true,
+          permissionDecision: permissionAudit
+        },
+        materialized.content
+      );
       toolManager.setToolResult(
         globalIndex,
         materialized.content,
@@ -318,22 +378,15 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       return {
         tool_call_id: current.id,
         content: materialized.content,
-        artifact: materialized.artifact
+        artifact: materialized.artifact,
+        injectedMessage
       };
     } catch (error) {
       if (error instanceof Error && (error.name === 'AbortError' || error.name === 'APIUserAbortError')) {
         throw error;
       }
       const errorMessage = `工具${current.name}执行失败: ${error instanceof Error ? error.message : String(error)}`;
-      const durationMs = Date.now() - startedAt;
-      logToolCallAudit({
-        ...auditBase,
-        durationMs,
-        success: false,
-        error: errorMessage
-      });
-      toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, durationMs);
-      return { tool_call_id: current.id, content: errorMessage };
+      return finishWithError(errorMessage);
     }
   };
 
@@ -450,6 +503,13 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     }));
 
     for (const result of toolResultMessages) {
+      if (result.injectedMessage) {
+        messages.push({
+          role: 'user',
+          content: result.injectedMessage,
+          _source: 'hook'
+        });
+      }
       const internal: MessageInternalMeta | undefined = result.artifact
         ? { artifact: result.artifact }
         : undefined;

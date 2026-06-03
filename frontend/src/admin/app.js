@@ -323,13 +323,6 @@ function renderMcpChips() {
     name.textContent = srv.name;
     body.appendChild(name);
 
-    if (!srv.isConnected) {
-      const tag = document.createElement('span');
-      tag.className = 'mcp-item-tag';
-      tag.textContent = '未连接';
-      body.appendChild(tag);
-    }
-
     label.appendChild(input);
     label.appendChild(body);
     els.mcpChips.appendChild(label);
@@ -602,8 +595,7 @@ async function connect() {
       const mcp = await mcpRes.json();
       state.mcpServers = (mcp.servers || []).map((s) => ({
         id: String(s.id),
-        name: String(s.name || s.id),
-        isConnected: Boolean(s.isConnected)
+        name: String(s.name || s.id)
       }));
     } else {
       state.mcpServers = [];

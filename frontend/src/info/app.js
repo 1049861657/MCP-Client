@@ -1,40 +1,80 @@
 import { confirmModal } from '../shared/ui/modal.js';
 import { showToast } from '../shared/ui/toast.js';
+import { closeToolTestDrawer } from './tool-test-drawer.js';
+import {
+  countEnabledTools,
+  isToolEnabled,
+  renderToolsPanel,
+  resetToolsPanelState,
+} from './tools-panel.js';
 
 /** @typedef {{ id: string; name: string; status: string; connectionDetails: ConnectionDetails }} ServerSummary */
 /** @typedef {{ connectionType: string; command?: string; args?: string; mcpUrl?: string; headers?: Record<string, string>; displayCommand?: string }} ConnectionDetails */
 /** @typedef {{ name: string; codeName?: string; description: string; parameters?: ToolParameter[] }} ToolInfo */
 /** @typedef {{ name: string; type: string; description: string; required: boolean }} ToolParameter */
-/** @typedef {{ availableServers: ServerSummary[]; currentServerId: string | null; server: ServerSummary; serverTools: Record<string, ToolInfo[]> }} InfoData */
+/** @typedef {{ availableServers: ServerSummary[]; currentServerId: string | null; server: ServerSummary; serverTools: Record<string, ToolInfo[]>; toolPreferences?: Record<string, Record<string, boolean>> }} InfoData */
+
+const ICON_POWER =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M18.36 6.64a9 9 0 1 1-12.73 0"/></svg>';
+const ICON_SPINNER =
+  '<svg class="conn-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>';
+
+/** @type {{ serverId: string; action: 'connect' | 'disconnect' } | null} */
+let connectionPending = null;
 
 const els = {
   loading: document.getElementById('loading'),
-  serversSelector: document.getElementById('servers-selector'),
-  serverTabsList: document.getElementById('server-tabs-list'),
+  appShell: document.getElementById('app-shell'),
+  serverSearch: document.getElementById('server-search'),
+  serverList: document.getElementById('server-list'),
+  refreshListBtn: document.getElementById('refresh-list-btn'),
   addServerBtn: document.getElementById('add-server-btn'),
-  serverFormContainer: document.getElementById('server-form-container'),
-  serverForm: document.getElementById('server-form'),
-  cancelFormBtn: document.getElementById('cancel-form'),
-  formTitle: document.getElementById('form-title'),
+  vEmpty: document.getElementById('v-empty'),
+  vDetail: document.getElementById('v-detail'),
+  vForm: document.getElementById('v-form'),
+  hName: document.getElementById('h-name'),
+  hStatus: document.getElementById('h-status'),
+  hStatusText: document.getElementById('h-status-text'),
+  hConnBtn: document.getElementById('h-conn-btn'),
+  goEdit: document.getElementById('go-edit'),
+  goDel: document.getElementById('go-del'),
+  tabTools: document.getElementById('tab-tools'),
+  tabPrompts: document.getElementById('tab-prompts'),
+  tabResources: document.getElementById('tab-resources'),
+  infoGrid: document.getElementById('info-grid'),
+  cardMcp: document.getElementById('card-mcp'),
+  cardEnabledTools: document.getElementById('card-enabled-tools'),
+  gId: document.getElementById('g-id'),
+  gType: document.getElementById('g-type'),
+  gInternal: document.getElementById('g-internal'),
+  gVer: document.getElementById('g-ver'),
+  gCmdLabel: document.getElementById('g-cmd-label'),
+  gCmd: document.getElementById('g-cmd'),
+  gEnabledTools: document.getElementById('g-enabled-tools'),
+  goToolsTab: document.getElementById('go-tools-tab'),
+  toolsToolbarHint: document.getElementById('tools-toolbar-hint'),
+  toolsBody: document.getElementById('tools-body'),
+  toolsAllOn: document.getElementById('tools-all-on'),
+  toolsAllOff: document.getElementById('tools-all-off'),
+  hToolsBadge: document.getElementById('h-tools-badge'),
+  hToolsRatio: document.getElementById('h-tools-ratio'),
+  formBack: document.getElementById('form-back'),
+  formTitle: document.getElementById('form-h'),
   formMode: document.getElementById('form-mode'),
   serverIdInput: document.getElementById('server-id'),
-  stdioFields: document.getElementById('stdio-fields'),
-  httpFields: document.getElementById('http-fields'),
+  serverForm: document.getElementById('server-form'),
+  formCancel: document.getElementById('form-x'),
+  stdioBlock: document.getElementById('b-stdio'),
+  httpBlock: document.getElementById('b-http'),
   headersRows: document.getElementById('headers-rows'),
   headersAddRow: document.getElementById('headers-add-row'),
-  serverInfo: document.getElementById('server-info'),
-  serverConnectedInfo: document.getElementById('server-connected-info'),
-  serverInternalName: document.getElementById('server-internal-name'),
-  serverVersion: document.getElementById('server-version'),
-  serverConnectionType: document.getElementById('server-connection-type'),
-  serverCommand: document.getElementById('server-command'),
-  connectionToggle: document.getElementById('connection-toggle'),
-  toolsInfo: document.getElementById('tools-info'),
-  toolsContainer: document.getElementById('tools-container'),
 };
 
 /** @type {InfoData | null} */
 let currentData = null;
+
+/** @type {string} */
+let searchQuery = '';
 
 /**
  * @param {{ error?: string; details?: string }} body
@@ -87,7 +127,6 @@ async function requestJson(url, init) {
 /**
  * @param {unknown} error
  * @param {string} fallback
- * @returns {void}
  */
 function showErrorToast(error, fallback) {
   const message = error instanceof Error ? error.message : fallback;
@@ -106,17 +145,142 @@ function setVisible(el, visible) {
 }
 
 /**
- * @returns {void}
+ * @param {{ serverId: string; action: 'connect' | 'disconnect' } | null} pending
  */
-export function initInfoApp() {
-  setupConnectionTypeToggle();
-  setupFormHandlers();
-  void fetchServerInfo();
+function setConnectionPending(pending) {
+  connectionPending = pending;
+  syncConnectionPendingUi();
+}
+
+function clearConnectionPending() {
+  connectionPending = null;
+  syncConnectionPendingUi();
+}
+
+/**
+ * @param {string} serverId
+ * @param {string} status
+ * @returns {'connect' | 'disconnect' | null}
+ */
+function getPendingActionForServer(serverId, status) {
+  if (!connectionPending || connectionPending.serverId !== serverId) {
+    return null;
+  }
+  const isConnected = status === '已连接';
+  if (connectionPending.action === 'connect' && !isConnected) {
+    return 'connect';
+  }
+  if (connectionPending.action === 'disconnect' && isConnected) {
+    return 'disconnect';
+  }
+  return null;
+}
+
+function syncConnectionPendingUi() {
+  const pendingOnCurrent =
+    connectionPending &&
+    currentData?.currentServerId &&
+    connectionPending.serverId === currentData.currentServerId;
+
+  els.vDetail?.classList.toggle('is-connection-pending', Boolean(pendingOnCurrent));
+
+  if (currentData?.currentServerId) {
+    updateDetailBar(currentData);
+    paintServerList(currentData.availableServers, currentData.currentServerId);
+  }
+}
+
+/**
+ * @param {'v-empty' | 'v-detail' | 'v-form'} viewId
+ */
+function showView(viewId) {
+  for (const view of [els.vEmpty, els.vDetail, els.vForm]) {
+    view?.classList.toggle('active', view?.id === viewId);
+  }
+}
+
+/**
+ * @param {string} pane
+ */
+function switchTab(pane) {
+  document.querySelectorAll('.tabs button').forEach((btn) => {
+    btn.classList.toggle('active', btn instanceof HTMLButtonElement && btn.dataset.pane === pane);
+  });
+  document.querySelectorAll('.pane').forEach((paneEl) => {
+    paneEl.classList.toggle('active', paneEl.id === `pane-${pane}`);
+  });
 }
 
 /**
  * @returns {void}
  */
+export function initInfoApp() {
+  setupConnectionTypeToggle();
+  setupFormHandlers();
+  setupShellHandlers();
+  void fetchServerInfo();
+}
+
+function setupShellHandlers() {
+  els.serverSearch?.addEventListener('input', () => {
+    searchQuery = els.serverSearch instanceof HTMLInputElement ? els.serverSearch.value : '';
+    if (currentData) {
+      paintServerList(currentData.availableServers, currentData.currentServerId);
+    }
+  });
+
+  els.refreshListBtn?.addEventListener('click', () => {
+    void reloadServerConfig();
+  });
+
+  document.querySelectorAll('.tabs button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn instanceof HTMLButtonElement && btn.dataset.pane) {
+        switchTab(btn.dataset.pane);
+      }
+    });
+  });
+
+  els.goToolsTab?.addEventListener('click', (event) => {
+    event.preventDefault();
+    if (currentData?.server.status === '已连接') {
+      switchTab('tools');
+    }
+  });
+
+  els.hConnBtn?.addEventListener('click', () => {
+    if (!currentData?.currentServerId || connectionPending) {
+      return;
+    }
+    const isConnected = currentData.server.status === '已连接';
+    if (isConnected) {
+      void disconnectServer(currentData.currentServerId);
+    } else {
+      void connectServer(currentData.currentServerId);
+    }
+  });
+
+  els.goEdit?.addEventListener('click', () => {
+    if (currentData?.server) {
+      showEditForm(currentData.server);
+    }
+  });
+
+  els.goDel?.addEventListener('click', () => {
+    if (currentData?.server) {
+      void deleteServer(currentData.server.id, currentData.server.name);
+    }
+  });
+
+  els.toolsAllOn?.addEventListener('click', () => {
+    void bulkSetTools(true);
+  });
+
+  els.toolsAllOff?.addEventListener('click', () => {
+    void bulkSetTools(false);
+  });
+}
+
 function setupConnectionTypeToggle() {
   document.querySelectorAll('input[name="connection-type"]').forEach((radio) => {
     radio.addEventListener('change', function handleChange() {
@@ -124,8 +288,8 @@ function setupConnectionTypeToggle() {
         return;
       }
       const isStdio = this.value === 'STDIO';
-      setVisible(els.stdioFields, isStdio);
-      setVisible(els.httpFields, !isStdio);
+      els.stdioBlock?.classList.toggle('on', isStdio);
+      els.httpBlock?.classList.toggle('on', !isStdio);
     });
   });
 }
@@ -140,23 +304,23 @@ function addHeaderRow(key = '', value = '') {
   }
 
   const row = document.createElement('div');
-  row.className = 'header-row';
+  row.className = 'hdr-row';
 
   const keyInput = document.createElement('input');
   keyInput.type = 'text';
   keyInput.className = 'header-row-key';
-  keyInput.placeholder = '例如: Authorization';
+  keyInput.placeholder = '名称';
   keyInput.value = key;
 
   const valInput = document.createElement('input');
   valInput.type = 'text';
   valInput.className = 'header-row-value';
-  valInput.placeholder = '例如: Bearer token';
+  valInput.placeholder = '值';
   valInput.value = value;
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
-  removeBtn.className = 'btn-remove-row';
+  removeBtn.className = 'icon-btn hdr-remove';
   removeBtn.title = '删除';
   removeBtn.innerHTML = '&times;';
   removeBtn.addEventListener('click', () => row.remove());
@@ -173,7 +337,7 @@ function addHeaderRow(key = '', value = '') {
 function getHeadersFromRows() {
   /** @type {Record<string, string>} */
   const result = {};
-  document.querySelectorAll('#headers-rows .header-row').forEach((row) => {
+  document.querySelectorAll('#headers-rows .hdr-row').forEach((row) => {
     const keyEl = row.querySelector('.header-row-key');
     const valEl = row.querySelector('.header-row-value');
     if (keyEl instanceof HTMLInputElement && valEl instanceof HTMLInputElement) {
@@ -206,11 +370,11 @@ function resetHeaders() {
   }
 }
 
-/**
- * @returns {void}
- */
 function setupFormHandlers() {
-  els.cancelFormBtn?.addEventListener('click', hideServerForm);
+  const hideForm = () => hideServerForm();
+
+  els.formCancel?.addEventListener('click', hideForm);
+  els.formBack?.addEventListener('click', hideForm);
 
   els.addServerBtn?.addEventListener('click', () => {
     if (els.formTitle) {
@@ -228,8 +392,8 @@ function setupFormHandlers() {
     if (stdioRadio instanceof HTMLInputElement) {
       stdioRadio.checked = true;
     }
-    setVisible(els.stdioFields, true);
-    setVisible(els.httpFields, false);
+    els.stdioBlock?.classList.add('on');
+    els.httpBlock?.classList.remove('on');
     showServerForm();
   });
 
@@ -241,25 +405,18 @@ function setupFormHandlers() {
   });
 }
 
-/**
- * @returns {void}
- */
 function showServerForm() {
-  setVisible(els.serverFormContainer, true);
-  setVisible(els.serverInfo, false);
-  setVisible(els.toolsInfo, false);
+  closeToolTestDrawer();
+  showView('v-form');
 }
 
-/**
- * @returns {void}
- */
 function hideServerForm() {
-  setVisible(els.serverFormContainer, false);
-  if (currentData) {
-    setVisible(els.serverInfo, true);
-    if (currentData.server.status === '已连接') {
-      setVisible(els.toolsInfo, true);
-    }
+  if (currentData?.currentServerId) {
+    showView('v-detail');
+  } else if (currentData?.availableServers?.length) {
+    showView('v-detail');
+  } else {
+    showView('v-empty');
   }
 }
 
@@ -268,7 +425,7 @@ function hideServerForm() {
  */
 function showEditForm(server) {
   if (els.formTitle) {
-    els.formTitle.textContent = `编辑服务器: ${server.name}`;
+    els.formTitle.textContent = `编辑 · ${server.name}`;
   }
   if (els.formMode instanceof HTMLInputElement) {
     els.formMode.value = 'edit';
@@ -279,7 +436,7 @@ function showEditForm(server) {
 
   resetHeaders();
 
-  const nameEl = document.getElementById('server-name');
+  const nameEl = document.getElementById('f-name');
   if (nameEl instanceof HTMLInputElement) {
     nameEl.value = server.name;
   }
@@ -291,10 +448,10 @@ function showEditForm(server) {
   }
 
   if (connectionType === 'STDIO') {
-    setVisible(els.stdioFields, true);
-    setVisible(els.httpFields, false);
-    const commandEl = document.getElementById('command');
-    const argsEl = document.getElementById('args');
+    els.stdioBlock?.classList.add('on');
+    els.httpBlock?.classList.remove('on');
+    const commandEl = document.getElementById('f-cmd');
+    const argsEl = document.getElementById('f-args');
     if (commandEl instanceof HTMLInputElement) {
       commandEl.value = server.connectionDetails.command || '';
     }
@@ -302,9 +459,9 @@ function showEditForm(server) {
       argsEl.value = server.connectionDetails.args || '';
     }
   } else {
-    setVisible(els.stdioFields, false);
-    setVisible(els.httpFields, true);
-    const mcpUrlEl = document.getElementById('mcp-url');
+    els.stdioBlock?.classList.remove('on');
+    els.httpBlock?.classList.add('on');
+    const mcpUrlEl = document.getElementById('f-url');
     if (mcpUrlEl instanceof HTMLInputElement) {
       mcpUrlEl.value = server.connectionDetails.mcpUrl || '';
     }
@@ -314,29 +471,26 @@ function showEditForm(server) {
   showServerForm();
 }
 
-/**
- * @returns {Promise<void>}
- */
 async function submitServerForm() {
   const mode = els.formMode instanceof HTMLInputElement ? els.formMode.value : 'add';
   const typeRadio = document.querySelector('input[name="connection-type"]:checked');
   const connectionType = typeRadio instanceof HTMLInputElement ? typeRadio.value : 'STDIO';
 
-  const nameEl = document.getElementById('server-name');
+  const nameEl = document.getElementById('f-name');
   const name = nameEl instanceof HTMLInputElement ? nameEl.value.trim() : '';
 
   /** @type {{ name: string; connectionType: string; serverId?: string; command?: string; args?: string[]; mcpUrl?: string; headers?: Record<string, string> }} */
   const serverData = { name, connectionType };
 
   if (connectionType === 'STDIO') {
-    const commandEl = document.getElementById('command');
-    const argsEl = document.getElementById('args');
+    const commandEl = document.getElementById('f-cmd');
+    const argsEl = document.getElementById('f-args');
     const command = commandEl instanceof HTMLInputElement ? commandEl.value.trim() : '';
     const argsStr = argsEl instanceof HTMLInputElement ? argsEl.value.trim() : '';
     serverData.command = command;
     serverData.args = argsStr.split(',').map((arg) => arg.trim());
   } else {
-    const mcpUrlEl = document.getElementById('mcp-url');
+    const mcpUrlEl = document.getElementById('f-url');
     serverData.mcpUrl = mcpUrlEl instanceof HTMLInputElement ? mcpUrlEl.value.trim() : '';
     const headers = getHeadersFromRows();
     if (headers) {
@@ -346,9 +500,6 @@ async function submitServerForm() {
 
   try {
     setVisible(els.loading, true);
-    setVisible(els.serverFormContainer, false);
-    setVisible(els.serverInfo, false);
-    setVisible(els.toolsInfo, false);
 
     if (mode === 'add') {
       serverData.serverId = `server-${Date.now()}`;
@@ -366,13 +517,12 @@ async function submitServerForm() {
       });
     }
 
-    hideServerForm();
     await reloadServerConfig();
   } catch (error) {
     console.error('服务器操作失败:', error);
     showErrorToast(error, '操作失败');
     setVisible(els.loading, false);
-    setVisible(els.serverFormContainer, true);
+    showServerForm();
   }
 }
 
@@ -395,21 +545,331 @@ async function deleteServer(serverId, serverName) {
 
   try {
     setVisible(els.loading, true);
-    setVisible(els.serverInfo, false);
-    setVisible(els.toolsInfo, false);
-
     await requestJson(`/api/server/delete/${serverId}`, { method: 'DELETE' });
     await reloadServerConfig();
   } catch (error) {
     console.error('删除服务器失败:', error);
     showErrorToast(error, '删除失败');
     setVisible(els.loading, false);
+  }
+}
+
+/**
+ * @param {ServerSummary[]} servers
+ * @param {string | null} currentServerId
+ */
+function paintServerList(servers, currentServerId) {
+  if (!els.serverList) {
+    return;
+  }
+
+  const query = searchQuery.trim().toLowerCase();
+  els.serverList.innerHTML = '';
+
+  const filtered = servers.filter(
+    (server) => !query || server.name.toLowerCase().includes(query)
+  );
+
+  filtered.forEach((server) => {
+    const isConnected = server.status === '已连接';
+    const row = document.createElement('div');
+    row.className = `server-item${server.id === currentServerId ? ' active' : ''}`;
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    row.addEventListener('click', () => {
+      void switchServer(server.id);
+    });
+    row.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        void switchServer(server.id);
+      }
+    });
+
+    const main = document.createElement('div');
+    main.className = 'server-item-main';
+    main.innerHTML = `<span class="dot ${isConnected ? 'on' : 'off'}"></span><span class="server-item-name">${server.name}</span>`;
+
+    const quick = document.createElement('button');
+    quick.type = 'button';
+    quick.className = `server-quick${isConnected ? ' on' : ''}`;
+    quick.title = isConnected ? '断开' : '连接';
+    quick.innerHTML = ICON_POWER;
+    quick.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (connectionPending) {
+        return;
+      }
+      if (isConnected) {
+        void disconnectServer(server.id);
+      } else {
+        void connectServer(server.id);
+      }
+    });
+
+    const pendingAction = getPendingActionForServer(server.id, server.status);
+    if (pendingAction) {
+      quick.className = 'server-quick is-loading';
+      quick.title = pendingAction === 'connect' ? '连接中…' : '断开中…';
+      quick.innerHTML = ICON_SPINNER;
+      quick.disabled = true;
+    }
+
+    row.appendChild(main);
+    row.appendChild(quick);
+    els.serverList.appendChild(row);
+  });
+}
+
+/**
+ * @param {ToolInfo[]} tools
+ * @param {Record<string, boolean>} preferences
+ */
+function paintEnabledToolsGrid(tools, preferences) {
+  if (!els.gEnabledTools) {
+    return;
+  }
+
+  const enabled = tools.filter((t) => isToolEnabled(preferences, t.name));
+
+  if (!enabled.length) {
+    els.gEnabledTools.innerHTML = '<div class="card-empty">暂无已启用工具</div>';
+    return;
+  }
+
+  els.gEnabledTools.innerHTML = enabled
+    .map(
+      (t) => `<div class="enabled-tool-cell">
+        <div class="enabled-tool-head">
+          <span class="enabled-tool-name">${t.name}</span>
+          ${t.codeName ? `<code class="enabled-tool-fn">${t.codeName}</code>` : ''}
+        </div>
+        <p class="enabled-tool-desc">${t.description}</p>
+      </div>`
+    )
+    .join('');
+}
+
+/**
+ * @param {ToolInfo[]} tools
+ * @param {Record<string, boolean>} preferences
+ * @param {boolean} isConnected
+ */
+function updateToolSummary(tools, preferences, isConnected) {
+  if (!isConnected) {
+    return;
+  }
+
+  const { enabled, total, ratio } = countEnabledTools(tools, preferences);
+
+  if (els.hToolsRatio) {
+    els.hToolsRatio.textContent = ratio;
+  }
+  if (els.toolsToolbarHint) {
+    els.toolsToolbarHint.innerHTML = `已启用 <strong>${ratio}</strong>`;
+  }
+  if (els.hToolsBadge) {
+    els.hToolsBadge.classList.toggle('all-on', total > 0 && enabled === total);
+    els.hToolsBadge.classList.toggle('partial', total > 0 && enabled > 0 && enabled < total);
+  }
+
+  paintEnabledToolsGrid(tools, preferences);
+}
+
+/**
+ * @param {InfoData} data
+ * @param {boolean} isConnected
+ */
+function renderTools(data, isConnected) {
+  if (!els.toolsBody) {
+    return;
+  }
+
+  const serverId = data.currentServerId;
+  const currentServerTools =
+    data.serverTools && serverId ? data.serverTools[serverId] ?? [] : [];
+
+  if (!isConnected || !serverId) {
+    els.toolsBody.innerHTML = '';
+    updateToolSummary([], {}, false);
+    return;
+  }
+
+  const preferences = data.toolPreferences?.[serverId] ?? {};
+
+  const refreshTools = () => {
     if (currentData) {
-      setVisible(els.serverInfo, true);
-      if (currentData.server.status === '已连接') {
-        setVisible(els.toolsInfo, true);
+      renderTools(currentData, currentData.server.status === '已连接');
+      updateToolSummary(currentServerTools, currentData.toolPreferences?.[serverId] ?? preferences, true);
+    }
+  };
+
+  renderToolsPanel(els.toolsBody, {
+    serverId,
+    tools: currentServerTools,
+    preferences,
+    onPreferencesChange: async (nextPrefs) => {
+      try {
+        await requestJson(`/api/server/${encodeURIComponent(serverId)}/tool-preferences`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ preferences: nextPrefs }),
+        });
+        if (!currentData?.toolPreferences) {
+          currentData.toolPreferences = {};
+        }
+        currentData.toolPreferences[serverId] = nextPrefs;
+        refreshTools();
+      } catch (error) {
+        showErrorToast(error, '保存工具偏好失败');
+        refreshTools();
+      }
+    },
+  });
+
+  updateToolSummary(currentServerTools, preferences, true);
+}
+
+/**
+ * @param {boolean} enabled
+ */
+async function bulkSetTools(enabled) {
+  if (!currentData?.currentServerId || currentData.server.status !== '已连接') {
+    return;
+  }
+
+  const serverId = currentData.currentServerId;
+  const tools = currentData.serverTools?.[serverId] ?? [];
+  if (!tools.length) {
+    return;
+  }
+
+  /** @type {Record<string, boolean>} */
+  const nextPrefs = { ...(currentData.toolPreferences?.[serverId] ?? {}) };
+  tools.forEach((t) => {
+    nextPrefs[t.name] = enabled;
+  });
+
+  try {
+    await requestJson(`/api/server/${encodeURIComponent(serverId)}/tool-preferences`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preferences: nextPrefs }),
+    });
+    if (!currentData.toolPreferences) {
+      currentData.toolPreferences = {};
+    }
+    currentData.toolPreferences[serverId] = nextPrefs;
+    renderTools(currentData, true);
+  } catch (error) {
+    showErrorToast(error, '保存工具偏好失败');
+  }
+}
+
+/**
+ * @param {InfoData} data
+ * @param {boolean} isConnected
+ */
+function applyConnectionState(data, isConnected) {
+  for (const tab of [els.tabTools, els.tabPrompts, els.tabResources]) {
+    tab?.classList.toggle('hidden', !isConnected);
+  }
+  setVisible(els.cardMcp, isConnected);
+  setVisible(els.cardEnabledTools, isConnected);
+  els.infoGrid?.classList.toggle('offline', !isConnected);
+
+  if (!isConnected) {
+    switchTab('general');
+  } else {
+    if (els.gInternal) {
+      els.gInternal.textContent = data.server.internalName || data.server.name || '—';
+    }
+    if (els.gVer) {
+      els.gVer.textContent = data.server.version || '—';
+    }
+    renderTools(data, true);
+  }
+}
+
+/**
+ * @param {InfoData} data
+ */
+function updateDetailBar(data) {
+  const isConnected = data.server.status === '已连接';
+  const pendingAction = getPendingActionForServer(data.server.id, data.server.status);
+
+  if (els.hName) {
+    els.hName.textContent = data.server.name;
+  }
+
+  if (els.hStatus) {
+    const dot = els.hStatus.querySelector('.dot');
+    if (pendingAction === 'connect') {
+      els.hStatus.className = 'status-chip pending';
+      if (dot) {
+        dot.className = 'dot pending';
+      }
+    } else if (pendingAction === 'disconnect') {
+      els.hStatus.className = 'status-chip pending';
+      if (dot) {
+        dot.className = 'dot pending';
+      }
+    } else {
+      els.hStatus.className = `status-chip ${isConnected ? 'on' : 'off'}`;
+      if (dot) {
+        dot.className = `dot ${isConnected ? 'on' : 'off'}`;
       }
     }
+  }
+  if (els.hStatusText) {
+    if (pendingAction === 'connect') {
+      els.hStatusText.textContent = '连接中';
+    } else if (pendingAction === 'disconnect') {
+      els.hStatusText.textContent = '断开中';
+    } else {
+      els.hStatusText.textContent = isConnected ? '已连接' : '未连接';
+    }
+  }
+
+  if (els.hConnBtn) {
+    if (pendingAction === 'connect') {
+      els.hConnBtn.textContent = '连接中…';
+      els.hConnBtn.className = 'btn btn-primary is-loading';
+      els.hConnBtn.disabled = true;
+    } else if (pendingAction === 'disconnect') {
+      els.hConnBtn.textContent = '断开中…';
+      els.hConnBtn.className = 'btn is-loading';
+      els.hConnBtn.disabled = true;
+    } else if (isConnected) {
+      els.hConnBtn.textContent = '断开连接';
+      els.hConnBtn.className = 'btn';
+      els.hConnBtn.disabled = Boolean(connectionPending);
+    } else {
+      els.hConnBtn.textContent = '连接';
+      els.hConnBtn.className = 'btn btn-primary';
+      els.hConnBtn.disabled = Boolean(connectionPending);
+    }
+  }
+
+  const connectionType = data.server.connectionDetails.connectionType;
+  let connectionTypeName = connectionType || '未知';
+  if (connectionType === 'STDIO') {
+    connectionTypeName = 'Stdio';
+  } else if (connectionType === 'HTTP') {
+    connectionTypeName = 'HTTP';
+  }
+
+  if (els.gId) {
+    els.gId.textContent = data.server.id;
+  }
+  if (els.gType) {
+    els.gType.textContent = connectionTypeName;
+  }
+  if (els.gCmdLabel) {
+    els.gCmdLabel.textContent = connectionType === 'HTTP' ? '端点 URL' : '启动命令';
+  }
+  if (els.gCmd) {
+    els.gCmd.textContent = data.server.connectionDetails.displayCommand || '';
   }
 }
 
@@ -418,222 +878,34 @@ async function deleteServer(serverId, serverName) {
  */
 function updatePageInfo(data) {
   currentData = data;
+  closeToolTestDrawer();
+  resetToolsPanelState();
 
-  updateServerTabs(data.availableServers, data.currentServerId);
+  paintServerList(data.availableServers, data.currentServerId);
 
   const isConnected = data.server.status === '已连接';
 
-  if (isConnected) {
-    setVisible(els.serverConnectedInfo, true);
-    if (els.serverInternalName) {
-      els.serverInternalName.textContent = data.server.internalName || data.server.name;
-    }
-    if (els.serverVersion) {
-      els.serverVersion.textContent = data.server.version || '';
-    }
+  if (data.currentServerId) {
+    showView('v-detail');
+    updateDetailBar(data);
+    applyConnectionState(data, isConnected);
   } else {
-    setVisible(els.serverConnectedInfo, false);
+    showView('v-empty');
   }
-
-  if (els.connectionToggle instanceof HTMLInputElement) {
-    els.connectionToggle.onchange = null;
-    els.connectionToggle.checked = isConnected;
-    els.connectionToggle.disabled = false;
-    els.connectionToggle.onchange = function handleToggle() {
-      if (!(this instanceof HTMLInputElement)) {
-        return;
-      }
-      if (this.checked) {
-        void connectServer(data.server.id);
-      } else {
-        void disconnectServer(data.server.id);
-      }
-    };
-  }
-
-  setVisible(els.toolsInfo, isConnected);
-
-  const connectionType = data.server.connectionDetails.connectionType;
-  let connectionTypeName = connectionType || '未知';
-  if (connectionType === 'STDIO') {
-    connectionTypeName = 'Stdio (标准输入输出)';
-  } else if (connectionType === 'HTTP') {
-    connectionTypeName = '远程 HTTP（MCP Streamable HTTP）';
-  }
-
-  if (els.serverConnectionType) {
-    els.serverConnectionType.textContent = connectionTypeName;
-  }
-  if (els.serverCommand) {
-    els.serverCommand.textContent = data.server.connectionDetails.displayCommand || '';
-  }
-
-  renderTools(data, isConnected);
 
   setVisible(els.loading, false);
-  setVisible(els.serversSelector, true);
-  setVisible(els.serverInfo, true);
-  setVisible(els.toolsInfo, isConnected);
-}
-
-/**
- * @param {InfoData} data
- * @param {boolean} isConnected
- */
-function renderTools(data, isConnected) {
-  if (!els.toolsContainer) {
-    return;
-  }
-
-  const currentServerTools =
-    data.serverTools && data.currentServerId ? data.serverTools[data.currentServerId] : [];
-
-  if (isConnected && currentServerTools && currentServerTools.length > 0) {
-    const toolsList = document.createElement('ul');
-    toolsList.className = 'tool-list';
-
-    currentServerTools.forEach((tool) => {
-      const toolItem = document.createElement('li');
-      toolItem.className = 'tool-item';
-
-      const toolHeader = document.createElement('div');
-      toolHeader.className = 'tool-header';
-
-      const toolName = document.createElement('div');
-      toolName.className = 'tool-name';
-      toolName.textContent = tool.name;
-
-      if (tool.codeName) {
-        const codeNameSpan = document.createElement('span');
-        codeNameSpan.className = 'tool-code-name';
-        codeNameSpan.textContent = ` (${tool.codeName})`;
-        toolName.appendChild(codeNameSpan);
-      }
-
-      toolHeader.appendChild(toolName);
-      toolItem.appendChild(toolHeader);
-
-      const toolDesc = document.createElement('p');
-      toolDesc.textContent = tool.description;
-      toolItem.appendChild(toolDesc);
-
-      if (tool.parameters && tool.parameters.length > 0) {
-        const table = document.createElement('table');
-        table.className = 'param-table';
-
-        const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
-        for (const text of ['参数名', '类型', '描述', '是否必需']) {
-          const th = document.createElement('th');
-          th.textContent = text;
-          headerRow.appendChild(th);
-        }
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
-
-        const tbody = document.createElement('tbody');
-        tool.parameters.forEach((param) => {
-          const row = document.createElement('tr');
-          for (const value of [param.name, param.type, param.description, param.required ? '是' : '否']) {
-            const cell = document.createElement('td');
-            cell.textContent = value;
-            row.appendChild(cell);
-          }
-          tbody.appendChild(row);
-        });
-        table.appendChild(tbody);
-        toolItem.appendChild(table);
-      }
-
-      toolsList.appendChild(toolItem);
-    });
-
-    els.toolsContainer.innerHTML = '';
-    els.toolsContainer.appendChild(toolsList);
-  } else {
-    els.toolsContainer.textContent = '没有可用的工具';
-  }
-}
-
-/**
- * @param {ServerSummary[]} servers
- * @param {string | null} currentServerId
- */
-function updateServerTabs(servers, currentServerId) {
-  if (!els.serverTabsList) {
-    return;
-  }
-
-  els.serverTabsList.innerHTML = '';
-
-  if (!servers || !Array.isArray(servers)) {
-    return;
-  }
-
-  servers.forEach((server) => {
-    const tab = document.createElement('button');
-    tab.type = 'button';
-    tab.className = 'server-tab';
-    tab.setAttribute('role', 'tab');
-    if (server.id === currentServerId) {
-      tab.classList.add('active');
-    }
-
-    const serverName = document.createElement('span');
-    serverName.textContent = server.name;
-    tab.appendChild(serverName);
-
-    const statusBadge = document.createElement('span');
-    statusBadge.className = `server-status-badge ${server.status === '已连接' ? 'server-status-connected' : 'server-status-disconnected'}`;
-    tab.appendChild(statusBadge);
-
-    const actionContainer = document.createElement('span');
-    actionContainer.className = 'server-actions';
-
-    const editBtn = document.createElement('button');
-    editBtn.type = 'button';
-    editBtn.className = 'server-action-btn edit-btn';
-    editBtn.innerHTML = '✎';
-    editBtn.title = '编辑服务器';
-    editBtn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      showEditForm(server);
-    });
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button';
-    deleteBtn.className = 'server-action-btn delete-btn';
-    deleteBtn.innerHTML = '×';
-    deleteBtn.title = '删除服务器';
-    deleteBtn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      void deleteServer(server.id, server.name);
-    });
-
-    actionContainer.appendChild(editBtn);
-    actionContainer.appendChild(deleteBtn);
-    tab.appendChild(actionContainer);
-
-    tab.addEventListener('click', () => {
-      void switchServer(server.id);
-    });
-
-    els.serverTabsList.appendChild(tab);
-  });
+  setVisible(els.appShell, true);
 }
 
 /**
  * @param {string} serverId
  */
 async function switchServer(serverId) {
-  if (els.serverFormContainer && !els.serverFormContainer.classList.contains('hidden')) {
-    setVisible(els.serverFormContainer, false);
-  }
+  closeToolTestDrawer();
+  resetToolsPanelState();
 
   try {
     setVisible(els.loading, true);
-    setVisible(els.serverInfo, false);
-    setVisible(els.toolsInfo, false);
 
     /** @type {InfoData} */
     const data = await requestJson(`/api/server/switch/${serverId}`, { method: 'POST' });
@@ -648,13 +920,13 @@ async function switchServer(serverId) {
  * @param {string} serverId
  */
 async function connectServer(serverId) {
-  if (!(els.connectionToggle instanceof HTMLInputElement)) {
+  if (connectionPending) {
     return;
   }
 
-  try {
-    els.connectionToggle.disabled = true;
+  setConnectionPending({ serverId, action: 'connect' });
 
+  try {
     /** @type {InfoData} */
     const data = await requestJson(`/api/server/connect/${serverId}`, { method: 'POST' });
 
@@ -663,12 +935,12 @@ async function connectServer(serverId) {
     }
 
     await updateServerActiveStatus(serverId, true);
-    await fetchServerInfo();
+    await fetchServerInfo({ silent: true });
   } catch (error) {
     console.error('连接服务器失败:', error);
-    els.connectionToggle.disabled = false;
-    els.connectionToggle.checked = false;
     showErrorToast(error, '连接服务器失败');
+  } finally {
+    clearConnectionPending();
   }
 }
 
@@ -676,25 +948,25 @@ async function connectServer(serverId) {
  * @param {string} serverId
  */
 async function disconnectServer(serverId) {
-  if (!(els.connectionToggle instanceof HTMLInputElement)) {
+  if (connectionPending) {
     return;
   }
 
-  try {
-    els.connectionToggle.disabled = true;
+  setConnectionPending({ serverId, action: 'disconnect' });
 
+  try {
     await requestJson(`/api/server/disconnect/${serverId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
 
     await updateServerActiveStatus(serverId, false);
-    await fetchServerInfo();
+    await fetchServerInfo({ silent: true });
   } catch (error) {
     console.error('断开服务器连接失败:', error);
-    els.connectionToggle.disabled = false;
-    els.connectionToggle.checked = true;
     showErrorToast(error, '断开服务器连接失败');
+  } finally {
+    clearConnectionPending();
   }
 }
 
@@ -715,13 +987,44 @@ async function updateServerActiveStatus(serverId, isActive) {
 }
 
 /**
- * @returns {Promise<void>}
+ * @returns {{ serverId: string, tab: string }}
  */
-async function fetchServerInfo() {
+function readUrlIntent() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    serverId: params.get('serverId') ?? '',
+    tab: params.get('tab') ?? '',
+  };
+}
+
+/**
+ * 处理 ?serverId=&tab=tools 深链（来自聊天页 MCP 弹窗）
+ */
+async function applyUrlIntent() {
+  const { serverId, tab } = readUrlIntent();
+  if (!serverId || !currentData?.availableServers?.some((server) => server.id === serverId)) {
+    return;
+  }
+
+  if (currentData.currentServerId !== serverId) {
+    await switchServer(serverId);
+  }
+
+  if (tab === 'tools' && currentData?.server.status === '已连接') {
+    switchTab('tools');
+  }
+}
+
+/**
+ * @param {{ silent?: boolean }} [options]
+ */
+async function fetchServerInfo(options = {}) {
+  const { silent = false } = options;
+
   try {
-    setVisible(els.loading, true);
-    setVisible(els.serverInfo, false);
-    setVisible(els.toolsInfo, false);
+    if (!silent) {
+      setVisible(els.loading, true);
+    }
 
     /** @type {InfoData} */
     const data = await requestJson('/api/info');
@@ -729,13 +1032,17 @@ async function fetchServerInfo() {
     if (data.availableServers && data.availableServers.length > 0) {
       if (data.currentServerId) {
         updatePageInfo(data);
+        await applyUrlIntent();
       } else {
         await switchServer(data.availableServers[0].id);
+        await applyUrlIntent();
       }
     } else {
-      updateServerTabs([], null);
+      currentData = data;
+      paintServerList([], null);
       setVisible(els.loading, false);
-      setVisible(els.serversSelector, true);
+      setVisible(els.appShell, true);
+      showView('v-empty');
     }
   } catch (error) {
     console.error('获取服务信息失败:', error);
@@ -743,14 +1050,9 @@ async function fetchServerInfo() {
   }
 }
 
-/**
- * @returns {Promise<void>}
- */
 async function reloadServerConfig() {
   try {
     setVisible(els.loading, true);
-    setVisible(els.serverInfo, false);
-    setVisible(els.toolsInfo, false);
 
     /** @type {InfoData} */
     const data = await requestJson('/api/server/reload-config', { method: 'POST' });
@@ -771,4 +1073,5 @@ function showLoadingError(message) {
   }
   els.loading.innerHTML = `<div class="error-panel"><p>获取服务信息失败: ${message}</p></div>`;
   setVisible(els.loading, true);
+  setVisible(els.appShell, false);
 }

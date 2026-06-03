@@ -4,7 +4,7 @@ import { fetchJson } from './fetch-json.js';
 const NAV_LINKS = [
   { href: '/', label: '首页', match: (path) => path === '/' || path === '/index.html' },
   { href: '/ai.html', label: 'AI聊天', match: (path) => path === '/ai.html' },
-  { href: '/info.html', label: '服务信息', match: (path) => path === '/info.html' },
+  { href: '/info.html', label: 'MCP服务', match: (path) => path === '/info.html' },
   { href: '/settings.html', label: '配置管理', match: (path) => path === '/settings.html' },
   { href: '/admin.html', label: '渠道管理', match: (path) => path === '/admin.html' || path.startsWith('/admin/') },
 ];

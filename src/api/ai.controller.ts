@@ -10,6 +10,8 @@ import {
   ToolsConfig
 } from '../config/feature-config.js';
 import { ConfigService } from '../services/config.service.js';
+import { ToolPolicyService } from '../services/tool-policy.service.js';
+import { ToolPreferencesService } from '../services/tool-preferences.service.js';
 import { getWebChannelAdapter } from '../channels/web/web-channel.adapter.js';
 import { normalizeWebInbound } from '../channels/web/normalize-web-inbound.js';
 import { SSE_KEEP_ALIVE_INTERVAL_MS } from '../channels/web/sse-config.js';
@@ -166,6 +168,7 @@ export class AiController {
       try {
         const body = req.body as Record<string, unknown>;
         await AiController.sanitizeWebMcpServerIds(body);
+        await AiController.sanitizeWebEnabledToolNames(body);
         envelope = normalizeWebInbound({
           body,
           requestId,
@@ -364,18 +367,31 @@ export class AiController {
     try {
       const scopeRaw = req.query.scope;
       const scope = typeof scopeRaw === 'string' ? scopeRaw : 'connected';
-      const serverInfo = await mcpClient.getServerInfo();
+      const [serverInfo, store] = await Promise.all([
+        mcpClient.getServerInfo(),
+        ToolPreferencesService.getAll()
+      ]);
       const connectedIds = new Set(
         (serverInfo.connectedServers ?? []).map((server) => server.id)
       );
+      const serverTools = serverInfo.serverTools ?? {};
+
+      const toRow = (id: string, name: string, isConnected: boolean) => {
+        const { enabled, total } = ToolPolicyService.countEnabledTools(id, serverTools, store);
+        return {
+          id,
+          name,
+          isConnected,
+          toolsEnabled: enabled,
+          toolsTotal: total
+        };
+      };
 
       if (scope === 'configured') {
         const rows = await ConfigService.listConfiguredMcpServers();
-        const servers = rows.map((row) => ({
-          id: row.serverId,
-          name: row.name,
-          isConnected: connectedIds.has(row.serverId)
-        }));
+        const servers = rows.map((row) =>
+          toRow(row.serverId, row.name, connectedIds.has(row.serverId))
+        );
         res.json({ success: true, servers });
         return;
       }
@@ -386,11 +402,7 @@ export class AiController {
       }
 
       const connected = serverInfo.connectedServers ?? [];
-      const servers = connected.map((server) => ({
-        id: server.id,
-        name: server.name,
-        isConnected: true
-      }));
+      const servers = connected.map((server) => toRow(server.id, server.name, true));
 
       res.json({
         success: true,
@@ -456,6 +468,20 @@ export class AiController {
     );
     body.mcpServerIds = body.mcpServerIds.filter(
       (id): id is string => typeof id === 'string' && connectedIds.has(id)
+    );
+  }
+
+  /** Web 请求体 enabledToolNames 仅保留当前已连接服务器上已启用的 MCP 工具 codeName */
+  static async sanitizeWebEnabledToolNames(body: Record<string, unknown>): Promise<void> {
+    if (!Array.isArray(body.enabledToolNames)) {
+      return;
+    }
+    const mcpServerIds = Array.isArray(body.mcpServerIds)
+      ? body.mcpServerIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    body.enabledToolNames = await ToolPolicyService.sanitizeWebEnabledToolNames(
+      body.enabledToolNames.filter((name): name is string => typeof name === 'string'),
+      mcpServerIds
     );
   }
 } 

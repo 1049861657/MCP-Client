@@ -34,6 +34,7 @@ import {
 } from '../config/feature-config.js';
 import { mcpClient } from '../core/mcp/index.js';
 import { ConfigService } from '../services/config.service.js';
+import { ToolPolicyService } from '../services/tool-policy.service.js';
 import type { ResolvedChatProfile } from '../types/config-plane.types.js';
 import { AIProvider } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';
@@ -64,6 +65,9 @@ export class AiProvider {
     enableParamValidation: boolean;
     enablePrompts: boolean;
   };
+
+  private chatToolsCache = new Map<string, { tools: ChatTool[]; createdAt: number }>();
+  private static readonly CHAT_TOOLS_CACHE_TTL_MS = 60_000;
   
   /**
    * 构造函数
@@ -108,7 +112,8 @@ export class AiProvider {
    * @returns OpenAI工具定义列表
    */
   private async convertMcpToolsToChatFunctions(
-    enabledServerIds?: string[]
+    enabledServerIds?: string[],
+    enabledToolCodeNames?: string[]
   ): Promise<ChatTool[]> {
     try {
       const serverInfo = await mcpClient.getServerInfo();
@@ -127,14 +132,30 @@ export class AiProvider {
         return [];
       }
 
+      const enabledSet =
+        enabledToolCodeNames !== undefined
+          ? new Set(enabledToolCodeNames)
+          : undefined;
+
       const serverToolsMap = serverInfo.serverTools || {};
-      const filteredTools = mcpTools.filter(tool => {
+      const filteredTools = mcpTools.filter((tool) => {
+        let onServer = false;
         for (const serverId in serverToolsMap) {
-          if (filterIds.includes(serverId) && serverToolsMap[serverId].some(t => t.codeName === tool.codeName)) {
-            return true;
+          if (
+            filterIds.includes(serverId) &&
+            serverToolsMap[serverId].some((t) => t.codeName === tool.codeName)
+          ) {
+            onServer = true;
+            break;
           }
         }
-        return false;
+        if (!onServer) {
+          return false;
+        }
+        if (enabledSet !== undefined) {
+          return enabledSet.has(tool.codeName);
+        }
+        return true;
       });
       
       if (filteredTools.length > 0) {
@@ -209,6 +230,12 @@ export class AiProvider {
     );
   }
   
+  private async resolveEnabledToolCodeNames(
+    resolvedProfile?: ResolvedChatProfile
+  ): Promise<string[] | undefined> {
+    return ToolPolicyService.resolveEnabledCodeNamesForProfile(resolvedProfile);
+  }
+
   /**
    * 使用辅助函数获取工具定义列表
    * @param enableTools 是否启用工具调用
@@ -223,7 +250,28 @@ export class AiProvider {
     const systemTools = ToolsConfig.enableSystemTools ? getSystemToolSchemas() : [];
 
     try {
-      const mcpTools = await this.convertMcpToolsToChatFunctions(resolvedProfile?.mcpServerIds);
+      const serverIds = resolvedProfile?.mcpServerIds ?? [];
+      const enabledCodeNames = await this.resolveEnabledToolCodeNames(resolvedProfile);
+      const cacheKey = ToolPolicyService.buildEnabledSetHash(
+        serverIds,
+        enabledCodeNames ?? []
+      );
+      const cached = this.chatToolsCache.get(cacheKey);
+      if (
+        cached &&
+        Date.now() - cached.createdAt < AiProvider.CHAT_TOOLS_CACHE_TTL_MS
+      ) {
+        if (systemTools.length > 0) {
+          Logger.info('OPENAI', `使用 ${systemTools.length} 个 System 内置工具（MCP 缓存命中）`);
+        }
+        return [...systemTools, ...cached.tools];
+      }
+
+      const mcpTools = await this.convertMcpToolsToChatFunctions(
+        serverIds.length > 0 ? serverIds : undefined,
+        enabledCodeNames
+      );
+      this.chatToolsCache.set(cacheKey, { tools: mcpTools, createdAt: Date.now() });
       if (systemTools.length > 0) {
         Logger.info('OPENAI', `使用 ${systemTools.length} 个 System 内置工具`);
       }

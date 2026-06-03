@@ -16,7 +16,7 @@ export interface MessageInternalMeta {
 }
 
 /** 内部消息来源（Harness 上下文构建 / 审计，不发送给 LLM API） */
-export type MessageSource = 'user' | 'tool' | 'reminder' | 'compact' | 'system' | 'summary';
+export type MessageSource = 'user' | 'tool' | 'reminder' | 'compact' | 'system' | 'summary' | 'hook';
 
 /**
  * 内部消息扩展字段规范（P0-02）

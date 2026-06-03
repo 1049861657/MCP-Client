@@ -207,19 +207,22 @@ core + tools + skills_catalog + memory + project_rules
 
 ### 任务
 
-- [ ] **P1-05-01** 新建 `src/core/agent-harness/hook-runner.ts`  
+- [x] **P1-05-01** 新建 `src/core/agent-harness/hook-runner.ts`  
   - 事件：`SessionStart`、`PreToolUse`、`PostToolUse`  
   - 返回：`exit_code: 0|1|2`（继续/阻止/注入消息）  
   - 涉及：新建模块  
-  - 验收：注册表 `HOOKS[eventName][]`
+  - 验收：注册表 `HOOKS[eventName][]`  
+  - 完成日期：2026-06-03
 
-- [ ] **P1-05-02** 内置 Hook：审计日志（PostToolUse）、参数大小检查（PreToolUse）  
+- [x] **P1-05-02** 内置 Hook：审计日志（PostToolUse）、参数大小检查（PreToolUse）  
   - 涉及：`hook-runner.ts`  
-  - 验收：默认启用，可配置关闭
+  - 验收：默认启用，可配置关闭  
+  - 完成日期：2026-06-03
 
-- [ ] **P1-05-03** 预留配置文件加载 Hook（`hooks.json`，参考 Cursor hooks 模式）  
+- [x] **P1-05-03** 预留配置文件加载 Hook（`hooks.json`，参考 Cursor hooks 模式）  
   - 涉及：项目根或 `.mcp-client/hooks.json`  
-  - 验收：文档说明扩展方式即可，实现可简版
+  - 验收：文档说明扩展方式即可，实现可简版  
+  - 完成日期：2026-06-03
 
 ---
 
@@ -229,17 +232,28 @@ core + tools + skills_catalog + memory + project_rules
 
 ### 任务
 
-- [ ] **P1-06-01** API 支持 `enabledToolServerIds`（已有）+ 新增 `enabledToolNames` 白名单  
-  - 涉及：`openai.controller.ts`、`client.ts`  
-  - 验收：前端可选择启用工具子集
+- [x] **P1-06-01** API 支持 `enabledToolServerIds`（已有）+ 新增 `enabledToolNames` 白名单  
+  - 涉及：`ai.controller.ts`、`ai-provider.ts`、`profile-resolver.ts`、Info 页 tool-preferences  
+  - 验收：Info 页可切换 per-tool 启用；聊天按偏好过滤 MCP 工具（body 可传 `enabledToolNames` 覆盖）  
+  - 完成日期：2026-06-03
 
-- [ ] **P1-06-02** 工具定义缓存按「启用集 hash」分片  
-  - 涉及：`MCPClientManager.getToolDefinitions`  
-  - 验收：切换工具集不重新 list 全服
+- [x] **P1-06-02** 工具定义缓存按「启用集 hash」分片  
+  - 涉及：`AiProvider.getToolDefinitions`  
+  - 验收：相同 serverIds + 启用集命中内存缓存，不重复转换全量 tools  
+  - 完成日期：2026-06-03
 
-- [ ] **P1-06-03** Prompt 中 tools 段只描述启用工具（含 schema 摘要压缩）  
-  - 涉及：`prompt-pipeline.ts`  
-  - 验收：100+ 工具场景 prompt 体积可控
+- [x] **P1-06-03** Prompt 中 tools 段只描述启用工具（含 schema 摘要压缩）  
+  - 涉及：`prompt-pipeline.ts`、`tool-schema-summary.ts`  
+  - 验收：启用提示词时 tools 段追加「启用工具（摘要）」列表  
+  - 完成日期：2026-06-03
+
+- [x] **P1-06-04** Info 页 MCP 工具试运行（右侧抽屉）  
+  - 背景：管理页需在不走 Agent 会话的情况下验证工具 schema 与返回；展开卡片仍只读展示参数表，试运行独立弹层，避免与启用管理混在同一折叠区。  
+  - 功能：工具 Tab 卡片行右侧常驻「试运行」图标（折叠即可进入）；展开区仅只读参数表；右侧抽屉按 `ToolInfo.parameters` 生成表单（string/integer/object）；支持试运行 / 重置 / 取消（AbortSignal）；结果区展示耗时、成功/失败、完整 monospace 输出（不经 LLM / TOA，大结果在抽屉内滚动展示）。  
+  - API：`PUT/GET /api/server/:serverId/tool-preferences`、`POST /api/server/:serverId/tools/call` → `MCPClientManager.callToolOnServer`  
+  - 涉及：`info.controller.ts`、`frontend/src/info/`、`design/mcp-server-management.html`（设计稿）  
+  - 验收：已连接服务器可对任意工具试跑（与 per-tool 启用偏好无关）；校验失败与 MCP 错误在抽屉内可见；关闭抽屉不丢失列表展开态  
+  - 完成日期：2026-06-03
 
 ---
 
@@ -262,5 +276,5 @@ core + tools + skills_catalog + memory + project_rules
 - [x] LLM 瞬态错误可退避重试（P1-02）
 - [x] 工具权限 Gate 可用（三模式 + Web 确认 + IM 渠道自动/只读）
 - [ ] Prompt 分段可维护、可测试
-- [ ] Hook 可插拔至少 1 个自定义脚本
+- [x] Hook 可插拔至少 1 个自定义脚本
 - [ ] 无新增 `openai.ts` 循环逻辑

@@ -11,7 +11,7 @@
 | 文件 | 内容 |
 |------|------|
 | [REFERENCES.md](./REFERENCES.md) | **外部参考索引**（s01–s19 完整网页路径） |
-| [ROADMAP.md](./ROADMAP.md) | 总览：阶段划分、依赖关系、目标架构 |
+| [ROADMAP.md](./ROADMAP.md) | 总览：§零 实现铁律、阶段划分、依赖、目标架构 |
 | [P0-core-harness.md](./P0-core-harness.md) | **P0** 核心 Harness（必须先做） |
 | [P1-control-plane.md](./P1-control-plane.md) | **P1** 控制面（权限、压缩、恢复、Prompt 流水线） |
 | [P2-mcp-platform.md](./P2-mcp-platform.md) | **P2** MCP 平台化（Resources/Prompts/OAuth/连接治理） |
@@ -53,7 +53,7 @@
 | T2（配置平面+Admin） | 24 | 21 | 88% |
 | T3（前端现代化） | 31 | 31 | 100% |
 | P0 | 19 | 19 | 100% |
-| P1 | 32 | 17 | 53% |
+| P1 | 32 | 24 | 75% |
 | P2 | 21 | 0 | 0% |
 | P3 | 26 | 0 | 0% |
 | Backlog | 24 | 0 | — |

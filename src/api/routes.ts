@@ -44,6 +44,9 @@ router.post('/server/add', InfoController.addServer);
 router.put('/server/update/:serverId', InfoController.updateServer);
 router.delete('/server/delete/:serverId', InfoController.deleteServer);
 router.post('/server/reload-config', InfoController.reloadConfig);
+router.get('/server/:serverId/tool-preferences', InfoController.getToolPreferences);
+router.put('/server/:serverId/tool-preferences', InfoController.saveToolPreferences);
+router.post('/server/:serverId/tools/call', InfoController.callServerTool);
 
 // 工具列表路由
 router.get('/tools/list', AiController.getAvailableTools);

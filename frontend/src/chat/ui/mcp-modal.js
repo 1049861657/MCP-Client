@@ -90,7 +90,7 @@ export function createMcpModalApi(getApp, ui) {
 
     if (!app.state.mcpServers.length) {
       container.innerHTML =
-        '<p class="mcp-servers-empty">暂无可用服务器<br>请先在 <a href="/info.html">服务信息</a> 页连接 MCP</p>';
+        '<p class="mcp-servers-empty">暂无可用服务器<br>请先在 <a href="/info.html">MCP服务</a> 页连接 MCP</p>';
       return;
     }
 
@@ -101,14 +101,16 @@ export function createMcpModalApi(getApp, ui) {
   }
 
   /**
-   * @param {{ id: string, name: string, description?: string }} server
+   * @param {{ id: string, name: string, description?: string, toolsEnabled?: number, toolsTotal?: number }} server
    * @param {string[]} enabledServerIds
    */
   function createMcpServerItem(server, enabledServerIds) {
-    const item = document.createElement('label');
+    const item = document.createElement('div');
     item.className = 'mcp-server-item';
-    item.htmlFor = `${MCP_CHECKBOX_PREFIX}${server.id}`;
     item.style.setProperty('--mcp-hue', String(serverAccentHue(server.name)));
+
+    const select = document.createElement('label');
+    select.className = 'mcp-server-select';
 
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
@@ -134,10 +136,16 @@ export function createMcpModalApi(getApp, ui) {
     const textWrap = document.createElement('span');
     textWrap.className = 'mcp-server-text';
 
+    const nameRow = document.createElement('span');
+    nameRow.className = 'mcp-server-name-row';
+
     const nameEl = document.createElement('span');
     nameEl.className = 'mcp-server-name';
     nameEl.textContent = server.name;
-    textWrap.appendChild(nameEl);
+    nameRow.appendChild(nameEl);
+    textWrap.appendChild(nameRow);
+
+    const noneEnabled = isAllToolsDisabled(server);
 
     if (server.description) {
       const descEl = document.createElement('span');
@@ -146,7 +154,28 @@ export function createMcpModalApi(getApp, ui) {
       textWrap.appendChild(descEl);
     }
 
-    item.append(checkbox, badge, textWrap, indicator);
+    if (noneEnabled) {
+      const warnEl = document.createElement('span');
+      warnEl.className = 'mcp-server-warn';
+      warnEl.textContent = '尚未启用任何工具';
+      textWrap.appendChild(warnEl);
+    }
+
+    select.append(checkbox, badge, textWrap, indicator);
+
+    const toolsLink = document.createElement('a');
+    const ratio = formatToolRatio(server);
+    toolsLink.className = 'mcp-server-tools-link';
+    toolsLink.href = buildInfoToolsUrl(server.id);
+    toolsLink.textContent = ratio;
+    toolsLink.title = '在 MCP 服务页配置工具';
+    toolsLink.setAttribute('aria-label', `${server.name} 工具配置 ${ratio}`);
+
+    if (noneEnabled) {
+      item.classList.add('has-no-tools-enabled');
+    }
+
+    item.append(select, toolsLink);
     return item;
   }
 
@@ -188,6 +217,32 @@ export function createMcpModalApi(getApp, ui) {
     showMCPServersModal,
     updateMCPButtonCounter,
   };
+}
+
+/**
+ * @param {string} serverId
+ */
+function buildInfoToolsUrl(serverId) {
+  const params = new URLSearchParams({ serverId, tab: 'tools' });
+  return `/info.html?${params.toString()}`;
+}
+
+/**
+ * @param {{ toolsEnabled?: number, toolsTotal?: number }} server
+ */
+function formatToolRatio(server) {
+  const enabled = typeof server.toolsEnabled === 'number' ? server.toolsEnabled : 0;
+  const total = typeof server.toolsTotal === 'number' ? server.toolsTotal : 0;
+  return `${enabled}/${total}`;
+}
+
+/**
+ * @param {{ toolsEnabled?: number, toolsTotal?: number }} server
+ */
+function isAllToolsDisabled(server) {
+  const enabled = typeof server.toolsEnabled === 'number' ? server.toolsEnabled : 0;
+  const total = typeof server.toolsTotal === 'number' ? server.toolsTotal : 0;
+  return total > 0 && enabled === 0;
 }
 
 /**

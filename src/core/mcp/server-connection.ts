@@ -390,6 +390,16 @@ export class ServerConnection {
    *  3. Streamable HTTP 传输层：SDK 将服务端 JSON-RPC 错误体嵌入 Error.message，
    *     优先 JSON.parse 提取 code，降级到正则兜底
    */
+  private static isAbortError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+    if (error.name === 'AbortError' || error.name === 'APIUserAbortError') {
+      return true;
+    }
+    return /aborted/i.test(error.message);
+  }
+
   private isConnectionError(error: unknown): boolean {
     // 1. MCP SDK 类型化错误
     if (error instanceof McpError) {
@@ -469,6 +479,10 @@ export class ServerConnection {
     try {
       return await executeCall();
     } catch (error) {
+      if (ServerConnection.isAbortError(error)) {
+        Logger.debug('SERVER CONNECTION', `调用工具 ${toolName} 已取消`);
+        throw error;
+      }
       // 连接断开类错误：标记状态、重连、重试一次
       if (this.isConnectionError(error)) {
         Logger.warn('SERVER CONNECTION', `[${this.name}] 工具 ${toolName} 调用失败（连接断开），自动重连后重试...`);

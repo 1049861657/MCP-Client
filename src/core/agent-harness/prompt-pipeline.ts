@@ -1,6 +1,8 @@
 import { mcpClient } from '../mcp/index.js';
 import { ConfigService } from '../../services/config.service.js';
+import { ToolPolicyService } from '../../services/tool-policy.service.js';
 import type { ResolvedChatProfile } from '../../types/config-plane.types.js';
+import { buildEnabledToolsSchemaSummary } from '../../utils/tool-schema-summary.js';
 import type { InternalMessage } from './types.js';
 
 export const PROMPT_SECTION_ORDER = [
@@ -155,7 +157,18 @@ export class SystemPromptBuilder {
     if (!this.options.enableTools || !this.options.enablePrompts) {
       return '';
     }
-    return this.resolveUserToolPrompt();
+    const userPrompt = await this.resolveUserToolPrompt();
+    const catalog = await this._buildEnabledToolsSchemaSummary();
+    return joinNonEmpty([userPrompt, catalog]);
+  }
+
+  private async _buildEnabledToolsSchemaSummary(): Promise<string> {
+    const serverIds = this.options.resolvedProfile?.mcpServerIds;
+    if (!serverIds?.length) {
+      return '';
+    }
+    const enabledTools = await ToolPolicyService.collectEnabledToolsForServerIds(serverIds);
+    return buildEnabledToolsSchemaSummary(enabledTools);
   }
 
   private _buildSkillsCatalog(): string {

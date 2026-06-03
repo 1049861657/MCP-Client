@@ -2,6 +2,14 @@ import { Request, Response } from 'express';
 import { mcpClient, reloadMCPConfig } from '../core/mcp/index.js';
 import { ErrorResponse } from '../types/api.types.js';
 import { ConfigService } from '../services/config.service.js';
+import { McpInfoAssembler } from '../services/mcp-info-assembler.service.js';
+import { ToolPreferencesService } from '../services/tool-preferences.service.js';
+import { formatMcpToolResult } from '../utils/mcp-tool-result.js';
+import type {
+  CallServerToolBody,
+  CallServerToolResponse,
+  ServerToolPreferencesBody
+} from '../types/tool-preferences.types.js';
 import { ConnectionType } from '../generated/prisma/client.js';
 import { MCPServer } from '../types/config.types.js';
 /**
@@ -57,7 +65,7 @@ export class InfoController {
    */
   static async getInfo(req: Request, res: Response): Promise<void> {
     try {
-      const info = await mcpClient.getServerInfo();
+      const info = await McpInfoAssembler.assembleForInfoPage();
       res.json(info);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -95,7 +103,7 @@ export class InfoController {
       const success = await mcpClient.connect(serverId);
       
       if (success) {
-        const info = await mcpClient.getServerInfo();
+        const info = await McpInfoAssembler.assembleForInfoPage();
         res.json(info);
       } else {
         InfoController.sendErrorResponse(
@@ -125,7 +133,7 @@ export class InfoController {
       
       await mcpClient.disconnect(serverId);
       
-      const info = await mcpClient.getServerInfo();
+      const info = await McpInfoAssembler.assembleForInfoPage();
       res.json(info);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -142,7 +150,7 @@ export class InfoController {
       const success = await reloadMCPConfig();
       
       if (success) {
-        const info = await mcpClient.getServerInfo();
+        const info = await McpInfoAssembler.assembleForInfoPage();
         res.json(info);
       } else {
         InfoController.sendErrorResponse(
@@ -213,8 +221,7 @@ export class InfoController {
       // 强制重新加载配置
       await reloadMCPConfig();
       
-      // 获取更新后的服务器信息
-      const info = await mcpClient.getServerInfo();
+      const info = await McpInfoAssembler.assembleForInfoPage();
       res.json(info);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -264,8 +271,7 @@ export class InfoController {
       // 强制重新加载配置
       await reloadMCPConfig();
       
-      // 获取更新后的服务器信息
-      const info = await mcpClient.getServerInfo();
+      const info = await McpInfoAssembler.assembleForInfoPage();
       res.json(info);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -328,8 +334,7 @@ export class InfoController {
       // 强制重新加载配置
       await reloadMCPConfig();
       
-      // 获取更新后的服务器信息
-      const updateInfo = await mcpClient.getServerInfo();
+      const updateInfo = await McpInfoAssembler.assembleForInfoPage();
       res.json(updateInfo);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -349,16 +354,134 @@ export class InfoController {
         InfoController.sendErrorResponse(res, 400, "查看服务器失败", "服务器ID不能为空");
         return;
       }
-      //切换当前服务器ID
       mcpClient.switchCurrentServer(serverId);
-      // 获取服务器连接状态
-      const serverInfo  = await mcpClient.getServerInfo();
-      
+      const serverInfo = await McpInfoAssembler.assembleForInfoPage();
       res.json(serverInfo);
     } catch (error) {
       InfoController.sendErrorResponse(
         res, 500, "查看服务器失败", InfoController.getErrorMessage(error)
       );
+    }
+  }
+
+  /**
+   * 获取指定服务器的 per-tool 启用偏好
+   */
+  static async getToolPreferences(req: Request, res: Response): Promise<void> {
+    try {
+      const serverId = InfoController.routeParamToString(req.params.serverId);
+      if (!serverId) {
+        InfoController.sendErrorResponse(res, 400, '缺少服务器 ID', '必须指定 serverId');
+        return;
+      }
+      const preferences = await ToolPreferencesService.getForServer(serverId);
+      res.json({ preferences });
+    } catch (error) {
+      InfoController.sendErrorResponse(
+        res, 500, '获取工具偏好失败', InfoController.getErrorMessage(error)
+      );
+    }
+  }
+
+  /**
+   * 保存指定服务器的 per-tool 启用偏好
+   */
+  static async saveToolPreferences(req: Request, res: Response): Promise<void> {
+    try {
+      const serverId = InfoController.routeParamToString(req.params.serverId);
+      if (!serverId) {
+        InfoController.sendErrorResponse(res, 400, '缺少服务器 ID', '必须指定 serverId');
+        return;
+      }
+      const body = req.body as ServerToolPreferencesBody;
+      if (!body?.preferences || typeof body.preferences !== 'object') {
+        InfoController.sendErrorResponse(res, 400, '请求无效', 'preferences 必须为对象');
+        return;
+      }
+      const normalized: Record<string, boolean> = {};
+      for (const [name, value] of Object.entries(body.preferences)) {
+        if (typeof value === 'boolean') {
+          normalized[name] = value;
+        }
+      }
+      await ToolPreferencesService.saveForServer(serverId, normalized);
+      res.json({ ok: true, preferences: normalized });
+    } catch (error) {
+      InfoController.sendErrorResponse(
+        res, 500, '保存工具偏好失败', InfoController.getErrorMessage(error)
+      );
+    }
+  }
+
+  /**
+   * Info 页试运行 MCP 工具（不经 Agent / LLM）
+   */
+  static async callServerTool(req: Request, res: Response): Promise<void> {
+    const started = Date.now();
+    const abortController = new AbortController();
+    // 勿用 req.on('close')：请求体读完后也会触发 close，会把正常试跑误取消
+    const abortIfClientGone = (): void => {
+      if (!res.writableFinished) {
+        abortController.abort();
+      }
+    };
+    req.on('aborted', abortIfClientGone);
+    res.on('close', abortIfClientGone);
+
+    try {
+      const serverId = InfoController.routeParamToString(req.params.serverId);
+      if (!serverId) {
+        InfoController.sendErrorResponse(res, 400, '缺少服务器 ID', '必须指定 serverId');
+        return;
+      }
+
+      const body = req.body as CallServerToolBody;
+      if (!body?.toolName || typeof body.toolName !== 'string') {
+        InfoController.sendErrorResponse(res, 400, '请求无效', 'toolName 为必填项');
+        return;
+      }
+
+      const args =
+        body.arguments && typeof body.arguments === 'object' && !Array.isArray(body.arguments)
+          ? body.arguments
+          : {};
+
+      const result = await mcpClient.callToolOnServer(
+        serverId,
+        body.toolName.trim(),
+        args,
+        { signal: abortController.signal, timeout: 300_000 }
+      );
+
+      const response: CallServerToolResponse = {
+        ok: true,
+        ms: Date.now() - started,
+        output: formatMcpToolResult(result)
+      };
+      res.json(response);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === 'AbortError' || /aborted/i.test(error.message))
+      ) {
+        if (!res.writableEnded) {
+          res.status(499).json({
+            ok: false,
+            ms: Date.now() - started,
+            output: '已取消',
+            error: '已取消'
+          } satisfies CallServerToolResponse);
+        }
+        return;
+      }
+      const message = InfoController.getErrorMessage(error);
+      const response: CallServerToolResponse = {
+        ok: false,
+        ms: Date.now() - started,
+        output: message,
+        error: message
+      };
+      res.status(500).json(response);
     }
   }
 } 

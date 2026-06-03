@@ -3,124 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MCP服务和工具信息</title>
-  <script type="module" crossorigin src="/assets/info-B0su9nn1.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/navbar-B50aCHnt.js">
+    <title>MCP 服务器管理</title>
+  <script type="module" crossorigin src="/assets/info-0-9nGSLb.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/navbar-nfk_Tl9r.js">
   <link rel="modulepreload" crossorigin href="/assets/modal-CV_JZY2O.js">
   <link rel="modulepreload" crossorigin href="/assets/toast-CPsGmdIz.js">
   <link rel="stylesheet" crossorigin href="/assets/navbar-DDaLc_Td.css">
-  <link rel="stylesheet" crossorigin href="/assets/info-B3IXRRsL.css">
+  <link rel="stylesheet" crossorigin href="/assets/info-Dqxaxvkw.css">
 </head>
 <body class="info-page">
-    <div class="info-shell">
-        <h1 class="info-page-title">MCP服务和工具信息</h1>
+    <div id="loading" class="info-loading">
+        <div class="info-spinner" aria-hidden="true"></div>
+        <p>正在加载服务信息…</p>
+    </div>
 
-        <div id="loading" class="info-loading">
-            <div class="info-spinner" aria-hidden="true"></div>
-            <p>正在加载服务信息...</p>
-        </div>
-
-        <div id="servers-selector" class="server-tabs hidden">
-            <p class="server-tabs-label">选择服务器</p>
-            <div id="server-tabs-list" class="server-tabs-list" role="tablist"></div>
-            <div id="add-server-container" class="add-server-wrap">
-                <button type="button" id="add-server-btn" class="add-server-btn">+ 新增服务器</button>
+    <div id="app-shell" class="shell hidden">
+        <aside class="sidebar">
+            <div class="sidebar-top">
+                <h2>服务器</h2>
+                <button type="button" id="refresh-list-btn" class="icon-btn" aria-label="刷新">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                </button>
             </div>
-        </div>
+            <div class="search-wrap">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="search" id="server-search" placeholder="搜索服务器">
+            </div>
+            <div class="server-list" id="server-list"></div>
+            <button type="button" id="add-server-btn" class="add-btn">+ 新增服务器</button>
+        </aside>
 
-        <div id="server-form-container" class="info-card server-form-card hidden">
-            <h2 id="form-title" class="info-card-title">新增服务器</h2>
-            <form id="server-form">
-                <input type="hidden" id="form-mode" value="add">
-                <input type="hidden" id="server-id" value="">
-
-                <div class="form-group">
-                    <label for="server-name" class="form-label">服务器名称*</label>
-                    <input type="text" id="server-name" class="form-input" required placeholder="例如: 我的服务器">
+        <div class="main">
+            <div class="view active" id="v-empty">
+                <div class="empty-state">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                    <h3>选择或新增服务器</h3>
+                    <p>从左侧列表进入详情，或新建 MCP 连接</p>
                 </div>
+            </div>
 
-                <div class="form-group">
-                    <span class="form-label">连接类型*</span>
-                    <div class="form-radio-group">
-                        <label class="form-radio-label">
-                            <input type="radio" name="connection-type" value="STDIO" class="form-radio" checked>
-                            标准输入/输出 (stdio)
-                        </label>
-                        <label class="form-radio-label">
-                            <input type="radio" name="connection-type" value="HTTP" class="form-radio">
-                            远程 HTTP（MCP Streamable HTTP）
-                        </label>
+            <div class="view" id="v-detail">
+                <div class="detail-bar">
+                    <div class="detail-bar-left">
+                        <h1 id="h-name"></h1>
+                        <span class="status-chip off" id="h-status">
+                            <span class="dot off"></span>
+                            <span id="h-status-text">未连接</span>
+                        </span>
                     </div>
-                </div>
-
-                <div id="stdio-fields" class="connection-fields">
-                    <div class="form-group">
-                        <label for="command" class="form-label">命令*</label>
-                        <input type="text" id="command" class="form-input" placeholder="例如: node">
-                    </div>
-                    <div class="form-group">
-                        <label for="args" class="form-label">参数* (以逗号分隔)</label>
-                        <input type="text" id="args" class="form-input" placeholder="例如: dist/index.js, --port=3000">
+                    <div class="action-group">
+                        <button type="button" class="btn btn-primary" id="h-conn-btn">连接</button>
+                        <span class="divider"></span>
+                        <button type="button" class="btn" id="go-edit">编辑</button>
+                        <button type="button" class="btn btn-danger" id="go-del">删除</button>
                     </div>
                 </div>
 
-                <div id="http-fields" class="connection-fields hidden">
-                    <div class="form-group">
-                        <label for="mcp-url" class="form-label">MCP 端点 URL*</label>
-                        <input type="text" id="mcp-url" class="form-input" placeholder="例如: http://localhost:3000/mcp">
-                    </div>
-                    <div class="form-group">
-                        <span class="form-label">自定义请求头（可选）</span>
-                        <div class="headers-table">
-                            <div class="header-rows-header">
-                                <div class="hh-key">Header 名称</div>
-                                <div class="hh-val">Header 值</div>
-                                <div class="hh-del"></div>
+                <div class="tabs" role="tablist">
+                    <button type="button" class="active" data-pane="general">通用</button>
+                    <button type="button" data-pane="tools" id="tab-tools">
+                        工具
+                        <span class="tab-meta">
+                            <span class="tab-count" id="h-tools-badge"><span id="h-tools-ratio">0/0</span></span>
+                        </span>
+                    </button>
+                    <button type="button" data-pane="prompts" id="tab-prompts">提示<span class="tab-meta"><span class="tab-num">0</span></span></button>
+                    <button type="button" data-pane="resources" id="tab-resources">资源<span class="tab-meta"><span class="tab-num">0</span></span></button>
+                </div>
+
+                <div class="content">
+                    <div class="pane active" id="pane-general">
+                        <div class="info-grid offline" id="info-grid">
+                            <div class="card">
+                                <div class="card-head">标识</div>
+                                <div class="info-row"><span class="info-label">服务器 ID</span><span class="info-value mono" id="g-id"></span></div>
+                                <div class="info-row"><span class="info-label">连接方式</span><span class="info-value" id="g-type"></span></div>
                             </div>
-                            <div id="headers-rows"></div>
-                            <button type="button" id="headers-add-row" class="btn-add-row">＋ 添加请求头</button>
+                            <div class="card hidden" id="card-mcp">
+                                <div class="card-head">MCP 协议</div>
+                                <div class="info-row"><span class="info-label">协议名称</span><span class="info-value" id="g-internal"></span></div>
+                                <div class="info-row"><span class="info-label">版本</span><span class="info-value" id="g-ver"></span></div>
+                            </div>
+                            <div class="card cmd-card">
+                                <div class="card-head" id="g-cmd-label">启动命令</div>
+                                <div class="info-row"><span class="info-value"><div class="code-block" id="g-cmd"></div></span></div>
+                            </div>
+                            <div class="card enabled-tools-card hidden" id="card-enabled-tools">
+                                <div class="card-head enabled-tools-head">
+                                    <span>已启用工具</span>
+                                    <button type="button" class="enabled-tools-link" id="go-tools-tab">在「工具」Tab 管理 →</button>
+                                </div>
+                                <div class="enabled-tools-list" id="g-enabled-tools"></div>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="form-actions">
-                    <button type="button" id="cancel-form" class="btn-secondary">取消</button>
-                    <button type="submit" class="btn-primary">保存</button>
-                </div>
-            </form>
-        </div>
+                    <div class="pane" id="pane-tools">
+                        <div class="tools-pane">
+                            <div class="tools-toolbar">
+                                <p class="tools-toolbar-hint" id="tools-toolbar-hint">已启用 <strong>0/0</strong></p>
+                                <div class="bulk-actions">
+                                    <button type="button" class="bulk-btn" id="tools-all-on">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+                                        全部启用
+                                    </button>
+                                    <button type="button" class="bulk-btn bulk-btn-muted" id="tools-all-off">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                                        全部禁用
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="tool-list" id="tools-body"></div>
+                        </div>
+                    </div>
 
-        <div id="server-info" class="info-card hidden">
-            <div class="server-header">
-                <h2 class="info-card-title">服务器信息</h2>
-                <label class="connection-switch" title="开/关服务器连接">
-                    <input type="checkbox" id="connection-toggle">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div id="server-connected-info" class="hidden">
-                <div class="info-row">
-                    <div class="info-label">名称：</div>
-                    <div id="server-internal-name" class="info-value"></div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">版本：</div>
-                    <div id="server-version" class="info-value"></div>
+                    <div class="pane" id="pane-prompts"><div class="void-box">暂无提示模板</div></div>
+                    <div class="pane" id="pane-resources"><div class="void-box">暂无资源</div></div>
                 </div>
             </div>
-            <div class="info-row">
-                <div class="info-label">连接类型：</div>
-                <div id="server-connection-type" class="info-value"></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">连接命令：</div>
-                <div id="server-command" class="info-value"></div>
-            </div>
-        </div>
 
-        <div id="tools-info" class="info-card hidden">
-            <h2 class="info-card-title">可用工具</h2>
-            <div id="tools-container"></div>
+            <div class="view" id="v-form">
+                <div class="content">
+                    <div class="form-view">
+                        <button type="button" class="form-back" id="form-back">← 返回</button>
+                        <h1 id="form-h">新增服务器</h1>
+                        <form id="server-form" class="form-card">
+                            <input type="hidden" id="form-mode" value="add">
+                            <input type="hidden" id="server-id" value="">
+
+                            <div class="field">
+                                <label for="f-name">显示名称</label>
+                                <input type="text" id="f-name" required placeholder="例如：大文件">
+                            </div>
+                            <div class="field">
+                                <span class="label">连接类型</span>
+                                <div class="type-pick">
+                                    <label><input type="radio" name="connection-type" value="STDIO" checked> <strong>Stdio</strong><span> 本地进程</span></label>
+                                    <label><input type="radio" name="connection-type" value="HTTP"> <strong>HTTP</strong><span> 远程端点</span></label>
+                                </div>
+                            </div>
+                            <div class="block on" id="b-stdio">
+                                <div class="field">
+                                    <label for="f-cmd">命令</label>
+                                    <input type="text" id="f-cmd" placeholder="node">
+                                </div>
+                                <div class="field">
+                                    <label for="f-args">参数</label>
+                                    <input type="text" id="f-args" placeholder="dist/mcp-servers/large-json-mcp.js">
+                                    <p class="hint">多个参数用英文逗号分隔</p>
+                                </div>
+                            </div>
+                            <div class="block" id="b-http">
+                                <div class="field">
+                                    <label for="f-url">MCP 端点 URL</label>
+                                    <input type="text" id="f-url" placeholder="https://example.com/mcp">
+                                </div>
+                                <div class="field">
+                                    <span class="label">请求头（可选）</span>
+                                    <div id="headers-rows"></div>
+                                    <button type="button" class="link-btn" id="headers-add-row">+ 添加请求头</button>
+                                </div>
+                            </div>
+                            <div class="form-footer">
+                                <button type="button" class="btn" id="form-x">取消</button>
+                                <button type="submit" class="btn btn-primary" id="form-ok">保存</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
