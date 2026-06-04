@@ -4,7 +4,7 @@ import { ErrorResponse } from '../types/api.types.js';
 import { ConfigService } from '../services/config.service.js';
 import { McpInfoAssembler } from '../services/mcp-info-assembler.service.js';
 import { ToolPreferencesService } from '../services/tool-preferences.service.js';
-import { formatMcpToolResult } from '../utils/mcp-tool-result.js';
+import { normalizeToolResult } from '../core/agent-harness/tool-executor.js';
 import type {
   CallServerToolBody,
   CallServerToolResponse,
@@ -13,6 +13,10 @@ import type {
 } from '../types/tool-preferences.types.js';
 import { ConnectionType } from '../generated/prisma/client.js';
 import { MCPServer } from '../types/config.types.js';
+import { McpConnectionStatus } from '../types/mcp-connection.types.js';
+import { clearMcpServerAuth } from '../core/mcp/mcp-oauth.js';
+import { McpServerAuthService } from '../services/mcp-server-auth.service.js';
+import { Logger } from '../utils/logger.js';
 /**
  * MCP信息控制器类
  * 提供与MCP服务器和工具相关的信息
@@ -102,15 +106,22 @@ export class InfoController {
       }
       
       const success = await mcpClient.connect(serverId);
-      
+      const info = await McpInfoAssembler.assembleForInfoPage();
+      const server = info.availableServers?.find((s) => s.id === serverId) ?? info.server;
+
       if (success) {
-        const info = await McpInfoAssembler.assembleForInfoPage();
         res.json(info);
-      } else {
-        InfoController.sendErrorResponse(
-          res, 400, "连接服务器失败", "连接未成功建立，请检查命令、URL 或网络后重试"
-        );
+        return;
       }
+
+      if (server.status === McpConnectionStatus.NeedsAuth) {
+        res.json(info);
+        return;
+      }
+
+      InfoController.sendErrorResponse(
+        res, 400, "连接服务器失败", "连接未成功建立，请检查命令、URL 或网络后重试"
+      );
     } catch (error) {
       InfoController.sendErrorResponse(
         res, 500, "连接服务器失败", InfoController.getErrorMessage(error)
@@ -132,7 +143,7 @@ export class InfoController {
         return;
       }
       
-      await mcpClient.disconnect(serverId);
+      await mcpClient.disconnect(serverId, { clearAuth: true });
       
       const info = await McpInfoAssembler.assembleForInfoPage();
       res.json(info);
@@ -256,12 +267,18 @@ export class InfoController {
         return;
       }
       
-      // 保留ID不变，更新其他字段
+      // 保留 ID 不变；HTTP 更新时 body 含 headers（含 {}）须覆盖旧值
       const updatedServer: MCPServer = {
         ...config.servers[serverIndex],
         ...serverData,
-        serverId: serverId 
+        serverId,
       };
+      if (serverData.connectionType === ConnectionType.HTTP && 'headers' in serverData) {
+        updatedServer.headers =
+          serverData.headers && Object.keys(serverData.headers).length > 0
+            ? serverData.headers
+            : undefined;
+      }
       
       // 替换数组中的对象
       config.servers[serverIndex] = updatedServer;
@@ -316,7 +333,7 @@ export class InfoController {
       // 检查是否正在连接
       const serverInfo = await mcpClient.getServerInfo();
       const isConnected = serverInfo.connectedServers?.some(server => 
-        server.id === serverId
+        server.id === serverId && server.status === McpConnectionStatus.Connected
       );
       
       if (isConnected) {
@@ -328,6 +345,8 @@ export class InfoController {
       
       // 删除服务器
       config.servers.splice(serverIndex, 1);
+
+      await clearMcpServerAuth(serverId);
       
       // 保存配置
       await ConfigService.saveMCPConfig(config);
@@ -447,17 +466,27 @@ export class InfoController {
           ? body.arguments
           : {};
 
+      const toolName = body.toolName.trim();
       const result = await mcpClient.callToolOnServer(
         serverId,
-        body.toolName.trim(),
+        toolName,
         args,
         { signal: abortController.signal, timeout: 300_000 }
       );
 
+      const unified = normalizeToolResult({
+        source: 'mcp',
+        tool: toolName,
+        serverId,
+        serverName: mcpClient.getServerName(serverId),
+        raw: result
+      });
+
       const response: CallServerToolResponse = {
-        ok: true,
+        ok: unified.status === 'success',
         ms: Date.now() - started,
-        output: formatMcpToolResult(result)
+        output: unified.preview,
+        unified
       };
       res.json(response);
     } catch (error) {
@@ -566,6 +595,82 @@ export class InfoController {
         output: message,
         error: message,
       } satisfies CallServerToolResponse);
+    }
+  }
+
+  /**
+   * 获取 OAuth 授权 URL（needs-auth 时由前端打开浏览器）
+   */
+  static async getOAuthAuthorizeUrl(req: Request, res: Response): Promise<void> {
+    try {
+      const serverId = InfoController.routeParamToString(req.params.serverId);
+      if (!serverId) {
+        InfoController.sendErrorResponse(res, 400, '缺少服务器 ID', '必须指定 serverId');
+        return;
+      }
+
+      let authorizationUrl = mcpClient.getOAuthAuthorizationUrl(serverId);
+      if (!authorizationUrl) {
+        await mcpClient.connect(serverId);
+        authorizationUrl = mcpClient.getOAuthAuthorizationUrl(serverId);
+      }
+
+      if (!authorizationUrl) {
+        InfoController.sendErrorResponse(
+          res,
+          400,
+          '无法获取授权 URL',
+          '请先连接服务器或确认该远程服需要 OAuth'
+        );
+        return;
+      }
+
+      res.json({ authorizationUrl });
+    } catch (error) {
+      InfoController.sendErrorResponse(
+        res,
+        500,
+        '获取 OAuth 授权 URL 失败',
+        InfoController.getErrorMessage(error)
+      );
+    }
+  }
+
+  /**
+   * OAuth 回调：交换 code 并重连 MCP 服
+   */
+  static async handleOAuthCallback(req: Request, res: Response): Promise<void> {
+    try {
+      const code = typeof req.query.code === 'string' ? req.query.code : '';
+      const state = typeof req.query.state === 'string' ? req.query.state : '';
+
+      if (!code || !state) {
+        InfoController.sendErrorResponse(res, 400, 'OAuth 回调无效', '缺少 code 或 state');
+        return;
+      }
+
+      const serverIdFromState = state.split(':')[0];
+      const serverId =
+        (await McpServerAuthService.findServerIdByOAuthState(state)) ?? serverIdFromState;
+
+      if (!serverId) {
+        InfoController.sendErrorResponse(res, 400, 'OAuth 回调无效', '无法解析 serverId');
+        return;
+      }
+
+      const config = await ConfigService.getMCPConfig();
+      const serverConfig = config.servers.find((s) => s.serverId === serverId);
+      if (!serverConfig?.mcpUrl) {
+        InfoController.sendErrorResponse(res, 404, '服务器不存在', `ID 为 ${serverId} 的服务器无 mcpUrl`);
+        return;
+      }
+
+      await mcpClient.finishOAuthAndConnect(serverId, code);
+
+      res.redirect(`/info.html?serverId=${encodeURIComponent(serverId)}&oauth=ok`);
+    } catch (error) {
+      Logger.error('INFO', 'OAuth 回调失败:', error);
+      res.redirect(`/info.html?oauth=error&message=${encodeURIComponent(InfoController.getErrorMessage(error))}`);
     }
   }
 } 

@@ -1,5 +1,7 @@
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
 
+import type { UnifiedToolResult } from '../../types/mcp.types.js';
+
 /** P1-01-12：大 tool 输出落盘元数据（Harness / SSE / UI） */
 export const TOOL_OUTPUT_ARTIFACT_TYPE = 'tool_output_artifact' as const;
 
@@ -87,6 +89,8 @@ export interface ChunkResponse {
     execution_time?: number;
     /** P1-01-12：大结果落盘元数据（UI 卡片） */
     artifact?: ToolOutputArtifact;
+    /** P2-04：标准化工具结果（UI 优先展示 preview + status） */
+    unified?: UnifiedToolResult;
   };
   /** 单轮 LLM 完成后的 token 统计（与 tool_call_result 解耦） */
   step_usage?: {

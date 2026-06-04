@@ -5,6 +5,7 @@
 import { ProviderType } from '../generated/prisma/client.js';
 import { prisma } from '../lib/prisma.js';
 import { AIProvidersConfigType, MCPConfigType, AIProvider, QuickMessage } from '../types/config.types.js';
+import { McpServerAuthService } from './mcp-server-auth.service.js';
 import { Logger } from '../utils/logger.js';
 
 const QUICK_MESSAGE_CATEGORIES_KEY = 'quickMessageCategories';
@@ -217,6 +218,8 @@ export class ConfigService {
           }
         });
       }
+
+      await McpServerAuthService.deleteExcept(config.servers.map((s) => s.serverId));
 
       return true;
     } catch (error) {

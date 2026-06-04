@@ -42,7 +42,6 @@ function mapProfileRow(row: {
   maxTokens: number | null;
   enableTools: boolean;
   enablePrompts: boolean;
-  enableParamValidation: boolean;
   maxToolCallRounds: number;
   permissionMode: string;
   enableAutoCompact: boolean | null;
@@ -61,7 +60,6 @@ function mapProfileRow(row: {
     maxTokens: row.maxTokens,
     enableTools: row.enableTools,
     enablePrompts: row.enablePrompts,
-    enableParamValidation: row.enableParamValidation,
     maxToolCallRounds: row.maxToolCallRounds,
     permissionMode: parsePermissionMode(row.permissionMode),
     enableAutoCompact: row.enableAutoCompact,
@@ -159,7 +157,6 @@ async function buildSeedProfileData(
     maxTokens: ChatConfig.defaultMaxTokens,
     enableTools: ToolsConfig.enableMCPTools,
     enablePrompts: false,
-    enableParamValidation: ToolsConfig.enableParamValidation,
     maxToolCallRounds: ToolsConfig.maxToolCallRounds,
     permissionMode:
       profileId === CONFIG_PROFILE_WEB_DEFAULT ? 'open' : 'locked',
@@ -202,7 +199,6 @@ async function createSeedProfile(profileId: string, displayName: string): Promis
       maxTokens: profile.maxTokens,
       enableTools: profile.enableTools,
       enablePrompts: profile.enablePrompts,
-      enableParamValidation: profile.enableParamValidation,
       maxToolCallRounds: profile.maxToolCallRounds,
       permissionMode: profile.permissionMode,
       enableAutoCompact: profile.enableAutoCompact,

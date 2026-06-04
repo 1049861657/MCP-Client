@@ -63,7 +63,6 @@ export class AiController {
         maxTokens, 
         vendor,
         enableTools = ToolsConfig.enableMCPTools,  // 使用统一配置
-        enableParamValidation = ToolsConfig.enableParamValidation,  // 使用统一配置
         enablePrompts = ToolsConfig.enablePrompts,  // 使用统一配置
         maxToolCallRounds: maxToolCallRoundsBody,
         enableAutoCompact,
@@ -94,11 +93,11 @@ export class AiController {
         // 使用提供的消息历史
         processedMessage = messages;
         const toolMessageCount = messages.filter((m: { role?: string }) => m.role === 'tool').length;
-        Logger.info('API', `收到聊天请求, requestId: ${requestId}, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}, 最大工具轮次: ${maxToolCallRounds}, 自动压缩: ${autoCompact}`);
+        Logger.info('API', `收到聊天请求, requestId: ${requestId}, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 提示词: ${enablePrompts}, 最大工具轮次: ${maxToolCallRounds}, 自动压缩: ${autoCompact}`);
       } else {
         // 使用单条消息
         processedMessage = message;
-        Logger.info('API', `收到聊天请求, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 参数校验: ${enableParamValidation}, 提示词: ${enablePrompts}, 自动压缩: ${autoCompact}`);
+        Logger.info('API', `收到聊天请求, 消息长度: ${message.length}, 供应商: ${vendor || '默认'}, 工具模式: ${enableTools}, 提示词: ${enablePrompts}, 自动压缩: ${autoCompact}`);
       }
       
       // 调用OpenAI服务
@@ -108,7 +107,6 @@ export class AiController {
         temperature,
         maxTokens,
         enableTools,
-        enableParamValidation,  // 传递参数校验状态
         enablePrompts,  // 传递提示词状态
         maxToolCallRounds,
         requestId,
@@ -193,7 +191,7 @@ export class AiController {
       Logger.info(
         'API',
         `收到流式聊天请求, requestId: ${requestId}, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, ` +
-          `供应商: ${vendor || '默认'}, 工具模式: ${chatOptions.enableTools}, 参数校验: ${chatOptions.enableParamValidation}, ` +
+          `供应商: ${vendor || '默认'}, 工具模式: ${chatOptions.enableTools}, ` +
           `提示词: ${chatOptions.enablePrompts}, 最大工具轮次: ${chatOptions.maxToolCallRounds}, 自动压缩: ${chatOptions.enableAutoCompact}`
       );
 

@@ -135,9 +135,6 @@ function mergeLayer(
   if (layer.enableTools !== undefined) {
     base.enableTools = layer.enableTools;
   }
-  if (layer.enableParamValidation !== undefined) {
-    base.enableParamValidation = layer.enableParamValidation;
-  }
   if (layer.enablePrompts !== undefined) {
     base.enablePrompts = layer.enablePrompts;
   }
@@ -185,7 +182,6 @@ function resolveProfileFromProfileRecord(
     temperature: profile.temperature ?? ChatConfig.defaultTemperature,
     maxTokens: profile.maxTokens ?? ChatConfig.defaultMaxTokens,
     enableTools: profile.enableTools,
-    enableParamValidation: profile.enableParamValidation,
     enablePrompts: profile.enablePrompts,
     maxToolCallRounds: profile.maxToolCallRounds,
     permissionMode: profile.permissionMode,
@@ -208,8 +204,6 @@ function resolveProfileFromProfileRecord(
     temperature: merged.temperature ?? ChatConfig.defaultTemperature,
     maxTokens: merged.maxTokens ?? ChatConfig.defaultMaxTokens,
     enableTools: merged.enableTools ?? ToolsConfig.enableMCPTools,
-    enableParamValidation:
-      merged.enableParamValidation ?? ToolsConfig.enableParamValidation,
     enablePrompts: merged.enablePrompts ?? ToolsConfig.enablePrompts,
     maxToolCallRounds: resolveMaxToolCallRounds(merged.maxToolCallRounds),
     enableAutoCompact: resolveEnableAutoCompact(merged.enableAutoCompact),

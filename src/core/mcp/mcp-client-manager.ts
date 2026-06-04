@@ -9,12 +9,20 @@ import {
   ServerInfo,
   ToolInfo,
 } from "../../types/mcp.types.js";
+import { McpConnectionStatus } from "../../types/mcp-connection.types.js";
 import type { GetPromptResult, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import { ServerConnection } from "./server-connection.js";
 import { ConnectionType } from '../../generated/prisma/client.js';
 import { MCPClientIdentity } from "../../config/app.config.js";
 import { MCPConfigType, MCPServer } from "../../types/config.types.js";
 import { ToolNameCodec } from "../../utils/tool-name-codec.js";
+import {
+  clearMcpServerAuth,
+  exchangeMcpOAuthCode,
+  getPendingAuthorizationUrl,
+  refreshMcpOAuthTokens,
+  shouldUseMcpOAuth,
+} from "./mcp-oauth.js";
 /**
  * MCP客户端管理器类
  * 负责管理多个MCP服务器连接
@@ -41,17 +49,43 @@ export class MCPClientManager {
   }
 
   /**
-   * 启动定时重连功能
-   * 每隔8小时自动重连所有服务器以更新cookie
+   * 启动定时维护：非 OAuth 服 8h 重连；OAuth 服优先 refresh token
    */
   private startAutoReconnect(): void {
-    // 清除可能存在的旧定时器
     this.stopAutoReconnect();
     
-    // 设置新的定时器，每隔RECONNECT_INTERVAL执行重连
     this.reconnectTimer = setInterval(async () => {
-      await this.restartAll();
+      await this.runScheduledConnectionMaintenance();
     }, MCPClientManager.RECONNECT_INTERVAL);
+  }
+
+  private async runScheduledConnectionMaintenance(): Promise<void> {
+    if (!this.mcpConfig) {
+      this.mcpConfig = await ConfigService.getMCPConfig();
+    }
+
+    for (const serverConfig of this.mcpConfig.servers) {
+      if (!serverConfig.isActive) {
+        continue;
+      }
+
+      if (shouldUseMcpOAuth(serverConfig.connectionType, serverConfig.headers)) {
+        if (!serverConfig.mcpUrl) {
+          continue;
+        }
+        const refreshed = await refreshMcpOAuthTokens(serverConfig.serverId, serverConfig.mcpUrl);
+        if (!refreshed) {
+          this.connections.get(serverConfig.serverId)?.markNeedsAuth();
+        }
+        continue;
+      }
+
+      try {
+        await this.restart(serverConfig.serverId);
+      } catch (error) {
+        Logger.error('MCP CLIENT', `定时重连 ${serverConfig.serverId} 失败:`, error);
+      }
+    }
   }
   
   /**
@@ -245,7 +279,7 @@ export class MCPClientManager {
         id: '',
         name: "未知服务器",
         version: "未知",
-        status: "未连接",
+        status: McpConnectionStatus.Disconnected,
         connectionDetails: {
           connectionType: ConnectionType.STDIO,
           displayCommand: ''
@@ -333,19 +367,9 @@ export class MCPClientManager {
     return this.toolServerMap.get(codeName);
   }
 
-  /**
-   * 根据原始工具名查找对应的 codeName
-   * 用于需要按原始名调用工具的场景（如 verifyToolArguments）
-   * @param toolName 原始 MCP 工具名
-   * @returns 对应的 codeName，未找到时返回 undefined
-   */
-  public findCodeNameByToolName(toolName: string): string | undefined {
-    for (const codeName of this.toolServerMap.keys()) {
-      if (ToolNameCodec.decode(codeName) === toolName) {
-        return codeName;
-      }
-    }
-    return undefined;
+  /** 根据 serverId 解析展示名 */
+  getServerName(serverId: string): string | undefined {
+    return this.connections.get(serverId)?.getName();
   }
 
   /**
@@ -469,13 +493,37 @@ export class MCPClientManager {
   }
 
   /**
-   * 断开指定服务器连接
+   * 断开指定服务器连接；OAuth 服默认清除 token
    */
-  async disconnect(serverId: string): Promise<void> {
+  async disconnect(serverId: string, options?: { clearAuth?: boolean }): Promise<void> {
     const connection = this.connections.get(serverId);
     if (connection) {
       await connection.disconnect();
     }
+
+    const clearAuth = options?.clearAuth ?? connection?.usesOAuth() ?? false;
+    if (clearAuth) {
+      await clearMcpServerAuth(serverId);
+    }
+  }
+
+  /**
+   * OAuth 回调完成后重连
+   */
+  async finishOAuthAndConnect(serverId: string, authorizationCode: string): Promise<boolean> {
+    if (!this.mcpConfig) {
+      this.mcpConfig = await ConfigService.getMCPConfig();
+    }
+    const serverConfig = this.mcpConfig.servers.find((s) => s.serverId === serverId);
+    if (!serverConfig?.mcpUrl) {
+      throw new Error(`未找到服务器: ${serverId}`);
+    }
+    await exchangeMcpOAuthCode(serverId, serverConfig.mcpUrl, authorizationCode);
+    return this.connect(serverId);
+  }
+
+  getOAuthAuthorizationUrl(serverId: string): string | undefined {
+    return getPendingAuthorizationUrl(serverId);
   }
 
   /**

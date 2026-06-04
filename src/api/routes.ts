@@ -38,6 +38,8 @@ router.get('/client-info', InfoController.getClientInfo);
 router.post('/server/connect/:serverId', InfoController.connectServer);
 router.post('/server/switch/:serverId', InfoController.switchServer);
 router.post('/server/disconnect/:serverId', InfoController.disconnectServer);
+router.get('/server/:serverId/oauth/authorize', InfoController.getOAuthAuthorizeUrl);
+router.get('/mcp/oauth/callback', InfoController.handleOAuthCallback);
 
 // 服务器管理路由
 router.post('/server/add', InfoController.addServer);

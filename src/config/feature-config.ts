@@ -41,9 +41,6 @@ export const ToolsConfig = {
 
   /** System 内置工具（P1-01-11：read_persisted_output 等） */
   enableSystemTools: true,
-  
-  // 默认关闭参数校验
-  enableParamValidation: false,
 
   // 默认启用提示词
   enablePrompts: true,

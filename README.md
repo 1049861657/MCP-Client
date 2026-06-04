@@ -33,7 +33,9 @@ pnpm start
 - **工具调用可视化**：展示工具名称、参数、执行结果、耗时与 token 用量
 - **子 Agent 进度**：对声明 `supportsProgress` 的长耗时工具，展示步骤时间线与单步耗时
 - **超时自适应**：默认单步工具超时 60s；收到进度通知后自动重置计时
-- **参数校验**：可选在调用前通过 `getApiDetails` 核验必填参数
+- **MCP 能力面**：Tools 对话主路径；Resources / Prompts 在 info 页只读浏览；远程服 OAuth 与连接状态机
+- **工具执行权限**：Web 聊天支持 open / interactive / locked；interactive 下敏感工具需确认后继续
+- **上下文预算**：可手动压缩或开启自动摘要；超大工具结果落盘，内置 `read_persisted_output` 分段读取
 - **配置持久化**：SQLite（Prisma）存储 MCP 服务器、模型与系统设置
 - **IM 渠道**：可选接入钉钉、飞书；通过 Admin API 管理渠道 Profile 与路由
 
@@ -65,14 +67,16 @@ MCP-Client/
 
 ### AI 聊天（`ai.html`）
 
-- 选择提供商与模型，发起流式对话
-- 工具调用卡片展示参数、耗时与 token
-- 支持 `supportsProgress` 的子 Agent 工具显示实时进度面板
+- 选择提供商与模型，发起流式对话（`/api/chat/stream` SSE）
+- 工具调用卡片展示参数、耗时与 token；`executeApi` 等长任务工具可显示进度时间线
+- 设置中可配置权限模式、自动压缩阈值、摘要模型与最大工具轮次
+- 工具栏可手动触发上下文压缩或查看 token 预算预览
 
 ### 服务器信息（`info.html`）
 
-- 查看已连接的 MCP 服务器状态
-- 浏览可用工具及参数定义
+- 查看已连接的 MCP 服务器状态（`connecting` / `connected` / `needs-auth` / `failed`）
+- 浏览 Tools、Resources、Prompts（后两者只读，不进对话上下文）
+- 试跑工具并查看标准化结果（`UnifiedToolResult`）
 
 ### 配置管理（`settings.html`）
 
@@ -98,6 +102,8 @@ MCP-Client/
 | `FEISHU_APP_ID` / `FEISHU_APP_SECRET` | 飞书渠道（未配置则不启动） |
 | `FEISHU_DOMAIN` | 国际 Lark 租户设为 `lark`（可选） |
 | `DINGTALK_CLIENT_ID` / `DINGTALK_CLIENT_SECRET` | 钉钉渠道（未配置则不启动） |
+| `MCP_CLIENT_ROOTS` | MCP roots 工作区路径（`;` 或 `,` 分隔；可选，未设置则不启用 roots） |
+| `MCP_OAUTH_REDIRECT_URL` | 远程 MCP OAuth 回调完整 URL（可选；默认 `http://localhost:3000/api/mcp/oauth/callback`） |
 
 完整示例与说明见 [`.env.example`](./.env.example)。
 
@@ -122,10 +128,10 @@ Admin API（`/api/admin/*`）与公开聊天 API（`/api/chat/*`）分离：前�
 
 ### 长耗时工具与进度协议
 
-若 MCP 服务端提供子 Agent 类长任务工具：
+若 MCP 服务端提供子 Agent 类长任务工具（如动态网关的 `executeApi`）：
 
-1. 在 `getApiDetails` 响应中声明 `supportsProgress: true`
-2. 通过 `notifications/progress` 推送进度（`progress` / `total` / `message`）
+1. 客户端对该类工具启用 `supportsProgress` 与进度回调
+2. 服务端通过 `notifications/progress` 推送进度（`progress` / `total` / `message`）
 3. 以 `progress === total` 作为完成信号
 
-客户端会自动启用进度处理并在 UI 展示步骤时间线；收到进度通知后重置单步空闲超时（默认 60s）。
+UI 展示步骤时间线；收到进度通知后重置单步空闲超时（默认 60s）。

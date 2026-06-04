@@ -38,7 +38,6 @@ import { ToolPolicyService } from '../services/tool-policy.service.js';
 import type { ResolvedChatProfile } from '../types/config-plane.types.js';
 import { AIProvider } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';
-import { verifyToolArguments as verifyToolArgumentsImpl } from '../core/agent-harness/tool-validation.js';
 import {
   applyPromptPipelineToMessages,
   type PromptPipelineOptions
@@ -62,7 +61,6 @@ export class AiProvider {
   
   private toolsConfig: {
     enableMCPTools: boolean;
-    enableParamValidation: boolean;
     enablePrompts: boolean;
   };
 
@@ -82,7 +80,6 @@ export class AiProvider {
     
     this.toolsConfig = {
       enableMCPTools: ToolsConfig.enableMCPTools,
-      enableParamValidation: ToolsConfig.enableParamValidation,
       enablePrompts: ToolsConfig.enablePrompts
     };
     
@@ -325,21 +322,6 @@ export class AiProvider {
   }
   
   /**
-   * 处理工具调用结果，转换为字符串
-   * @param toolResult 工具调用结果
-   * @returns 格式化后的字符串结果
-   */
-  private formatToolResult(toolResult: any): string {
-    if (toolResult && toolResult.content && Array.isArray(toolResult.content)) {
-      return toolResult.content
-        .filter((item: any) => item.type === 'text' && typeof item.text === 'string')
-        .map((item: any) => item.text)
-        .join('\n');
-    }
-    return JSON.stringify(toolResult.content);
-  }
-  
-  /**
    * 处理API响应中的usage信息
    * @param usage API返回的usage信息或null
    * @returns 格式化的UsageInfo对象
@@ -357,38 +339,12 @@ export class AiProvider {
   }
 
   /**
-   * 验证工具调用参数是否满足要求
-   */
-  private async verifyToolArguments(
-    toolName: string,
-    args: Record<string, unknown>
-  ): Promise<{ isValid: boolean; message: string }> {
-    const { providerServices } = await import('./ai-providers.js');
-    return verifyToolArgumentsImpl({
-      enableParamValidation: this.toolsConfig.enableParamValidation,
-      fallbackClient: this.client,
-      fallbackModel: this.config.defaultModel,
-      getValidationClient: (providerName) => {
-        const providerInstance = providerServices[providerName];
-        if (!providerInstance) {
-          return undefined;
-        }
-        return {
-          client: providerInstance.client,
-          model: providerInstance.config.defaultModel
-        };
-      }
-    }, toolName, args);
-  }
-
-  /**
    * 处理聊天请求
    * @param message 用户消息或消息历史
    * @param model 模型名称
    * @param temperature 温度参数
    * @param maxTokens 最大生成令牌数
    * @param enableTools 是否启用工具
-   * @param enableParamValidation 是否启用参数校验
    * @param enablePrompts 是否启用提示词
    * @returns 处理结果
    */
@@ -398,7 +354,6 @@ export class AiProvider {
     temperature: number = this.chatConfig.defaultTemperature,
     maxTokens: number = this.chatConfig.defaultMaxTokens,
     enableTools: boolean = this.toolsConfig.enableMCPTools,
-    enableParamValidation: boolean = this.toolsConfig.enableParamValidation,
     enablePrompts: boolean = this.toolsConfig.enablePrompts,
     maxToolCallRounds: number = ToolsConfig.maxToolCallRounds,
     requestId: string = '',
@@ -407,10 +362,6 @@ export class AiProvider {
     permissionCtx?: AgentPermissionContext
   ): Promise<ChatResponse> {
     try {
-      if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
-        this.toolsConfig.enableParamValidation = enableParamValidation;
-      }
-
       const messages = await this.formatMessages(message, enableTools, enablePrompts);
       const chatTools = await this.getToolDefinitions(enableTools);
       const summarizeFn = this.resolveSummarizeFn(enableAutoCompact, compactModel);
@@ -538,9 +489,7 @@ export class AiProvider {
         );
       },
       processModelResponse: (...args) => this.processModelResponse(...args),
-      processNonStreamResponse: (...args) => this.processNonStreamResponse(...args),
-      verifyToolArguments: (toolName, args) => this.verifyToolArguments(toolName, args),
-      formatToolResult: (toolResult) => this.formatToolResult(toolResult)
+      processNonStreamResponse: (...args) => this.processNonStreamResponse(...args)
     };
   }
 
@@ -751,7 +700,6 @@ export class AiProvider {
     temperature: number = this.chatConfig.defaultTemperature,
     maxTokens: number = this.chatConfig.defaultMaxTokens,
     enableTools: boolean = this.toolsConfig.enableMCPTools,
-    enableParamValidation: boolean = this.toolsConfig.enableParamValidation,
     enablePrompts: boolean = this.toolsConfig.enablePrompts,
     signal?: AbortSignal,
     maxToolCallRounds: number = ToolsConfig.maxToolCallRounds,
@@ -762,10 +710,6 @@ export class AiProvider {
     permissionCtx?: AgentPermissionContext
   ): Promise<ChatResponse> {
     try {
-      if (enableParamValidation !== this.toolsConfig.enableParamValidation) {
-        this.toolsConfig.enableParamValidation = enableParamValidation;
-      }
-
       const messages = await this.formatMessages(
         message,
         enableTools,

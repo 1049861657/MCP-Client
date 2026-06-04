@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import type {
   ClientCapabilities,
   GetPromptResult,
@@ -13,6 +14,11 @@ import {
 } from "../../config/app.config.js";
 import { attachMcpRootsHandler } from "./mcp-roots-handler.js";
 import { attachMcpSamplingHandler } from "./mcp-sampling-handler.js";
+import {
+  getPendingAuthorizationUrl,
+  McpOAuthProvider,
+  shouldUseMcpOAuth,
+} from "./mcp-oauth.js";
 import { Logger } from "../../utils/logger.js";
 import { ConnectionType } from '../../generated/prisma/client.js';
 import {
@@ -23,6 +29,10 @@ import {
   ServerInfo,
   ToolInfo,
 } from "../../types/mcp.types.js";
+import {
+  isMcpConnected,
+  McpConnectionStatus,
+} from "../../types/mcp-connection.types.js";
 import { ConfigService } from "../../services/config.service.js";
 import { MCPConfigType, MCPServer } from "../../types/config.types.js";
 import { ToolNameCodec } from "../../utils/tool-name-codec.js";
@@ -34,12 +44,14 @@ import { ToolNameCodec } from "../../utils/tool-name-codec.js";
 export class ServerConnection {
   private client: Client;
   private transport: StdioClientTransport | StreamableHTTPClientTransport;
-  private connected: boolean = false;
+  private connectionStatus: McpConnectionStatus = McpConnectionStatus.Disconnected;
   private transportClosed: boolean = false;
   private id: string;
   private name: string;
   private version: string = "未知";
   private connectionType: ConnectionType;
+  private usesOAuthTransport: boolean = false;
+  private oauthProvider: McpOAuthProvider | null = null;
   private static readonly PING_TIMEOUT = 10000;
   private static readonly CONNECT_TIMEOUT = 60000;
   // 存储当前配置的引用
@@ -115,6 +127,8 @@ export class ServerConnection {
         Logger.error('SERVER CONNECTION', `无法创建stdio连接: 缺少command或args配置`);
         return null;
       }
+      this.usesOAuthTransport = false;
+      this.oauthProvider = null;
       return new StdioClientTransport({
         command: serverConfig.command,
         args: serverConfig.args
@@ -128,6 +142,15 @@ export class ServerConnection {
       }
       try {
         const url = new URL(serverConfig.mcpUrl);
+        this.usesOAuthTransport = shouldUseMcpOAuth(connectionType, serverConfig.headers);
+        this.oauthProvider = this.usesOAuthTransport ? new McpOAuthProvider(this.id) : null;
+
+        if (this.usesOAuthTransport) {
+          return new StreamableHTTPClientTransport(url, {
+            authProvider: this.oauthProvider ?? undefined,
+          });
+        }
+
         const opts = serverConfig.headers && Object.keys(serverConfig.headers).length > 0
           ? { requestInit: { headers: serverConfig.headers } }
           : undefined;
@@ -140,6 +163,51 @@ export class ServerConnection {
     
     Logger.error('SERVER CONNECTION', `不支持的连接类型: ${connectionType}`);
     return null;
+  }
+
+  private setConnectionStatus(status: McpConnectionStatus): void {
+    this.connectionStatus = status;
+  }
+
+  getConnectionStatus(): McpConnectionStatus {
+    return this.connectionStatus;
+  }
+
+  usesOAuth(): boolean {
+    return this.usesOAuthTransport;
+  }
+
+  /** 关闭并丢弃当前 transport/client，下次 connect 必须重建 */
+  private async resetSession(): Promise<void> {
+    try {
+      if (typeof this.transport?.close === 'function') {
+        await this.transport.close();
+      }
+    } catch (error) {
+      Logger.debug(
+        'SERVER CONNECTION',
+        `[${this.name}] 清理传输层: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+    this.transportClosed = true;
+  }
+
+  private async rebuildTransportStack(): Promise<void> {
+    await this.resetSession();
+    if (!this.mcpConfig) {
+      this.mcpConfig = await ConfigService.getMCPConfig();
+    }
+    const serverConfig = this.mcpConfig.servers.find((s) => s.serverId === this.id);
+    if (!serverConfig) {
+      throw new Error(`未找到服务器配置: ${this.id}`);
+    }
+    const newTransport = this.createClientTransport(serverConfig);
+    if (!newTransport) {
+      throw new Error(`创建传输层失败: ${this.id}`);
+    }
+    this.transport = newTransport;
+    this.client = ServerConnection.createClient();
+    this.transportClosed = false;
   }
 
   /**
@@ -159,32 +227,18 @@ export class ServerConnection {
    * 连接到MCP服务器
    */
   async connect(): Promise<boolean> {
-    if (this.connected && !this.transportClosed) {
+    if (isMcpConnected(this.connectionStatus) && !this.transportClosed) {
       return true;
     }
 
+    this.setConnectionStatus(McpConnectionStatus.Connecting);
+
     try {
-      // 确保有最新配置
       if (!this.mcpConfig) {
         this.mcpConfig = await ConfigService.getMCPConfig();
       }
-      
-      if (this.transportClosed) {
-        const serverConfig = this.mcpConfig.servers.find(s => s.serverId === this.id);
-        if (!serverConfig) {
-          throw new Error(`未找到服务器配置: ${this.id}`);
-        }
 
-        const newTransport = this.createClientTransport(serverConfig);
-        if (!newTransport) {
-          throw new Error(`创建传输层失败: ${this.id}`);
-        }
-        
-        this.transport = newTransport;
-        this.client = ServerConnection.createClient();
-        
-        this.transportClosed = false;
-      }
+      await this.rebuildTransportStack();
       
       // 使用 Promise.race 限制连接建立时间，防止 connect() 无限挂起
       await Promise.race([
@@ -201,8 +255,8 @@ export class ServerConnection {
       // SDK 在 connect() 后设置自己的 onclose，此处包装而非覆盖，保留 SDK 原有清理逻辑
       const sdkOnClose = this.transport.onclose;
       this.transport.onclose = () => {
-        if (this.connected) {
-          this.connected = false;
+        if (isMcpConnected(this.connectionStatus)) {
+          this.setConnectionStatus(McpConnectionStatus.Disconnected);
           this.transportClosed = true;
           Logger.warn('SERVER CONNECTION', `[${this.name}] 传输层连接已断开`);
         }
@@ -227,14 +281,20 @@ export class ServerConnection {
         Logger.debug('SERVER CONNECTION', `服务器 ${this.name} 返回 instructions（${this.instructions.length} 字符）`);
       }
       
-      this.connected = true;
+      this.setConnectionStatus(McpConnectionStatus.Connected);
       Logger.info(
         'SERVER CONNECTION',
         `MCP服务器 ${this.name} 连接成功！ clientCapabilities=${JSON.stringify(MCPClientIdentity.capabilities)}`
       );
       return true;
     } catch (error) {
-      this.connected = false;
+      await this.resetSession();
+      if (error instanceof UnauthorizedError) {
+        this.setConnectionStatus(McpConnectionStatus.NeedsAuth);
+        Logger.warn('SERVER CONNECTION', `[${this.name}] 需要 OAuth 授权`);
+        return false;
+      }
+      this.setConnectionStatus(McpConnectionStatus.Failed);
       Logger.error('SERVER CONNECTION', '连接失败:', error);
       throw error;
     }
@@ -244,14 +304,8 @@ export class ServerConnection {
    * 断开连接
    */
   async disconnect(): Promise<void> {
-    if (!this.connected) return;
-
-    if (this.transport && typeof this.transport.close === 'function') {
-      await this.transport.close();
-      this.transportClosed = true;
-    }
-    
-    this.connected = false;
+    await this.resetSession();
+    this.setConnectionStatus(McpConnectionStatus.Disconnected);
   }
 
   /**
@@ -265,7 +319,7 @@ export class ServerConnection {
 
     this.reconnectPromise = (async () => {
       try {
-        if (this.connected) {
+        if (isMcpConnected(this.connectionStatus)) {
           await this.disconnect();
         }
         return await this.connect();
@@ -282,7 +336,7 @@ export class ServerConnection {
    * @returns 是否连接正常
    */
   async ping(): Promise<boolean> {
-    if (!this.connected) {
+    if (!isMcpConnected(this.connectionStatus)) {
       return false;
     }
     
@@ -312,12 +366,19 @@ export class ServerConnection {
     const serverConfig = this.mcpConfig.servers.find(s => s.serverId === this.id);
     const displayCommand = this.getConnectionDisplayCommand(serverConfig!);
 
+    const authorizationUrl =
+      this.connectionStatus === McpConnectionStatus.NeedsAuth
+        ? getPendingAuthorizationUrl(this.id)
+        : undefined;
+
     return {
       id: this.id,
       name: serverConfig?.name || this.id,
-      internalName: this.connected ? this.name : undefined,
+      internalName: isMcpConnected(this.connectionStatus) ? this.name : undefined,
       version: this.version,
-      status: this.connected ? '已连接' : '未连接',
+      status: this.connectionStatus,
+      authorizationUrl,
+      usesOAuth: this.usesOAuthTransport,
       connectionDetails: {
         connectionType: this.connectionType,
         command: serverConfig?.command || undefined,
@@ -334,7 +395,7 @@ export class ServerConnection {
   }
 
   async listResources(): Promise<McpResourceInfo[]> {
-    if (!this.connected) {
+    if (!isMcpConnected(this.connectionStatus)) {
       return [];
     }
     try {
@@ -360,14 +421,14 @@ export class ServerConnection {
   }
 
   async readResource(uri: string): Promise<ReadResourceResult> {
-    if (!this.connected) {
+    if (!isMcpConnected(this.connectionStatus)) {
       throw new Error(`服务器 ${this.name} 未连接`);
     }
     return await this.client.readResource({ uri });
   }
 
   async listPrompts(): Promise<McpPromptInfo[]> {
-    if (!this.connected) {
+    if (!isMcpConnected(this.connectionStatus)) {
       return [];
     }
     try {
@@ -392,7 +453,7 @@ export class ServerConnection {
   }
 
   async getPrompt(name: string, args?: Record<string, string>): Promise<GetPromptResult> {
-    if (!this.connected) {
+    if (!isMcpConnected(this.connectionStatus)) {
       throw new Error(`服务器 ${this.name} 未连接`);
     }
     return await this.client.getPrompt({
@@ -415,7 +476,7 @@ export class ServerConnection {
   }
 
   async getTools(): Promise<ToolInfo[]> {
-    if (!this.connected) {
+    if (!isMcpConnected(this.connectionStatus)) {
       return [];
     }
     
@@ -549,7 +610,7 @@ export class ServerConnection {
    */
   async callTool<T>(toolName: string, args: any, options?: CallToolOptions): Promise<T> {
     // 已知断线时先重连，避免直接把错误抛给上层
-    if (!this.connected || this.transportClosed) {
+    if (!isMcpConnected(this.connectionStatus) || this.transportClosed) {
       Logger.info('SERVER CONNECTION', `[${this.name}] 检测到未连接，自动重连中...`);
       await this.restart();
     }
@@ -593,7 +654,7 @@ export class ServerConnection {
       // 连接断开类错误：标记状态、重连、重试一次
       if (this.isConnectionError(error)) {
         Logger.warn('SERVER CONNECTION', `[${this.name}] 工具 ${toolName} 调用失败（连接断开），自动重连后重试...`);
-        this.connected = false;
+        this.setConnectionStatus(McpConnectionStatus.Disconnected);
         this.transportClosed = true;
         await this.restart();
         Logger.info('SERVER CONNECTION', `[${this.name}] 重连成功，重试 ${toolName}`);
@@ -616,7 +677,13 @@ export class ServerConnection {
    * 判断是否已连接
    */
   isConnected(): boolean {
-    return this.connected;
+    return isMcpConnected(this.connectionStatus);
+  }
+
+  markNeedsAuth(): void {
+    if (this.connectionType !== ConnectionType.STDIO) {
+      this.setConnectionStatus(McpConnectionStatus.NeedsAuth);
+    }
   }
 
   /**

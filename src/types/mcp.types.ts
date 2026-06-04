@@ -72,6 +72,8 @@ export interface ToolInfo {
   serverName: string;
 }
 
+import type { McpConnectionStatus } from './mcp-connection.types.js';
+
 /** MCP 服务器连接信息 */
 export interface ServerInfo {
   id: string;
@@ -79,7 +81,11 @@ export interface ServerInfo {
   /** 服务器内部名称（服务器自己报告的名称） */
   internalName?: string;
   version: string;
-  status: string;
+  status: McpConnectionStatus;
+  /** needs-auth 时可供浏览器打开的 OAuth 授权 URL */
+  authorizationUrl?: string;
+  /** 是否走 OAuth（HTTP 且无静态 headers） */
+  usesOAuth?: boolean;
   connectionDetails: {
     connectionType: ConnectionType;
     command?: string;
@@ -94,6 +100,30 @@ export interface ServerInfo {
 export interface ClientInfo {
   name: string;
   version: string;
+}
+
+/** 工具结果来源（Harness / Info / SSE 统一契约） */
+export type ToolResultSource = 'mcp' | 'system';
+
+/** 标准化工具结果状态 */
+export type UnifiedToolResultStatus = 'success' | 'error';
+
+/**
+ * 统一 tool_result 形态（P2-04）
+ * `rawPath` 对接 `ToolOutputArtifact.filePath`（大结果落盘后写入）
+ */
+export interface UnifiedToolResult {
+  source: ToolResultSource;
+  serverId?: string;
+  serverName?: string;
+  tool: string;
+  status: UnifiedToolResultStatus;
+  /** 面向 LLM / UI 的文本摘要 */
+  preview: string;
+  structured?: unknown;
+  rawPath?: string;
+  /** MCP CallToolResult.isError */
+  isMcpError?: boolean;
 }
 
 /** MCP 聚合视图（多服务器工具列表） */

@@ -161,6 +161,7 @@ P3-* 可在 P1 完成后按需启动
 | 替换 Express 框架 | 与 Agent 能力无关 |
 | 大改聊天页无回归 | T3-04 分 PR + 切流前 `pnpm start` 手工清单 |
 | T3 期间引入 React | T3 定稿为 Vite + 原生 JS + Tailwind；React 延后至 Backlog |
+| Harness call 前 LLM 预审 / 全量 ajv | 非本阶段；P2-05 删 Client 遗留 |
 
 ## 六、2026 最佳实践对齐清单
 
@@ -179,7 +180,7 @@ P3-* 可在 P1 完成后按需启动
 
 ## 七、里程碑验收
 
-> 下列勾选**仅**反映任务书当前状态（2026-06-03 对照）；不依据代码推断。详单见各阶段文件。
+> 下列勾选反映任务书当前状态；详单见各阶段文件。P2 已于 2026-06-04 验收。
 
 ### M1 — Harness 可用（[P0-core-harness.md](./P0-core-harness.md)）
 
@@ -201,9 +202,11 @@ P3-* 可在 P1 完成后按需启动
 
 ### M3 — MCP 平台完整（[P2-mcp-platform.md](./P2-mcp-platform.md)）
 
-- [ ] listResources / listPrompts 接入 info 展示（不进 Harness）
-- [ ] 连接状态机：connected / pending / needs-auth / failed
-- [ ] OAuth 流程（至少 Streamable HTTP）
+- [x] listResources / listPrompts 接入 info 展示（不进 Harness）
+- [x] 连接状态机：connecting / connected / needs-auth / failed（info 可见）
+- [x] OAuth 流程（Streamable HTTP；远程 E2E 搁置收口，代码已交付）
+
+> P2 **子项** 20/20 已勾（P2-06 搁置）；**完成检查清单** 5/5（2026-06-04）。P2-06 Plugin manifest 不实现，见任务书。
 
 ### M4 — Agent Client 完整（[P3-agent-runtime.md](./P3-agent-runtime.md)）
 

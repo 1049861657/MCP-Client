@@ -56,7 +56,7 @@
 | T3（前端现代化） | 31 | 31 | 100% |
 | P0 | 19 | 19 | 100% |
 | P1 | 30 | 30 | 100% |
-| P2 | 20 | 7 | 35% |
+| P2 | 20 | 20 | 100% |
 | P3 | 26 | 0 | 0% |
 | Backlog | 24 | 0 | — |
 
@@ -64,7 +64,7 @@
 
 ## 当前阶段
 
-**P2 — MCP 平台化**（主线： [P1-control-plane.md](./P1-control-plane.md) 子项 30/30 已勾 → 按路线图进入 P2；[P0-core-harness.md](./P0-core-harness.md) 子项 19/19 已勾，完成检查清单仍有未勾 E2E 项）
+**P3 — Agent 运行时进阶**（主线： [P2-mcp-platform.md](./P2-mcp-platform.md) **已验收** 2026-06-04，子项 20/20、检查清单 5/5；[P0-core-harness.md](./P0-core-harness.md) 完成检查清单仍有未勾 E2E 项）
 
 并行 **T**： [T1-channel-bus.md](./T1-channel-bus.md)、[T2-config-plane.md](./T2-config-plane.md) **均已验收**（2026-06-03；T1-07-07 飞书 E2E 为搁置收口）
 

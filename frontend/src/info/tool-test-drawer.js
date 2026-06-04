@@ -126,7 +126,7 @@ function ensureOverlay() {
 /**
  * @param {ToolInfo} tool
  * @param {Record<string, string>} values
- * @param {{ status: string; ms?: number; output?: string }} runState
+ * @param {{ status: string; ms?: number; unified?: { preview?: string; structured?: unknown; status?: string } }} runState
  */
 function renderPanel(tool, values, runState) {
   const fields = (tool.parameters ?? []).length
@@ -158,6 +158,11 @@ function renderPanel(tool, values, runState) {
     </div>`;
   } else if (runState.status === 'ok' || runState.status === 'err') {
     const ok = runState.status === 'ok';
+    const u = runState.unified;
+    const structuredHtml = u?.structured === undefined ? '' : (
+      `<details class="test-structured"><summary>structuredContent</summary>`
+      + `<pre class="test-result-body">${escapeHtml(JSON.stringify(u.structured, null, 2))}</pre></details>`
+    );
     resultHtml = `<div class="test-result">
       <div class="test-result-head">
         <span>返回结果</span>
@@ -166,7 +171,8 @@ function renderPanel(tool, values, runState) {
           <span class="${ok ? 'test-status-ok' : 'test-status-err'}">${ok ? '成功' : '失败'}</span>
         </div>
       </div>
-      <pre class="test-result-body${ok ? '' : ' err'}">${runState.output ?? ''}</pre>
+      <pre class="test-result-body${ok ? '' : ' err'}">${escapeHtml(u?.preview ?? '')}</pre>
+      ${structuredHtml}
     </div>`;
   }
 
@@ -185,8 +191,18 @@ function renderPanel(tool, values, runState) {
 }
 
 /**
+ * @param {string} text
+ */
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
  * @param {Record<string, string>} values
- * @param {{ status: string; ms?: number; output?: string }} runState
+ * @param {{ status: string; ms?: number; unified?: { preview?: string; structured?: unknown } }} runState
  */
 function paintPanel(values, runState) {
   const body = document.getElementById('test-drawer-body');
@@ -199,7 +215,7 @@ function paintPanel(values, runState) {
 
 /**
  * @param {Record<string, string>} values
- * @param {{ status: string; ms?: number; output?: string }} runState
+ * @param {{ status: string; ms?: number; unified?: { preview?: string; structured?: unknown } }} runState
  */
 function bindPanelEvents(values, runState) {
   const body = document.getElementById('test-drawer-body');
@@ -248,7 +264,7 @@ async function runTest(values) {
 
   const validationError = validateForm(currentTool, values);
   if (validationError) {
-    paintPanel(values, { status: 'err', ms: 0, output: validationError });
+    paintPanel(values, { status: 'err', ms: 0, unified: { preview: validationError } });
     return;
   }
 
@@ -267,12 +283,13 @@ async function runTest(values) {
       signal: runAbort.signal
     });
 
-    /** @type {{ ok?: boolean; ms?: number; output?: string; error?: string }} */
+    /** @type {{ ok?: boolean; ms?: number; error?: string; unified?: { preview?: string; structured?: unknown } }} */
     const data = await response.json();
+    const unified = data.unified ?? (data.error ? { preview: data.error } : undefined);
     paintPanel(values, {
       status: data.ok ? 'ok' : 'err',
       ms: data.ms ?? 0,
-      output: data.output ?? data.error ?? '未知错误'
+      unified
     });
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
@@ -282,7 +299,7 @@ async function runTest(values) {
     paintPanel(values, {
       status: 'err',
       ms: 0,
-      output: errorMessage(error, '试运行失败')
+      unified: { preview: errorMessage(error, '试运行失败') }
     });
   } finally {
     runAbort = null;
