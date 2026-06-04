@@ -34,6 +34,31 @@ export interface ToolParameter {
   required: boolean;
 }
 
+/** MCP 资源条目（info 展示，不进对话） */
+export interface McpResourceInfo {
+  uri: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+  serverId: string;
+  serverName: string;
+}
+
+/** MCP Prompt 模板条目（info 展示，不进对话） */
+export interface McpPromptInfo {
+  name: string;
+  description?: string;
+  arguments?: McpPromptArgumentInfo[];
+  serverId: string;
+  serverName: string;
+}
+
+export interface McpPromptArgumentInfo {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
 /** 工具定义 */
 export interface ToolInfo {
   name: string;
@@ -87,4 +112,8 @@ export interface MCPServerInfo {
   serverTools?: Record<string, ToolInfo[]>;
   /** 各服务器 per-tool 启用偏好（缺省启用） */
   toolPreferences?: Record<string, Record<string, boolean>>;
+  /** 各服务器 MCP resources 列表（仅 info） */
+  serverResources?: Record<string, McpResourceInfo[]>;
+  /** 各服务器 MCP prompts 列表（仅 info） */
+  serverPrompts?: Record<string, McpPromptInfo[]>;
 }

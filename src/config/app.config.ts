@@ -5,6 +5,9 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import type { ClientCapabilities } from '@modelcontextprotocol/sdk/types.js';
+
 import { ProviderType } from '../generated/prisma/client.js';
 import { ProviderTypeInfo } from '../types/config.types.js';
 
@@ -37,6 +40,30 @@ export const ServerConfig = {
 };
 
 /**
+ * 从环境变量解析 MCP roots 路径（`;` 或 `,` 分隔）。未设置则不开 roots 能力。
+ */
+export function parseMcpClientRootPathsFromEnv(): string[] {
+  const raw = process.env.MCP_CLIENT_ROOTS?.trim();
+  if (!raw) {
+    return [];
+  }
+  return raw.split(/[;,]/).map((segment) => segment.trim()).filter((segment) => segment.length > 0);
+}
+
+/**
+ * 构建 MCP 握手 capabilities（P2-01）：默认 sampling；MCP_CLIENT_ROOTS 非空时启用 roots
+ */
+export function buildMcpClientCapabilities(): ClientCapabilities {
+  const capabilities: ClientCapabilities = {
+    sampling: {},
+  };
+  if (parseMcpClientRootPathsFromEnv().length > 0) {
+    capabilities.roots = { listChanged: false };
+  }
+  return capabilities;
+}
+
+/**
  * MCP 客户端身份信息
  * 作为 MCP SDK Client 构造时的握手参数（name / version / capabilities）
  * name / version 直接来自 package.json，避免双份维护
@@ -44,5 +71,5 @@ export const ServerConfig = {
 export const MCPClientIdentity = {
   name: pkg.name,
   version: pkg.version,
-  capabilities: {} as Record<string, unknown>
+  capabilities: buildMcpClientCapabilities(),
 };

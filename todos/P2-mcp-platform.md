@@ -13,45 +13,58 @@
 
 ### 任务
 
-- [ ] **P2-01-01** 调研 MCP SDK `@modelcontextprotocol/sdk` 1.29 支持的 client capabilities  
+- [x] **P2-01-01** 调研 MCP SDK `@modelcontextprotocol/sdk` 1.29 支持的 client capabilities  
   - 涉及：`src/config/app.config.ts`  
-  - 验收：文档记录本项目实际启用的 capabilities
+  - 验收：`app.config.ts` 记录启用的 capabilities
+  - 完成日期：2026-06-04
 
-- [ ] **P2-01-02** 按需声明 capabilities（初期：`roots` 可选、`elicitation` 若 UI 支持）  
+- [x] **P2-01-02** 按需声明 capabilities（初期：`roots` 可选、`elicitation` 若 UI 支持）  
   - 涉及：`app.config.ts`、`server-connection.ts`  
   - 验收：握手日志可见 capabilities 对象
+  - 完成日期：2026-06-04
 
-- [ ] **P2-01-03** 实现 sampling 回调骨架（若服务端请求 LLM 采样）  
+- [x] **P2-01-03** 实现 sampling 回调骨架（若服务端请求 LLM 采样）  
   - 涉及：新建 `src/core/mcp-sampling-handler.ts`  
-  - 验收：echo 测试服或文档 mock 可验证
+  - 验收：日志可见 `MCP SAMPLING` 或等价自测
+  - 完成日期：2026-06-04
 
 ---
 
-## P2-02 Resources & Prompts 一等公民
+## P2-02 Resources & Prompts（仅展示，不进对话）
 
-**背景**：README 仅提 tools；`feature-config` 有 `enablePrompts` 但指 system prompt 非 MCP Prompts。
+**背景**：README 仅提 tools；`feature-config` 的 `enablePrompts` 指 Harness system prompt，非 MCP Prompts。市面（含 [Cherry Studio](https://github.com/CherryHQ/cherry-studio)）对 R/P 多为设置页列举，**对话主路径仍是 tools**；多数 MCP 服（含本仓库已接网关）仅声明 `tools`，`listResources`/`listPrompts` 常为空。
+
+**范围决策（2026-06-04）**
+
+| 做 | 不做 |
+|----|------|
+| 连接后 `list*` / 可选 `read`/`get` 供 **info 可观测** | Harness、`prompt-pipeline`、聊天 API **注入** R/P |
+| info 浏览、复制 URI / prompt 名、预览片段（只读） | `@resource`、`fetch_mcp_resource`、slash 挂上下文 |
+| `/api/info` 聚合各服 capabilities 与列表 | 将 MCP Prompt 当作会话 system prompt 替代 |
+
+**延后**：若未来某 MCP 服稳定暴露高价值 R/P 且需 slash 进聊天，单独立项，不扩本任务。
 
 ### 任务
 
-- [ ] **P2-02-01** `ServerConnection` 新增 `listResources()` / `readResource(uri)`  
+- [x] **P2-02-01** `ServerConnection` 新增 `listResources()` / `readResource(uri)`  
   - 涉及：`src/core/server-connection.ts`  
-  - 验收：info 页展示资源列表
+  - 验收：仅 info/内部调试可列出资源；`read` 仅用于预览，不写入聊天 messages
+  - 完成日期：2026-06-04
 
-- [ ] **P2-02-02** `ServerConnection` 新增 `listPrompts()` / `getPrompt(name, args)`  
+- [x] **P2-02-02** `ServerConnection` 新增 `listPrompts()` / `getPrompt(name, args)`  
   - 涉及：`server-connection.ts`  
-  - 验收：可将 MCP Prompt 注入会话
+  - 验收：info 可列 prompt 并预览 `getPrompt` 结果；**不得**注入 Agent 会话或 `prompt-pipeline`
+  - 完成日期：2026-06-04
 
-- [ ] **P2-02-03** `MCPClientManager` 聚合多服 resources/prompts  
-  - 涉及：`src/core/client.ts`  
-  - 验收：API `/api/info` 返回完整能力面
+- [x] **P2-02-03** `MCPClientManager` 聚合多服 resources/prompts  
+  - 涉及：`src/core/mcp/mcp-client-manager.ts`  
+  - 验收：`/api/info` 返回各服 resources/prompts 列表（空数组合法）；无 Harness 消费字段
+  - 完成日期：2026-06-04
 
-- [ ] **P2-02-04** Harness 支持 `@resource` 引用语法或工具 `fetch_mcp_resource`  
-  - 涉及：`agent-harness/`、`prompt-pipeline.ts`  
-  - 验收：用户可在聊天中引用 MCP 资源内容
-
-- [ ] **P2-02-05** UI：`info.html` 增加 Resources / Prompts 标签页  
-  - 涉及：`public/info.html`、`info.controller.ts`  
-  - 验收：可浏览、可复制 URI / prompt 名
+- [x] **P2-02-04** UI：info 页 Resources / Prompts（只读）  
+  - 涉及：`frontend/src/info/`、`info.controller.ts`（或等价 info 路由）  
+  - 验收：可浏览、可复制 URI / prompt 名；可选只读预览；聊天页无入口
+  - 完成日期：2026-06-04
 
 ---
 

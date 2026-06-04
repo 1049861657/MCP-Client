@@ -7,12 +7,15 @@ import {
   renderToolsPanel,
   resetToolsPanelState,
 } from './tools-panel.js';
+import { renderPromptsPanel, renderResourcesPanel, updateRpTabCount } from './rp-panel.js';
 
 /** @typedef {{ id: string; name: string; status: string; connectionDetails: ConnectionDetails }} ServerSummary */
 /** @typedef {{ connectionType: string; command?: string; args?: string; mcpUrl?: string; headers?: Record<string, string>; displayCommand?: string }} ConnectionDetails */
 /** @typedef {{ name: string; codeName?: string; description: string; parameters?: ToolParameter[] }} ToolInfo */
 /** @typedef {{ name: string; type: string; description: string; required: boolean }} ToolParameter */
-/** @typedef {{ availableServers: ServerSummary[]; currentServerId: string | null; server: ServerSummary; serverTools: Record<string, ToolInfo[]>; toolPreferences?: Record<string, Record<string, boolean>> }} InfoData */
+/** @typedef {{ name: string; description?: string; arguments?: { name: string; description?: string; required?: boolean }[] }} McpPromptInfo */
+/** @typedef {{ uri: string; name?: string; description?: string; mimeType?: string }} McpResourceInfo */
+/** @typedef {{ availableServers: ServerSummary[]; currentServerId: string | null; server: ServerSummary; serverTools: Record<string, ToolInfo[]>; serverResources?: Record<string, McpResourceInfo[]>; serverPrompts?: Record<string, McpPromptInfo[]>; toolPreferences?: Record<string, Record<string, boolean>> }} InfoData */
 
 const ICON_POWER =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M18.36 6.64a9 9 0 1 1-12.73 0"/></svg>';
@@ -54,6 +57,8 @@ const els = {
   goToolsTab: document.getElementById('go-tools-tab'),
   toolsToolbarHint: document.getElementById('tools-toolbar-hint'),
   toolsBody: document.getElementById('tools-body'),
+  promptsBody: document.getElementById('prompts-body'),
+  resourcesBody: document.getElementById('resources-body'),
   toolsAllOn: document.getElementById('tools-all-on'),
   toolsAllOff: document.getElementById('tools-all-off'),
   hToolsBadge: document.getElementById('h-tools-badge'),
@@ -731,6 +736,32 @@ function renderTools(data, isConnected) {
 }
 
 /**
+ * @param {InfoData} data
+ * @param {boolean} isConnected
+ */
+function renderResourcesAndPrompts(data, isConnected) {
+  const serverId = data.currentServerId;
+  if (!isConnected || !serverId) {
+    if (els.promptsBody) {
+      els.promptsBody.innerHTML = '';
+    }
+    if (els.resourcesBody) {
+      els.resourcesBody.innerHTML = '';
+    }
+    updateRpTabCount(els.tabPrompts, 0);
+    updateRpTabCount(els.tabResources, 0);
+    return;
+  }
+
+  const prompts = data.serverPrompts?.[serverId] ?? [];
+  const resources = data.serverResources?.[serverId] ?? [];
+  renderPromptsPanel(els.promptsBody, prompts, serverId);
+  renderResourcesPanel(els.resourcesBody, resources, serverId);
+  updateRpTabCount(els.tabPrompts, prompts.length);
+  updateRpTabCount(els.tabResources, resources.length);
+}
+
+/**
  * @param {boolean} enabled
  */
 async function bulkSetTools(enabled) {
@@ -780,6 +811,7 @@ function applyConnectionState(data, isConnected) {
 
   if (!isConnected) {
     switchTab('general');
+    renderResourcesAndPrompts(data, false);
   } else {
     if (els.gInternal) {
       els.gInternal.textContent = data.server.internalName || data.server.name || '—';
@@ -788,6 +820,7 @@ function applyConnectionState(data, isConnected) {
       els.gVer.textContent = data.server.version || '—';
     }
     renderTools(data, true);
+    renderResourcesAndPrompts(data, true);
   }
 }
 

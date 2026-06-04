@@ -27,6 +27,12 @@ alwaysApply: true
 ## 异步
 - async/await；禁 .then 链；无依赖 IO 用 Promise.all；禁顶层 await；长操作传 AbortSignal
 
+## Windows 终端（Agent）
+- Agent Shell 为 **PowerShell**（非 cmd）；禁止 CMD 专用语法
+
+## 包管理
+- 使用 **pnpm**；禁 `npm` / `yarn` / `npx`（装依赖 `pnpm install`，跑脚本 `pnpm run <script>`，一次性命令 `pnpm exec`）
+
 ## 其他
 - 魔法数/超时/上限 → config 或 ConfigService
 - 最小 diff；扩展现有模块，禁重复造轮子；文件过长按职责拆分

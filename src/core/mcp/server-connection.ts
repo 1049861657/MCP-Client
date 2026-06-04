@@ -1,12 +1,28 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { ClientCapabilities } from "@modelcontextprotocol/sdk/types.js";
+import type {
+  ClientCapabilities,
+  GetPromptResult,
+  ReadResourceResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import { McpError, ErrorCode, ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
-import { MCPClientIdentity } from "../../config/app.config.js";
+import {
+  MCPClientIdentity,
+  parseMcpClientRootPathsFromEnv,
+} from "../../config/app.config.js";
+import { attachMcpRootsHandler } from "./mcp-roots-handler.js";
+import { attachMcpSamplingHandler } from "./mcp-sampling-handler.js";
 import { Logger } from "../../utils/logger.js";
 import { ConnectionType } from '../../generated/prisma/client.js';
-import { CallToolOptions, ServerInfo, ToolInfo } from "../../types/mcp.types.js";
+import {
+  CallToolOptions,
+  McpPromptArgumentInfo,
+  McpPromptInfo,
+  McpResourceInfo,
+  ServerInfo,
+  ToolInfo,
+} from "../../types/mcp.types.js";
 import { ConfigService } from "../../services/config.service.js";
 import { MCPConfigType, MCPServer } from "../../types/config.types.js";
 import { ToolNameCodec } from "../../utils/tool-name-codec.js";
@@ -63,7 +79,7 @@ export class ServerConnection {
    * 客户端身份（name / version / capabilities）来自代码常量 MCPClientIdentity
    */
   private static createClient(): Client {
-    return new Client(
+    const client = new Client(
       {
         name: MCPClientIdentity.name,
         version: MCPClientIdentity.version
@@ -72,6 +88,9 @@ export class ServerConnection {
         capabilities: MCPClientIdentity.capabilities as ClientCapabilities
       }
     );
+    attachMcpSamplingHandler(client);
+    attachMcpRootsHandler(client, parseMcpClientRootPathsFromEnv());
+    return client;
   }
 
   /**
@@ -209,7 +228,10 @@ export class ServerConnection {
       }
       
       this.connected = true;
-      Logger.info('SERVER CONNECTION', `MCP服务器 ${this.name} 连接成功！`);
+      Logger.info(
+        'SERVER CONNECTION',
+        `MCP服务器 ${this.name} 连接成功！ clientCapabilities=${JSON.stringify(MCPClientIdentity.capabilities)}`
+      );
       return true;
     } catch (error) {
       this.connected = false;
@@ -305,6 +327,91 @@ export class ServerConnection {
         displayCommand
       }
     };
+  }
+
+  private isUnsupportedMcpCapability(error: unknown): boolean {
+    return error instanceof McpError && error.code === ErrorCode.MethodNotFound;
+  }
+
+  async listResources(): Promise<McpResourceInfo[]> {
+    if (!this.connected) {
+      return [];
+    }
+    try {
+      const result = await this.client.listResources();
+      const resources = result.resources ?? [];
+      return resources.map((resource) => ({
+        uri: resource.uri,
+        name: resource.name,
+        description: resource.description,
+        mimeType: resource.mimeType,
+        serverId: this.id,
+        serverName: this.name,
+      }));
+    } catch (error) {
+      if (!this.isUnsupportedMcpCapability(error)) {
+        Logger.error(
+          'SERVER CONNECTION',
+          `获取资源列表失败: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+      return [];
+    }
+  }
+
+  async readResource(uri: string): Promise<ReadResourceResult> {
+    if (!this.connected) {
+      throw new Error(`服务器 ${this.name} 未连接`);
+    }
+    return await this.client.readResource({ uri });
+  }
+
+  async listPrompts(): Promise<McpPromptInfo[]> {
+    if (!this.connected) {
+      return [];
+    }
+    try {
+      const result = await this.client.listPrompts();
+      const prompts = result.prompts ?? [];
+      return prompts.map((prompt) => ({
+        name: prompt.name,
+        description: prompt.description,
+        arguments: this.mapPromptArguments(prompt.arguments),
+        serverId: this.id,
+        serverName: this.name,
+      }));
+    } catch (error) {
+      if (!this.isUnsupportedMcpCapability(error)) {
+        Logger.error(
+          'SERVER CONNECTION',
+          `获取 Prompt 列表失败: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+      return [];
+    }
+  }
+
+  async getPrompt(name: string, args?: Record<string, string>): Promise<GetPromptResult> {
+    if (!this.connected) {
+      throw new Error(`服务器 ${this.name} 未连接`);
+    }
+    return await this.client.getPrompt({
+      name,
+      arguments: args,
+    });
+  }
+
+  private mapPromptArguments(
+    args: Array<{ name: string; description?: string; required?: boolean }> | undefined
+  ): McpPromptArgumentInfo[] | undefined {
+    if (!args?.length) {
+      return undefined;
+    }
+    return args.map((arg) => ({
+      name: arg.name,
+      description: arg.description,
+      required: arg.required,
+    }));
   }
 
   async getTools(): Promise<ToolInfo[]> {

@@ -18,3 +18,9 @@ export interface CallServerToolResponse {
   output: string;
   error?: string;
 }
+
+/** Info 页 MCP Prompt 预览（不进 Harness） */
+export interface McpPromptPreviewBody {
+  name: string;
+  arguments?: Record<string, unknown>;
+}

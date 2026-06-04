@@ -8,6 +8,7 @@ import { formatMcpToolResult } from '../utils/mcp-tool-result.js';
 import type {
   CallServerToolBody,
   CallServerToolResponse,
+  McpPromptPreviewBody,
   ServerToolPreferencesBody
 } from '../types/tool-preferences.types.js';
 import { ConnectionType } from '../generated/prisma/client.js';
@@ -482,6 +483,89 @@ export class InfoController {
         error: message
       };
       res.status(500).json(response);
+    }
+  }
+
+  /**
+   * Info 页预览 MCP Resource（只读，不进对话）
+   */
+  static async previewMcpResource(req: Request, res: Response): Promise<void> {
+    const started = Date.now();
+    try {
+      const serverId = InfoController.routeParamToString(req.params.serverId);
+      const uri = typeof req.query.uri === 'string' ? req.query.uri.trim() : '';
+      if (!serverId) {
+        InfoController.sendErrorResponse(res, 400, '缺少服务器 ID', '必须指定 serverId');
+        return;
+      }
+      if (!uri) {
+        InfoController.sendErrorResponse(res, 400, '缺少资源 URI', 'query.uri 为必填项');
+        return;
+      }
+
+      const result = await mcpClient.readResourceOnServer(serverId, uri);
+      const response: CallServerToolResponse = {
+        ok: true,
+        ms: Date.now() - started,
+        output: JSON.stringify(result, null, 2),
+      };
+      res.json(response);
+    } catch (error) {
+      const message = InfoController.getErrorMessage(error);
+      res.status(500).json({
+        ok: false,
+        ms: Date.now() - started,
+        output: message,
+        error: message,
+      } satisfies CallServerToolResponse);
+    }
+  }
+
+  /**
+   * Info 页预览 MCP Prompt（只读，不进对话）
+   */
+  static async previewMcpPrompt(req: Request, res: Response): Promise<void> {
+    const started = Date.now();
+    try {
+      const serverId = InfoController.routeParamToString(req.params.serverId);
+      if (!serverId) {
+        InfoController.sendErrorResponse(res, 400, '缺少服务器 ID', '必须指定 serverId');
+        return;
+      }
+
+      const body = req.body as McpPromptPreviewBody;
+      if (!body?.name || typeof body.name !== 'string') {
+        InfoController.sendErrorResponse(res, 400, '请求无效', 'name 为必填项');
+        return;
+      }
+
+      let args: Record<string, string> | undefined;
+      if (body.arguments && typeof body.arguments === 'object' && !Array.isArray(body.arguments)) {
+        args = {};
+        for (const [key, value] of Object.entries(body.arguments)) {
+          if (typeof value === 'string') {
+            args[key] = value;
+          } else if (value !== undefined && value !== null) {
+            args[key] = String(value);
+          }
+        }
+      }
+
+      const result = await mcpClient.getPromptOnServer(serverId, body.name.trim(), args);
+      const response: CallServerToolResponse = {
+        ok: true,
+        ms: Date.now() - started,
+        output: JSON.stringify(result, null, 2),
+      };
+      res.json(response);
+    } catch (error) {
+      const message = InfoController.getErrorMessage(error);
+      res.status(500).json({
+        ok: false,
+        ms: Date.now() - started,
+        output: message,
+        error: message,
+      } satisfies CallServerToolResponse);
     }
   }
 } 

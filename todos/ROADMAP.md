@@ -26,7 +26,7 @@
 | 无消息规范化层 | 取消/超时后 API 400、配对失败 | OpenAI/Anthropic 协议硬性约束 |
 | 无上下文预算与压缩 | 大 tool 输出撑爆窗口 | AWS MCP 策略：workflow-scoped + 压缩 |
 | 无错误分类恢复 | 截断/溢出/瞬态错误直接失败 | Agents SDK Harness：continuation / compact / backoff |
-| MCP 仅 tools-first | 无法暴露 Resources/Prompts | MCP 2025–2026 完整能力面 |
+| MCP 仅 tools-first | info 不可见远端 R/P 列表 | P2-02 仅展示，对话仍 tools-first |
 | 无权限门 | 工具调用裸执行 | 生产 MCP：OAuth + least privilege + ask |
 | Provider 与 Harness 已分离 | ✅ T0 + P0 已完成 | 控制面与执行面分离 |
 
@@ -146,7 +146,7 @@ P0-01 Harness 模块拆分
                           └─► T1-03 Web → T1-04 Worker → T1-05 Outbound → T1-07 飞书 → T1-08 钉钉
                                 └─► T2 Config Plane + Admin（Profile/Route，按渠道解析能力）
                                       └─► T3 前端现代化（Strangler 逐页；与 P1 并行）
-P2-02 Resources/Prompts（可与 P1 后期并行）
+P2-02 Resources/Prompts 仅 info 展示（不进 Harness）
 P3-* 可在 P1 完成后按需启动
 ```
 
@@ -172,7 +172,7 @@ P3-* 可在 P1 完成后按需启动
 | Workflow-scoped 工具过滤 | P1-06 | AWS：减少 context 占用 |
 | 错误分类 + 有预算重试 | P1-02 | [ShareAI s11 Error Recovery](https://learn.shareai.run/zh/s11/) |
 | 大输出落盘 + Artifact（stub/可读回） | P1-01（-11/-12） | [ShareAI s06](https://learn.shareai.run/zh/s06/) · 对标 Claude Code 落盘+Read |
-| MCP Resources/Prompts 一等公民 | P2-02 | MCP Spec 2025–2026 |
+| MCP Resources/Prompts info 可观测（不进对话） | P2-02 | 对齐 Cherry/VS Code 列举，主路径仍 tools |
 | 结构化 tool call 审计日志 | P1-07 | 生产可观测性共识 |
 | Client capabilities 声明 | P2-01 | MCP 握手规范 |
 | 会话服务端持久化（可选同步 IDB） | P3-04 | 跨设备 / 恢复 |
@@ -201,7 +201,7 @@ P3-* 可在 P1 完成后按需启动
 
 ### M3 — MCP 平台完整（[P2-mcp-platform.md](./P2-mcp-platform.md)）
 
-- [ ] listResources / listPrompts 接入 UI 与 Harness
+- [ ] listResources / listPrompts 接入 info 展示（不进 Harness）
 - [ ] 连接状态机：connected / pending / needs-auth / failed
 - [ ] OAuth 流程（至少 Streamable HTTP）
 

@@ -47,6 +47,8 @@ router.post('/server/reload-config', InfoController.reloadConfig);
 router.get('/server/:serverId/tool-preferences', InfoController.getToolPreferences);
 router.put('/server/:serverId/tool-preferences', InfoController.saveToolPreferences);
 router.post('/server/:serverId/tools/call', InfoController.callServerTool);
+router.get('/server/:serverId/mcp-resources/preview', InfoController.previewMcpResource);
+router.post('/server/:serverId/mcp-prompts/preview', InfoController.previewMcpPrompt);
 
 // 工具列表路由
 router.get('/tools/list', AiController.getAvailableTools);

@@ -1,6 +1,15 @@
 import { ConfigService } from "../../services/config.service.js";
 import { Logger } from "../../utils/logger.js";
-import { CallToolOptions, ClientInfo, MCPServerInfo, ServerInfo, ToolInfo } from "../../types/mcp.types.js";
+import {
+  CallToolOptions,
+  ClientInfo,
+  McpPromptInfo,
+  McpResourceInfo,
+  MCPServerInfo,
+  ServerInfo,
+  ToolInfo,
+} from "../../types/mcp.types.js";
+import type { GetPromptResult, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import { ServerConnection } from "./server-connection.js";
 import { ConnectionType } from '../../generated/prisma/client.js';
 import { MCPClientIdentity } from "../../config/app.config.js";
@@ -246,6 +255,8 @@ export class MCPClientManager {
     
     const allTools: ToolInfo[] = [];
     const serverTools: Record<string, ToolInfo[]> = {};
+    const serverResources: Record<string, McpResourceInfo[]> = {};
+    const serverPrompts: Record<string, McpPromptInfo[]> = {};
     const connectedServers: ServerInfo[] = [];
     
     // 汇总所有已连接服务器的工具（优先使用缓存，避免每次发起 listTools 网络请求）
@@ -268,6 +279,13 @@ export class MCPClientManager {
           serverTools[serverId] = freshTools;
           allTools.push(...freshTools);
         }
+
+        const [resources, prompts] = await Promise.all([
+          connection.listResources(),
+          connection.listPrompts(),
+        ]);
+        serverResources[serverId] = resources;
+        serverPrompts[serverId] = prompts;
       }
     }
     
@@ -277,7 +295,9 @@ export class MCPClientManager {
       tools: allTools,
       availableServers: await this.getAvailableServers(),
       connectedServers,
-      serverTools
+      serverTools,
+      serverResources,
+      serverPrompts,
     };
 
     return info;
@@ -409,6 +429,28 @@ export class MCPClientManager {
     }
     const toolName = await this.resolveToolNameOnServer(serverId, toolNameOrCodeName);
     return connection.callTool<T>(toolName, args, options);
+  }
+
+  async readResourceOnServer(serverId: string, uri: string): Promise<ReadResourceResult> {
+    const connection = this.requireConnectedConnection(serverId);
+    return connection.readResource(uri);
+  }
+
+  async getPromptOnServer(
+    serverId: string,
+    name: string,
+    args?: Record<string, string>
+  ): Promise<GetPromptResult> {
+    const connection = this.requireConnectedConnection(serverId);
+    return connection.getPrompt(name, args);
+  }
+
+  private requireConnectedConnection(serverId: string): ServerConnection {
+    const connection = this.connections.get(serverId);
+    if (!connection?.isConnected()) {
+      throw new Error(`服务器 ${serverId} 未连接`);
+    }
+    return connection;
   }
 
   /**
