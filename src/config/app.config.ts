@@ -39,6 +39,11 @@ export const ServerConfig = {
   jsonBodyLimit: '32mb',
 };
 
+/** MCP OAuth 回调路径（完整 URL 由运行时 host/port 或 MCP_OAUTH_REDIRECT_URL 拼出） */
+export const McpOAuthConfig = {
+  callbackPath: '/api/mcp/oauth/callback',
+};
+
 /**
  * 从环境变量解析 MCP roots 路径（`;` 或 `,` 分隔）。未设置则不开 roots 能力。
  */

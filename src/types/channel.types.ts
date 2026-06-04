@@ -60,7 +60,6 @@ export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
   enableTools?: boolean;
-  enableParamValidation?: boolean;
   enablePrompts?: boolean;
   maxToolCallRounds?: number;
   enableAutoCompact?: boolean;

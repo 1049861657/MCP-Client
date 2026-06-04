@@ -114,7 +114,6 @@ async function runHarnessForEnvelope(
     resolved.temperature,
     resolved.maxTokens,
     resolved.enableTools,
-    resolved.enableParamValidation,
     resolved.enablePrompts,
     signal,
     resolved.maxToolCallRounds,

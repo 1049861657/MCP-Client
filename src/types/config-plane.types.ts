@@ -43,7 +43,6 @@ export interface AgentProfileRecord {
   maxTokens: number | null;
   enableTools: boolean;
   enablePrompts: boolean;
-  enableParamValidation: boolean;
   maxToolCallRounds: number;
   permissionMode: PermissionMode;
   enableAutoCompact: boolean | null;
@@ -73,7 +72,6 @@ export interface ResolvedChatProfile extends Required<
   Pick<
     ChatOptions,
     | 'enableTools'
-    | 'enableParamValidation'
     | 'enablePrompts'
     | 'maxToolCallRounds'
     | 'enableAutoCompact'

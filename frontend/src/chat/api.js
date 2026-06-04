@@ -378,6 +378,7 @@ export function createChatApi(deps) {
         jsonData.tool_call_result.tool_call_id,
         jsonData.tool_call_result.execution_time,
         jsonData.tool_call_result.artifact ?? null,
+        jsonData.tool_call_result.unified ?? null,
       );
     }
 
@@ -677,7 +678,6 @@ export function createChatApi(deps) {
       maxTokens,
       vendor: provider,
       enableTools,
-      enableParamValidation: app.state.enableParamValidation,
       enablePrompts: app.state.enablePrompts,
       maxToolCallRounds: app.state.maxToolCallRounds,
       enableAutoCompact: app.state.enableAutoCompact,

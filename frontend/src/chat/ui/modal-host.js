@@ -221,14 +221,6 @@ const MODALS_HTML = `
 
               <div class="settings-item">
                 <div class="settings-item-text">
-                  <div class="settings-item-title">参数校验</div>
-                  <div class="settings-item-hint">调用前校验 MCP 参数 schema · 开发中，暂不允许开启</div>
-                </div>
-                <button type="button" class="settings-toggle" id="settings-toggle-param-validation" aria-pressed="false" disabled title="开发中，暂不允许开启"></button>
-              </div>
-
-              <div class="settings-item">
-                <div class="settings-item-text">
                   <div class="settings-item-title">用户提示词</div>
                   <div class="settings-item-hint">开启后才会把本页编辑的提示词发给模型</div>
                 </div>
@@ -302,7 +294,6 @@ const MODALS_HTML = `
     <input type="checkbox" id="enable-message-history" class="hidden" checked>
     <input type="checkbox" id="enable-auto-compact" class="hidden">
     <input type="checkbox" id="enable-mcp-tools" class="hidden" checked>
-    <input type="checkbox" id="enable-param-validation" class="hidden">
     <input type="checkbox" id="enable-prompts" class="hidden" checked>
     <input type="number" id="message-history-count" class="hidden" value="20" min="1" max="50">
     <input type="number" id="max-tool-call-rounds" class="hidden" value="25" min="1" max="100">

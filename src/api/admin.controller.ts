@@ -72,7 +72,6 @@ function mapProfileRow(row: {
   maxTokens: number | null;
   enableTools: boolean;
   enablePrompts: boolean;
-  enableParamValidation: boolean;
   maxToolCallRounds: number;
   permissionMode: string;
   enableAutoCompact: boolean | null;
@@ -94,7 +93,6 @@ function mapProfileRow(row: {
     maxTokens: row.maxTokens,
     enableTools: row.enableTools,
     enablePrompts: row.enablePrompts,
-    enableParamValidation: row.enableParamValidation,
     maxToolCallRounds: row.maxToolCallRounds,
     permissionMode: parseImPermissionMode(row.permissionMode),
     enableAutoCompact: row.enableAutoCompact,
@@ -180,9 +178,6 @@ export class AdminController {
       if (body.maxTokens === null) data.maxTokens = null;
       if (typeof body.enableTools === 'boolean') data.enableTools = body.enableTools;
       if (typeof body.enablePrompts === 'boolean') data.enablePrompts = body.enablePrompts;
-      if (typeof body.enableParamValidation === 'boolean') {
-        data.enableParamValidation = body.enableParamValidation;
-      }
       if (typeof body.maxToolCallRounds === 'number') {
         data.maxToolCallRounds = Math.floor(body.maxToolCallRounds);
       }

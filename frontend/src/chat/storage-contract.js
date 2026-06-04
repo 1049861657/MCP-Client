@@ -44,7 +44,6 @@ export function compactBaselineStorageKey(sessionId) {
  * @property {number} [temperature]
  * @property {number} [maxTokens]
  * @property {boolean} [enableMCPTools]
- * @property {boolean} [enableParamValidation]
  * @property {boolean} [enablePrompts]
  * @property {boolean} [enableMessageHistory]
  * @property {number} [messageHistoryCount] 送入 API 的历史条数上限
@@ -62,7 +61,6 @@ export const CHAT_SETTINGS_FIELDS = [
   'temperature',
   'maxTokens',
   'enableMCPTools',
-  'enableParamValidation',
   'enablePrompts',
   'enableMessageHistory',
   'messageHistoryCount',

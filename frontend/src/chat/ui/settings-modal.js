@@ -9,27 +9,6 @@ const TOKEN_MAX = 8192;
 const TOKEN_STEP = 512;
 
 /**
- * 参数校验尚未完成，UI 与持久化均强制关闭。
- * @param {{ enableParamValidation?: HTMLInputElement | null }} elements
- * @param {{ enableParamValidation?: boolean }} [state]
- */
-function enforceParamValidationDisabled(elements, state) {
-  if (elements.enableParamValidation) {
-    elements.enableParamValidation.checked = false;
-  }
-  if (state) {
-    state.enableParamValidation = false;
-  }
-  const toggle = document.getElementById('settings-toggle-param-validation');
-  if (toggle instanceof HTMLButtonElement) {
-    toggle.classList.remove('on');
-    toggle.setAttribute('aria-pressed', 'false');
-    toggle.disabled = true;
-    toggle.title = '开发中，暂不允许开启';
-  }
-}
-
-/**
  * @param {HTMLInputElement | null} checkbox
  * @param {HTMLButtonElement | null} toggle
  * @param {HTMLElement | null} [nested]
@@ -231,7 +210,6 @@ function syncSettingsUi(getApp) {
     document.getElementById('settings-toggle-mcp'),
     null,
   );
-  enforceParamValidationDisabled(elements, app.state);
   syncToggleFromCheckbox(
     elements.enablePrompts,
     document.getElementById('settings-toggle-prompts'),
@@ -440,7 +418,6 @@ export function createSettingsModalApi(getApp, ui) {
     if (elements.enableMCPTools) {
       state.enableMCPTools = elements.enableMCPTools.checked;
     }
-    enforceParamValidationDisabled(elements, state);
     if (elements.enablePrompts) {
       state.enablePrompts = elements.enablePrompts.checked;
     }
@@ -474,7 +451,6 @@ export function createSettingsModalApi(getApp, ui) {
       settings.temperature = state.temperature;
       settings.maxTokens = state.maxTokens;
       settings.enableMCPTools = state.enableMCPTools;
-      settings.enableParamValidation = state.enableParamValidation;
       settings.enablePrompts = state.enablePrompts;
       settings.enableMessageHistory = state.enableMessageHistory;
       settings.messageHistoryCount = state.messageHistoryCount;
@@ -511,7 +487,6 @@ export function createSettingsModalApi(getApp, ui) {
     if (elements.enableMCPTools) {
       elements.enableMCPTools.checked = true;
     }
-    enforceParamValidationDisabled(elements, state);
     if (elements.enablePrompts) {
       elements.enablePrompts.checked = true;
     }
@@ -587,8 +562,6 @@ export function createSettingsModalApi(getApp, ui) {
         elements.enableMCPTools.checked = settings.enableMCPTools;
         state.enableMCPTools = settings.enableMCPTools;
       }
-
-      enforceParamValidationDisabled(elements, state);
 
       if (typeof settings.enablePrompts === 'boolean' && elements.enablePrompts) {
         elements.enablePrompts.checked = settings.enablePrompts;

@@ -71,7 +71,6 @@ function createInitialState() {
     ],
     showReasoning: true,
     enableMCPTools: true,
-    enableParamValidation: false,
     enablePrompts: true,
     messageHistory: [],
     mcpTools: [],
@@ -197,7 +196,6 @@ function createAppMethods() {
         responseTime: document.getElementById('response-time'),
         tokenUsage: document.getElementById('token-usage'),
         enableMCPTools: document.getElementById('enable-mcp-tools'),
-        enableParamValidation: document.getElementById('enable-param-validation'),
         enablePrompts: document.getElementById('enable-prompts'),
         enableMessageHistory: document.getElementById('enable-message-history'),
         messageHistoryCount: document.getElementById('message-history-count'),
@@ -362,16 +360,10 @@ function createAppMethods() {
         console.error('快捷消息按钮元素不存在');
       }
 
-      const { enableMCPTools, enableParamValidation, enablePrompts, enableMessageHistory } =
-        this.elements;
+      const { enableMCPTools, enablePrompts, enableMessageHistory } = this.elements;
       if (enableMCPTools) {
         enableMCPTools.addEventListener('change', (event) => {
           this.state.enableMCPTools = event.target.checked;
-        });
-      }
-      if (enableParamValidation) {
-        enableParamValidation.addEventListener('change', (event) => {
-          this.state.enableParamValidation = event.target.checked;
         });
       }
       if (enablePrompts) {
@@ -478,14 +470,10 @@ function createAppMethods() {
         if (data.success && data.config) {
           if (data.config.tools) {
             this.state.enableMCPTools = data.config.tools.enableMCPTools;
-            this.state.enableParamValidation = data.config.tools.enableParamValidation;
             this.state.enablePrompts = data.config.tools.enablePrompts;
 
             if (this.elements.enableMCPTools) {
               this.elements.enableMCPTools.checked = this.state.enableMCPTools;
-            }
-            if (this.elements.enableParamValidation) {
-              this.elements.enableParamValidation.checked = this.state.enableParamValidation;
             }
             if (this.elements.enablePrompts) {
               this.elements.enablePrompts.checked = this.state.enablePrompts;
@@ -493,7 +481,6 @@ function createAppMethods() {
 
             console.log('已更新工具配置:', {
               enableMCPTools: this.state.enableMCPTools,
-              enableParamValidation: this.state.enableParamValidation,
               enablePrompts: this.state.enablePrompts,
             });
           }

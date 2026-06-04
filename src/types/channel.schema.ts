@@ -10,7 +10,6 @@ const chatOptionsSchema = z.object({
   temperature: z.number().optional(),
   maxTokens: z.number().optional(),
   enableTools: z.boolean().optional(),
-  enableParamValidation: z.boolean().optional(),
   enablePrompts: z.boolean().optional(),
   maxToolCallRounds: z.number().optional(),
   enableAutoCompact: z.boolean().optional(),

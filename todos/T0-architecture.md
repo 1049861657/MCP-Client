@@ -13,7 +13,7 @@
 |--------|------|------|
 | T0-01～02 servers + core/mcp | **保留，合并为一项** | 最大误导源；import 面可控（api 2 处 + provider 1 包） |
 | T0-03 system-tools 重命名 | **保留** | 3 文件、~5 处 import；与 P3 新工具路径一致 |
-| T0-04 文件名规范 | **部分保留** | `Json-Utils .ts` **零引用**，删或改名即可；`tool-validation` 重命名价值低 **暂缓**；`tool-executor`→`tool-call-manager` **并入 T0-02 可选** |
+| T0-04 文件名规范 | **部分保留** | `Json-Utils .ts` **零引用**，删或改名即可；`tool-validation.ts` 随 **P2-05** 删除；`tool-executor`→`tool-call-manager` **已并入 T0-02** |
 | T0-05 层边界 bootstrap/API types | **暂缓** | `app.ts` 仅 1 行 cleanup；controller 仅 1 处 `InternalMessage`；Provider 已只 import registry — **无结构收益** |
 | T0-06 拆 context-budget | **暂缓 → P1/T1** | 617 行但运行稳定；拆分是**可维护性**不是**目录语义**，且 export 面大，易引入回归 |
 | T0-07 拆 types.ts | **暂缓** | 182 行，单文件仍可读；拆分为 4 文件属过度设计 |
@@ -91,7 +91,7 @@ src/
 │       ├── message-normalizer.ts
 │       ├── loop-state.ts
 │       ├── audit.ts
-│       ├── tool-validation.ts
+│       ├── （P2-05 删除 tool-validation.ts）
 │       ├── context-budget.ts
 │       ├── types.ts              # ChatTool 等
 │       └── system-tools/

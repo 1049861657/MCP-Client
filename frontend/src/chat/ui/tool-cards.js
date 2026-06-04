@@ -84,6 +84,7 @@ export function createToolCardsUi(getApp, ui) {
     toolId = null,
     executionTime = null,
     artifact = null,
+    unified = null,
   ) {
     const toolCallElements = messageDiv?.querySelectorAll('.tool-call');
     if (!toolCallElements?.length) {
@@ -109,20 +110,23 @@ export function createToolCardsUi(getApp, ui) {
       target.querySelector('.tool-call-content')?.appendChild(resultDiv);
     }
 
-    let resultStr = '';
-    if (result !== null && result !== undefined) {
-      resultStr = typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result);
-    }
+    const displayError = unified?.status === 'error' || isError;
+    const resultStr = unified?.preview
+      ?? (result == null ? '' : typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result));
+    const structuredBlock = unified?.structured === undefined ? '' : (
+      `<details class="tool-result-structured"><summary>structuredContent</summary>`
+      + `<pre>${escapeHtml(JSON.stringify(unified.structured, null, 2))}</pre></details>`
+    );
 
-    const artifactBanner = !isError ? formatArtifactBanner(artifact) : '';
-    resultDiv.innerHTML = isError
-      ? `<strong class="error">错误:</strong><pre class="error-result">${escapeHtml(resultStr)}</pre>`
-      : `${artifactBanner}<strong>结果:</strong><pre>${escapeHtml(resultStr)}</pre>`;
-    resultDiv.classList.toggle('error', isError);
+    const artifactBanner = !displayError ? formatArtifactBanner(artifact) : '';
+    resultDiv.innerHTML = displayError
+      ? `<strong class="error">错误:</strong><pre class="error-result">${escapeHtml(resultStr)}</pre>${structuredBlock}`
+      : `${artifactBanner}<strong>结果:</strong><pre>${escapeHtml(resultStr)}</pre>${structuredBlock}`;
+    resultDiv.classList.toggle('error', displayError);
 
     const statusDiv = target.querySelector('.tool-call-status');
     if (statusDiv) {
-      let statusHtml = isError
+      let statusHtml = displayError
         ? '<div class="status-indicator error"></div><span class="status-error">调用失败</span>'
         : '<div class="status-indicator success"></div><span class="status-success">调用成功</span>';
 

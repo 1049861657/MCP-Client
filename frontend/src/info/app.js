@@ -9,13 +9,68 @@ import {
 } from './tools-panel.js';
 import { renderPromptsPanel, renderResourcesPanel, updateRpTabCount } from './rp-panel.js';
 
-/** @typedef {{ id: string; name: string; status: string; connectionDetails: ConnectionDetails }} ServerSummary */
+/** @typedef {{ id: string; name: string; status: string; authorizationUrl?: string; usesOAuth?: boolean; connectionDetails: ConnectionDetails }} ServerSummary */
 /** @typedef {{ connectionType: string; command?: string; args?: string; mcpUrl?: string; headers?: Record<string, string>; displayCommand?: string }} ConnectionDetails */
 /** @typedef {{ name: string; codeName?: string; description: string; parameters?: ToolParameter[] }} ToolInfo */
 /** @typedef {{ name: string; type: string; description: string; required: boolean }} ToolParameter */
 /** @typedef {{ name: string; description?: string; arguments?: { name: string; description?: string; required?: boolean }[] }} McpPromptInfo */
 /** @typedef {{ uri: string; name?: string; description?: string; mimeType?: string }} McpResourceInfo */
 /** @typedef {{ availableServers: ServerSummary[]; currentServerId: string | null; server: ServerSummary; serverTools: Record<string, ToolInfo[]>; serverResources?: Record<string, McpResourceInfo[]>; serverPrompts?: Record<string, McpPromptInfo[]>; toolPreferences?: Record<string, Record<string, boolean>> }} InfoData */
+
+const MCP_STATUS = {
+  Connected: 'connected',
+  Disconnected: 'disconnected',
+  Connecting: 'connecting',
+  NeedsAuth: 'needs-auth',
+  Failed: 'failed',
+};
+
+/**
+ * @param {string} status
+ * @returns {boolean}
+ */
+function isServerConnected(status) {
+  return status === MCP_STATUS.Connected;
+}
+
+/**
+ * @param {string} status
+ * @returns {string}
+ */
+function serverStatusLabel(status) {
+  switch (status) {
+    case MCP_STATUS.Connected:
+      return '已连接';
+    case MCP_STATUS.Connecting:
+      return '连接中';
+    case MCP_STATUS.NeedsAuth:
+      return '需授权';
+    case MCP_STATUS.Failed:
+      return '连接失败';
+    default:
+      return '未连接';
+  }
+}
+
+/**
+ * @param {string} status
+ * @returns {'on' | 'off' | 'pending' | 'warn' | 'err'}
+ */
+function serverStatusChipClass(status) {
+  if (status === MCP_STATUS.Connected) {
+    return 'on';
+  }
+  if (status === MCP_STATUS.Connecting) {
+    return 'pending';
+  }
+  if (status === MCP_STATUS.NeedsAuth) {
+    return 'warn';
+  }
+  if (status === MCP_STATUS.Failed) {
+    return 'err';
+  }
+  return 'off';
+}
 
 const ICON_POWER =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10M18.36 6.64a9 9 0 1 1-12.73 0"/></svg>';
@@ -39,6 +94,7 @@ const els = {
   hStatus: document.getElementById('h-status'),
   hStatusText: document.getElementById('h-status-text'),
   hConnBtn: document.getElementById('h-conn-btn'),
+  hAuthBtn: document.getElementById('h-auth-btn'),
   goEdit: document.getElementById('go-edit'),
   goDel: document.getElementById('go-del'),
   tabTools: document.getElementById('tab-tools'),
@@ -171,7 +227,7 @@ function getPendingActionForServer(serverId, status) {
   if (!connectionPending || connectionPending.serverId !== serverId) {
     return null;
   }
-  const isConnected = status === '已连接';
+  const isConnected = isServerConnected(status);
   if (connectionPending.action === 'connect' && !isConnected) {
     return 'connect';
   }
@@ -223,7 +279,43 @@ export function initInfoApp() {
   setupConnectionTypeToggle();
   setupFormHandlers();
   setupShellHandlers();
+  handleOAuthRedirectQuery();
   void fetchServerInfo();
+}
+
+function handleOAuthRedirectQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const oauth = params.get('oauth');
+  if (oauth === 'ok') {
+    showToast('OAuth 授权成功', 'success');
+  } else if (oauth === 'error') {
+    const message = params.get('message') || 'OAuth 授权失败';
+    showToast(message, 'error', 8000);
+  }
+  if (oauth) {
+    params.delete('oauth');
+    params.delete('message');
+    const query = params.toString();
+    const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+    window.history.replaceState({}, '', nextUrl);
+  }
+}
+
+/**
+ * @param {string} serverId
+ */
+async function startOAuthAuthorization(serverId) {
+  try {
+    /** @type {{ authorizationUrl?: string }} */
+    const data = await requestJson(`/api/server/${encodeURIComponent(serverId)}/oauth/authorize`);
+    if (!data.authorizationUrl) {
+      throw new Error('未返回授权 URL');
+    }
+    window.open(data.authorizationUrl, '_blank', 'noopener,noreferrer');
+    showToast('已在浏览器打开授权页，完成后将自动回到本页', 'info', 6000);
+  } catch (error) {
+    showErrorToast(error, '无法发起 OAuth 授权');
+  }
 }
 
 function setupShellHandlers() {
@@ -248,7 +340,7 @@ function setupShellHandlers() {
 
   els.goToolsTab?.addEventListener('click', (event) => {
     event.preventDefault();
-    if (currentData?.server.status === '已连接') {
+    if (currentData?.server && isServerConnected(currentData.server.status)) {
       switchTab('tools');
     }
   });
@@ -257,12 +349,21 @@ function setupShellHandlers() {
     if (!currentData?.currentServerId || connectionPending) {
       return;
     }
-    const isConnected = currentData.server.status === '已连接';
+    const isConnected = isServerConnected(currentData.server.status);
     if (isConnected) {
       void disconnectServer(currentData.currentServerId);
+    } else if (currentData.server.status === MCP_STATUS.NeedsAuth) {
+      void startOAuthAuthorization(currentData.currentServerId);
     } else {
       void connectServer(currentData.currentServerId);
     }
+  });
+
+  els.hAuthBtn?.addEventListener('click', () => {
+    if (!currentData?.currentServerId || connectionPending) {
+      return;
+    }
+    void startOAuthAuthorization(currentData.currentServerId);
   });
 
   els.goEdit?.addEventListener('click', () => {
@@ -497,10 +598,7 @@ async function submitServerForm() {
   } else {
     const mcpUrlEl = document.getElementById('f-url');
     serverData.mcpUrl = mcpUrlEl instanceof HTMLInputElement ? mcpUrlEl.value.trim() : '';
-    const headers = getHeadersFromRows();
-    if (headers) {
-      serverData.headers = headers;
-    }
+    serverData.headers = getHeadersFromRows() ?? {};
   }
 
   try {
@@ -576,7 +674,8 @@ function paintServerList(servers, currentServerId) {
   );
 
   filtered.forEach((server) => {
-    const isConnected = server.status === '已连接';
+    const isConnected = isServerConnected(server.status);
+    const needsAuth = server.status === MCP_STATUS.NeedsAuth;
     const row = document.createElement('div');
     row.className = `server-item${server.id === currentServerId ? ' active' : ''}`;
     row.setAttribute('role', 'button');
@@ -593,12 +692,12 @@ function paintServerList(servers, currentServerId) {
 
     const main = document.createElement('div');
     main.className = 'server-item-main';
-    main.innerHTML = `<span class="dot ${isConnected ? 'on' : 'off'}"></span><span class="server-item-name">${server.name}</span>`;
+    main.innerHTML = `<span class="dot ${isConnected ? 'on' : needsAuth ? 'warn' : 'off'}"></span><span class="server-item-name">${server.name}</span>`;
 
     const quick = document.createElement('button');
     quick.type = 'button';
     quick.className = `server-quick${isConnected ? ' on' : ''}`;
-    quick.title = isConnected ? '断开' : '连接';
+    quick.title = isConnected ? '断开' : needsAuth ? '授权' : '连接';
     quick.innerHTML = ICON_POWER;
     quick.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -607,6 +706,8 @@ function paintServerList(servers, currentServerId) {
       }
       if (isConnected) {
         void disconnectServer(server.id);
+      } else if (needsAuth) {
+        void startOAuthAuthorization(server.id);
       } else {
         void connectServer(server.id);
       }
@@ -704,7 +805,7 @@ function renderTools(data, isConnected) {
 
   const refreshTools = () => {
     if (currentData) {
-      renderTools(currentData, currentData.server.status === '已连接');
+      renderTools(currentData, isServerConnected(currentData.server.status));
       updateToolSummary(currentServerTools, currentData.toolPreferences?.[serverId] ?? preferences, true);
     }
   };
@@ -765,7 +866,7 @@ function renderResourcesAndPrompts(data, isConnected) {
  * @param {boolean} enabled
  */
 async function bulkSetTools(enabled) {
-  if (!currentData?.currentServerId || currentData.server.status !== '已连接') {
+  if (!currentData?.currentServerId || !isServerConnected(currentData.server.status)) {
     return;
   }
 
@@ -828,7 +929,8 @@ function applyConnectionState(data, isConnected) {
  * @param {InfoData} data
  */
 function updateDetailBar(data) {
-  const isConnected = data.server.status === '已连接';
+  const isConnected = isServerConnected(data.server.status);
+  const needsAuth = data.server.status === MCP_STATUS.NeedsAuth;
   const pendingAction = getPendingActionForServer(data.server.id, data.server.status);
 
   if (els.hName) {
@@ -848,9 +950,10 @@ function updateDetailBar(data) {
         dot.className = 'dot pending';
       }
     } else {
-      els.hStatus.className = `status-chip ${isConnected ? 'on' : 'off'}`;
+      const chipClass = pendingAction ? 'pending' : serverStatusChipClass(data.server.status);
+      els.hStatus.className = `status-chip ${chipClass}`;
       if (dot) {
-        dot.className = `dot ${isConnected ? 'on' : 'off'}`;
+        dot.className = `dot ${chipClass}`;
       }
     }
   }
@@ -860,8 +963,14 @@ function updateDetailBar(data) {
     } else if (pendingAction === 'disconnect') {
       els.hStatusText.textContent = '断开中';
     } else {
-      els.hStatusText.textContent = isConnected ? '已连接' : '未连接';
+      els.hStatusText.textContent = serverStatusLabel(data.server.status);
     }
+  }
+
+  if (els.hAuthBtn) {
+    const showAuth = needsAuth || (data.server.usesOAuth && !isConnected && !pendingAction);
+    els.hAuthBtn.classList.toggle('hidden', !showAuth);
+    els.hAuthBtn.disabled = Boolean(connectionPending);
   }
 
   if (els.hConnBtn) {
@@ -876,6 +985,10 @@ function updateDetailBar(data) {
     } else if (isConnected) {
       els.hConnBtn.textContent = '断开连接';
       els.hConnBtn.className = 'btn';
+      els.hConnBtn.disabled = Boolean(connectionPending);
+    } else if (needsAuth) {
+      els.hConnBtn.textContent = '重新连接';
+      els.hConnBtn.className = 'btn btn-primary';
       els.hConnBtn.disabled = Boolean(connectionPending);
     } else {
       els.hConnBtn.textContent = '连接';
@@ -916,7 +1029,7 @@ function updatePageInfo(data) {
 
   paintServerList(data.availableServers, data.currentServerId);
 
-  const isConnected = data.server.status === '已连接';
+  const isConnected = isServerConnected(data.server.status);
 
   if (data.currentServerId) {
     showView('v-detail');
@@ -963,7 +1076,12 @@ async function connectServer(serverId) {
     /** @type {InfoData} */
     const data = await requestJson(`/api/server/connect/${serverId}`, { method: 'POST' });
 
-    if (data.server.status !== '已连接') {
+    if (!isServerConnected(data.server.status)) {
+      if (data.server.status === MCP_STATUS.NeedsAuth) {
+        updatePageInfo(data);
+        showToast('该服务器需要 OAuth 授权，请点击「授权」', 'info', 6000);
+        return;
+      }
       throw new Error('服务器连接未成功建立');
     }
 
@@ -1043,7 +1161,7 @@ async function applyUrlIntent() {
     await switchServer(serverId);
   }
 
-  if (tab === 'tools' && currentData?.server.status === '已连接') {
+  if (tab === 'tools' && currentData?.server && isServerConnected(currentData.server.status)) {
     switchTab('tools');
   }
 }

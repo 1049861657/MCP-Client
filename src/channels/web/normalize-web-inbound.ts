@@ -34,9 +34,6 @@ function buildChatOptionsFromBody(body: Record<string, unknown>): ChatOptions | 
   if (typeof body.enableTools === 'boolean') {
     options.enableTools = body.enableTools;
   }
-  if (typeof body.enableParamValidation === 'boolean') {
-    options.enableParamValidation = body.enableParamValidation;
-  }
   if (typeof body.enablePrompts === 'boolean') {
     options.enablePrompts = body.enablePrompts;
   }

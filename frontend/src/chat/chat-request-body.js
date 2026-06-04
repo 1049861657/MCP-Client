@@ -14,7 +14,6 @@
  */
 export const CHAT_OPTION_BODY_FIELDS = [
   'enableTools',
-  'enableParamValidation',
   'enablePrompts',
   'maxToolCallRounds',
   'enableAutoCompact',
@@ -36,7 +35,6 @@ export const CHAT_OPTION_BODY_FIELDS = [
  * @property {number} maxTokens
  * @property {string} vendor 供应商 name，映射 envelope channelMeta.vendor
  * @property {boolean} enableTools
- * @property {boolean} enableParamValidation
  * @property {boolean} enablePrompts
  * @property {number} maxToolCallRounds
  * @property {'open'|'interactive'|'locked'} [permissionMode]
@@ -61,7 +59,6 @@ export function buildChatStreamRequestBody(input) {
     maxTokens,
     vendor,
     enableTools,
-    enableParamValidation,
     enablePrompts,
     maxToolCallRounds,
     enableAutoCompact,
@@ -79,7 +76,6 @@ export function buildChatStreamRequestBody(input) {
     maxTokens,
     vendor,
     enableTools,
-    enableParamValidation,
     enablePrompts,
     maxToolCallRounds,
     enableAutoCompact,

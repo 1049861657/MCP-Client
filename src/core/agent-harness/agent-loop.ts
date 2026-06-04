@@ -44,6 +44,7 @@ import {
   isSystemTool
 } from './system-tools/system-tool-registry.js';
 import { ToolPolicyService } from '../../services/tool-policy.service.js';
+import { normalizeToolResult } from './tool-executor.js';
 import {
   ChatResponse,
   ChunkResponse,
@@ -101,11 +102,6 @@ export interface AgentLoopProvider {
     finishReasonResult: string | undefined | null,
     onChunk: (chunk: ChunkResponse, done: boolean) => void
   ): Promise<ModelResponseResult>;
-  verifyToolArguments(
-    toolName: string,
-    args: Record<string, unknown>
-  ): Promise<{ isValid: boolean; message: string }>;
-  formatToolResult(toolResult: unknown): string;
 }
 
 /** P1-03：Harness 工具权限上下文 */
@@ -246,7 +242,16 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         },
         errorMessage
       );
-      toolManager.setToolResult(globalIndex, errorMessage, true, errorMessage, durationMs);
+      const errSource = isSystemTool(current.codeName) ? 'system' as const : 'mcp' as const;
+      toolManager.setToolResult(
+        globalIndex,
+        errorMessage,
+        true,
+        errorMessage,
+        durationMs,
+        undefined,
+        { source: errSource, tool: current.name, status: 'error', preview: errorMessage }
+      );
       return {
         tool_call_id: current.id,
         content: errorMessage,
@@ -255,14 +260,6 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     };
 
     try {
-      const validation = await provider.verifyToolArguments(current.name, current.arguments);
-
-      if (!validation.isValid) {
-        const errorMessage = `参数验证失败: ${validation.message}`;
-        Logger.warn('OPENAI', errorMessage);
-        return finishWithError(errorMessage);
-      }
-
       let permissionAudit: string | undefined;
       if (permission) {
         const perm = await checkPermission({
@@ -367,16 +364,24 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
           }
         );
 
-      const resultText = isSystemTool(current.codeName)
-        ? (typeof toolResult === 'string' ? toolResult : String(toolResult))
-        : provider.formatToolResult(toolResult);
-      const materialized = await materializeToolOutput(current.id, resultText);
+      const mcpServerId = auditBase.serverId ?? undefined;
+      const unified = normalizeToolResult({
+        source: isSystemTool(current.codeName) ? 'system' : 'mcp',
+        tool: current.name,
+        serverId: mcpServerId,
+        serverName: mcpServerId ? mcpClient.getServerName(mcpServerId) : undefined,
+        raw: toolResult
+      });
+      const materialized = await materializeToolOutput(current.id, unified.preview);
+      if (materialized.artifact) {
+        unified.rawPath = materialized.artifact.filePath;
+      }
       const durationMs = Date.now() - startedAt;
       const injectedMessage = await emitPostToolUse(
         {
           ...auditBase,
           durationMs,
-          success: true,
+          success: unified.status === 'success',
           permissionDecision: permissionAudit
         },
         materialized.content
@@ -384,10 +389,11 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       toolManager.setToolResult(
         globalIndex,
         materialized.content,
-        false,
+        unified.status === 'error',
         undefined,
         durationMs,
-        materialized.artifact
+        materialized.artifact,
+        unified
       );
       return {
         tool_call_id: current.id,

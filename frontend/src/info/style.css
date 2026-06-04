@@ -388,6 +388,28 @@
   animation: pulse-dot 1s ease-in-out infinite;
 }
 
+.status-chip.warn {
+  color: #b45309;
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+
+.status-chip.warn .dot,
+.dot.warn {
+  background: #f59e0b;
+}
+
+.status-chip.err {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.status-chip.err .dot,
+.dot.err {
+  background: #ef4444;
+}
+
 @keyframes pulse-dot {
   0%,
   100% {
@@ -793,6 +815,7 @@
   font-size: 12px;
   line-height: 1.45;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
 }
 

@@ -155,7 +155,6 @@ export class SettingsController {
             ? {
                 profileId: 'preview',
                 enableTools: true,
-                enableParamValidation: ToolsConfig.enableParamValidation,
                 enablePrompts,
                 maxToolCallRounds: ToolsConfig.maxToolCallRounds,
                 enableAutoCompact: false,
