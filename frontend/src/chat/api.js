@@ -217,6 +217,30 @@ export function createChatApi(deps) {
   }
 
   /**
+   * @param {HTMLElement} messageDiv
+   * @param {number} index
+   * @param {string | undefined} toolCallId
+   * @returns {HTMLElement | null}
+   */
+  function resolveToolCallElement(messageDiv, index, toolCallId) {
+    const elements = messageDiv.querySelectorAll('.tool-call');
+    if (!elements.length) {
+      return null;
+    }
+    if (toolCallId) {
+      const byId = Array.from(elements).find((el) => el.dataset.toolId === toolCallId);
+      if (byId instanceof HTMLElement) {
+        return byId;
+      }
+    }
+    if (index >= 0 && elements[index] instanceof HTMLElement) {
+      return elements[index];
+    }
+    const last = elements[elements.length - 1];
+    return last instanceof HTMLElement ? last : null;
+  }
+
+  /**
    * @param {object} jsonData
    * @param {HTMLElement} aiMessageDiv
    * @param {string} fullText
@@ -253,56 +277,41 @@ export function createChatApi(deps) {
 
     if (jsonData.tool_call_update) {
       console.log('jsonData(工具调用更新):', jsonData);
-      const toolCallElements = aiMessageDiv.querySelectorAll('.tool-call');
-      const index = jsonData.tool_call_update.index || 0;
+      const update = jsonData.tool_call_update;
+      const index = update.index ?? 0;
+      const toolCallId = update.tool_call_id;
 
-      if (toolCallElements && toolCallElements.length > index) {
-        const toolElement = toolCallElements[index];
+      if (update.completeArguments && toolCallId) {
+        try {
+          const parsed = JSON.parse(update.completeArguments);
+          const argsStr = JSON.stringify(parsed, null, 2);
+          console.log('收到完整工具参数:', argsStr);
+          toolCallArgumentsMap.set(toolCallId, { arguments: update.completeArguments });
+          turnCollector?.onToolCallUpdate(toolCallId, update.completeArguments);
 
-        if (jsonData.tool_call_update.completeArguments) {
+          const toolElement = resolveToolCallElement(aiMessageDiv, index, toolCallId);
+          const argsElement = toolElement?.querySelector('.tool-call-args');
+          if (argsElement) {
+            argsElement.dataset.complete = 'true';
+            argsElement.textContent = argsStr;
+          }
+        } catch (error) {
+          console.error('解析完整参数失败:', error);
+        }
+      } else if (update.arguments) {
+        const toolElement = resolveToolCallElement(aiMessageDiv, index, toolCallId);
+        const argsElement = toolElement?.querySelector('.tool-call-args');
+        if (argsElement && argsElement.dataset.complete !== 'true') {
           let argsStr = '';
           try {
-            const parsed = JSON.parse(jsonData.tool_call_update.completeArguments);
+            const parsed = JSON.parse(update.arguments);
             argsStr = JSON.stringify(parsed, null, 2);
-
-            console.log('收到完整工具参数:', argsStr);
-
-            if (jsonData.tool_call_update.tool_call_id) {
-              toolCallArgumentsMap.set(jsonData.tool_call_update.tool_call_id, {
-                arguments: jsonData.tool_call_update.completeArguments,
-              });
-              console.log(`已保存工具参数 ID: ${jsonData.tool_call_update.tool_call_id}`);
-              turnCollector?.onToolCallUpdate(
-                jsonData.tool_call_update.tool_call_id,
-                jsonData.tool_call_update.completeArguments,
-              );
-            }
-
-            const argsElement = toolElement.querySelector('.tool-call-args');
-            if (argsElement) {
-              argsElement.dataset.complete = 'true';
-              argsElement.textContent = argsStr;
-            }
-          } catch (error) {
-            console.error('解析完整参数失败:', error);
+          } catch {
+            argsStr = update.arguments;
           }
-        } else if (jsonData.tool_call_update.arguments) {
-          const argsElement = toolElement.querySelector('.tool-call-args');
-
-          if (argsElement && argsElement.dataset.complete !== 'true') {
-            let argsStr = '';
-            try {
-              const parsed = JSON.parse(jsonData.tool_call_update.arguments);
-              argsStr = JSON.stringify(parsed, null, 2);
-            } catch {
-              argsStr = jsonData.tool_call_update.arguments;
-            }
-
-            argsElement.textContent = argsStr;
-
-            if (!argsElement.dataset.receivingFragments) {
-              argsElement.dataset.receivingFragments = 'true';
-            }
+          argsElement.textContent = argsStr;
+          if (!argsElement.dataset.receivingFragments) {
+            argsElement.dataset.receivingFragments = 'true';
           }
         }
       }
@@ -384,6 +393,13 @@ export function createChatApi(deps) {
 
     if (jsonData.step_usage) {
       applyStepUsageToMessage(aiMessageDiv, jsonData.step_usage);
+    }
+
+    if (jsonData.planning_update) {
+      const planItems = jsonData.planning_update.items ?? [];
+      UI.updatePlanningItems?.(planItems);
+      UI.syncTodoCardPlanningSnapshot?.(aiMessageDiv, planItems);
+      turnCollector?.onPlanningSnapshot?.(planItems);
     }
 
     if (jsonData.content) {
@@ -666,9 +682,12 @@ export function createChatApi(deps) {
     }
   }
 
-  function buildStreamRequestBody(app, message, model, temperature, maxTokens, enableTools, messages) {
+  function buildStreamRequestBody(app, message, model, temperature, maxTokens, enableMcpTools, messages) {
     const provider = app.elements.provider.value;
-    const mcpServerIds = enableTools ? app.getSelectableMcpServerIds() : undefined;
+    const mcpServerIds = enableMcpTools ? app.getSelectableMcpServerIds() : undefined;
+    const enabledSystemToolNames = Array.isArray(app.state.enabledSystemToolNames)
+      ? [...app.state.enabledSystemToolNames]
+      : [];
 
     return buildChatStreamRequestBody({
       message,
@@ -677,12 +696,13 @@ export function createChatApi(deps) {
       temperature,
       maxTokens,
       vendor: provider,
-      enableTools,
+      enableTools: enableMcpTools,
       enablePrompts: app.state.enablePrompts,
       maxToolCallRounds: app.state.maxToolCallRounds,
       enableAutoCompact: app.state.enableAutoCompact,
       compactModel: app.state.compactModel || app.elements.compactModel?.value,
       mcpServerIds,
+      enabledSystemToolNames,
       permissionMode: app.state.permissionMode || 'open',
       sessionId: app.state.sessionId,
     });

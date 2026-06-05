@@ -184,15 +184,18 @@ const MODALS_HTML = `
 
         <div class="settings-panel" id="settings-panel-tools" role="tabpanel" hidden>
           <div class="settings-card">
-            <div class="settings-card-head">
-              <h3 class="settings-card-title">工具与 Agent</h3>
-              <p class="settings-card-desc">MCP 调用与 Agent 辅助能力。</p>
+            <div class="settings-card-head settings-card-head--with-action">
+              <div class="settings-card-head-text">
+                <h3 class="settings-card-title">工具与 Agent</h3>
+                <p class="settings-card-desc">管理 Agent 可用工具与执行方式。</p>
+              </div>
+              <button type="button" id="open-system-tools" class="settings-text-link settings-card-head-link">系统工具 →</button>
             </div>
             <div class="settings-card-body">
               <div class="settings-item">
                 <div class="settings-item-text">
                   <div class="settings-item-title">启用 MCP 工具</div>
-                  <div class="settings-item-hint">允许 AI 调用 MCP 服务器工具</div>
+                  <div class="settings-item-hint">仅控制 MCP 服务器工具</div>
                 </div>
                 <button type="button" class="settings-toggle on" id="settings-toggle-mcp" aria-pressed="true"></button>
               </div>
@@ -362,6 +365,21 @@ const MODALS_HTML = `
         <button type="button" id="context-generate-summary" class="context-footer-btn context-footer-btn--secondary">生成摘要</button>
         <button type="button" id="context-apply-summary" class="context-footer-btn context-footer-btn--primary" disabled>应用摘要</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="system-tools-modal" class="chat-modal system-tools-modal hidden" aria-hidden="true">
+  <div class="chat-modal-panel system-tools-modal-panel">
+    <div class="chat-modal-header system-tools-modal-header">
+      <div class="system-tools-modal-head-text">
+        <h2 class="chat-modal-title system-tools-modal-title">系统工具</h2>
+        <p class="system-tools-modal-subtitle">客户端内置工具，按需启用</p>
+      </div>
+      <button type="button" class="chat-modal-close system-tools-modal-close" data-close-modal="system-tools-modal" aria-label="关闭">&times;</button>
+    </div>
+    <div class="chat-modal-body system-tools-modal-body">
+      <ul id="system-tools-modal-list" class="system-tools-list" role="list"></ul>
     </div>
   </div>
 </div>

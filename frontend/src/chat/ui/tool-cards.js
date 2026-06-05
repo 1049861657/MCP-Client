@@ -1,3 +1,10 @@
+import {
+  normalizePlanningItems,
+  readPlanningItemsFromCard,
+  renderTodoCard,
+  writePlanningItemsToCard,
+} from '../todo-card-view.js';
+
 /**
  * 工具卡片与子 Agent 进度 UI（T3-04-11）
  *
@@ -6,12 +13,121 @@
  */
 export function createToolCardsUi(getApp, ui) {
   const DURATION_SVG = `<svg class="tpc-duration-icon" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6.5" r="3.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 5v2l1 .8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+  const TODO_TOOL_NAME = 'todo';
+  const READ_BACK_TOOL_NAME = 'read_persisted_output';
+
+  function isReadBackToolEnabled() {
+    const names = getApp().state.enabledSystemToolNames ?? [];
+    return names.includes(READ_BACK_TOOL_NAME);
+  }
+
+  /**
+   * @param {HTMLElement} slot
+   */
+  function flashTodoCard(slot) {
+    slot.classList.add('tool-call--todo-flash');
+    setTimeout(() => slot.classList.remove('tool-call--todo-flash'), 650);
+  }
+
+  /**
+   * @param {HTMLElement} slot
+   * @param {string} summary
+   * @param {unknown} [items]
+   */
+  function renderTodoCardContent(slot, summary, items) {
+    const list = normalizePlanningItems(items);
+    const existing = readPlanningItemsFromCard(slot);
+    renderTodoCard(slot, summary, list.length > 0 ? list : existing);
+  }
+
+  /**
+   * @param {HTMLElement | null | undefined} messageDiv
+   * @param {unknown} items
+   */
+  function syncTodoCardPlanningSnapshot(messageDiv, items) {
+    const slot = messageDiv?.querySelector('[data-todo-slot="single"]');
+    if (!(slot instanceof HTMLElement)) {
+      return;
+    }
+    const list = normalizePlanningItems(items);
+    if (list.length === 0) {
+      return;
+    }
+    writePlanningItemsToCard(slot, list);
+    const summary = slot.dataset.todoSummary ?? '';
+    renderTodoCard(slot, summary, list);
+    flashTodoCard(slot);
+  }
+
+  /**
+   * @param {HTMLElement} messageDiv
+   * @param {{ name: string, id?: string, args?: unknown, source?: string }} toolInfo
+   */
+  function upsertTodoToolCall(messageDiv, toolInfo) {
+    const app = getApp();
+    const R = app.renderers;
+    const chatBubble = messageDiv?.querySelector('.chat-bubble');
+    if (!chatBubble || !R) {
+      return null;
+    }
+
+    const contentRoot = chatBubble.querySelector('.ai-bubble-inner') ?? chatBubble;
+    const existing = contentRoot.querySelector('[data-todo-slot="single"]');
+    if (existing instanceof HTMLElement) {
+      existing.dataset.todoRevision = String(parseInt(existing.dataset.todoRevision || '1', 10) + 1);
+      if (toolInfo.id) {
+        existing.dataset.toolId = toolInfo.id;
+      }
+      flashTodoCard(existing);
+      ui.scrollToBottom?.();
+      return existing;
+    }
+
+    const toolCall = document.createElement('div');
+    toolCall.className = 'tool-call collapsed tool-call--system tool-call--todo-slot';
+    toolCall.dataset.todoSlot = 'single';
+    toolCall.dataset.todoRevision = '1';
+    toolCall.dataset.toolName = TODO_TOOL_NAME;
+    if (toolInfo.id) {
+      toolCall.dataset.toolId = toolInfo.id;
+    }
+    R.decorateToolCallElement(toolCall, 'system');
+    renderTodoCardContent(toolCall, '执行中…');
+
+    const md = contentRoot.querySelector(':scope > .markdown-content:not(.reasoning-content)');
+    if (md) {
+      contentRoot.insertBefore(toolCall, md);
+    } else {
+      contentRoot.appendChild(toolCall);
+    }
+
+    ui.scrollToBottom?.();
+    return toolCall;
+  }
+
+  /**
+   * @param {HTMLElement | null | undefined} slot
+   * @param {unknown} result
+   */
+  function updateTodoSlotResult(slot, result) {
+    if (!slot) {
+      return;
+    }
+    const summary = result == null ? '' : String(result);
+    renderTodoCardContent(slot, summary);
+    flashTodoCard(slot);
+    ui.scrollToBottom?.();
+  }
 
   /**
    * @param {HTMLElement} messageDiv
    * @param {{ name: string, id?: string, args?: unknown, source?: string }} toolInfo
    */
   function addToolCall(messageDiv, toolInfo) {
+    if (toolInfo.name === TODO_TOOL_NAME) {
+      return upsertTodoToolCall(messageDiv, toolInfo);
+    }
+
     const app = getApp();
     const R = app.renderers;
     const chatBubble = messageDiv?.querySelector('.chat-bubble');
@@ -67,11 +183,14 @@ export function createToolCardsUi(getApp, ui) {
       return '';
     }
     const kb = (artifact.bytes / 1024).toFixed(1);
+    const tail = isReadBackToolEnabled()
+      ? '模型可调用 <code>read_persisted_output</code> 读回全文'
+      : '读回工具未启用，仅保留摘要';
     return (
-      '<p class="tool-artifact-banner">' +
-      `大结果已落盘（约 ${kb} KB）· id <code>${escapeHtml(artifact.toolCallId)}</code> · ` +
-      '模型需 <code>read_persisted_output</code> 读回全文' +
-      '</p>'
+      '<p class="tool-artifact-banner">'
+      + `大结果已落盘（约 ${kb} KB）· id <code>${escapeHtml(artifact.toolCallId)}</code> · `
+      + tail
+      + '</p>'
     );
   }
 
@@ -100,6 +219,15 @@ export function createToolCardsUi(getApp, ui) {
       target = toolCallElements[toolCallElements.length - 1];
     }
     if (!target) {
+      return;
+    }
+
+    if (
+      _toolName === TODO_TOOL_NAME
+      || target.dataset.todoSlot === 'single'
+      || target.dataset.toolName === TODO_TOOL_NAME
+    ) {
+      updateTodoSlotResult(target, result);
       return;
     }
 
@@ -422,6 +550,7 @@ export function createToolCardsUi(getApp, ui) {
     updateToolCallResult,
     updateToolCallProgress,
     showPermissionPrompt,
+    syncTodoCardPlanningSnapshot,
   };
 }
 

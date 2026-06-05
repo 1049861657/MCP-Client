@@ -65,7 +65,7 @@ function formatLineRangeHeader(
   return `[read_persisted_output] ${filePath}\nlines ${startLine}-${endLine} of ${totalLines}\n\n`;
 }
 
-/** slice_only：显式分页结果仍超预算时拒绝，避免再次触发落盘 */
+/** 分页结果仍超预算时拒绝，避免再次触发落盘 */
 function assertSliceWithinBudget(sliced: string, offset?: number, limit?: number): void {
   if (sliced.length <= ContextConfig.persistThresholdChars) {
     return;

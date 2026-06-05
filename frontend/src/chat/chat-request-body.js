@@ -22,6 +22,7 @@ export const CHAT_OPTION_BODY_FIELDS = [
   'maxTokens',
   'compactModel',
   'mcpServerIds',
+  'enabledSystemToolNames',
   'permissionMode',
   'sessionId',
 ];
@@ -42,6 +43,7 @@ export const CHAT_OPTION_BODY_FIELDS = [
  * @property {boolean} enableAutoCompact
  * @property {string | undefined} compactModel
  * @property {string[] | undefined} mcpServerIds enableTools 为 true 时写入 body（含空数组表示不启用 MCP）
+ * @property {string[] | undefined} enabledSystemToolNames 启用的系统工具 codeName
  */
 
 /**
@@ -64,6 +66,7 @@ export function buildChatStreamRequestBody(input) {
     enableAutoCompact,
     compactModel,
     mcpServerIds,
+    enabledSystemToolNames,
     permissionMode,
     sessionId,
   } = input;
@@ -97,6 +100,10 @@ export function buildChatStreamRequestBody(input) {
 
   if (enableTools) {
     body.mcpServerIds = Array.isArray(mcpServerIds) ? mcpServerIds : [];
+  }
+
+  if (Array.isArray(enabledSystemToolNames)) {
+    body.enabledSystemToolNames = enabledSystemToolNames;
   }
 
   if (Array.isArray(messages) && messages.length > 0) {

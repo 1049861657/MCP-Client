@@ -16,6 +16,7 @@ const chatOptionsSchema = z.object({
   compactModel: z.string().optional(),
   mcpServerIds: z.array(z.string()).optional(),
   enabledToolNames: z.array(z.string()).optional(),
+  enabledSystemToolNames: z.array(z.string()).optional(),
   permissionMode: z.enum(['open', 'interactive', 'locked']).optional()
 }) satisfies z.ZodType<ChatOptions>;
 

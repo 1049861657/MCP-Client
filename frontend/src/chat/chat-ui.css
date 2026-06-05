@@ -15,11 +15,11 @@
 @layer components {
   /* ── 外壳 ── */
   .chat-shell {
-    @apply mx-auto flex h-[calc(100vh-var(--spacing-navbar))] w-[98%] max-w-[1600px] flex-col overflow-hidden px-5 pb-4 pt-2.5;
+    @apply mx-auto flex h-[calc(100vh-var(--spacing-navbar))] w-[98%] max-w-[1600px] flex-row gap-3 overflow-hidden px-5 pb-4 pt-2.5;
   }
 
   .chat-container {
-    @apply flex min-h-0 flex-1 flex-col overflow-hidden p-2.5;
+    @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-2.5;
   }
 
   .chat-messages {
@@ -750,6 +750,456 @@
       @apply size-8;
     }
   }
+
+}
+
+/* P3-01-04：计划浮层 — fixed 锚 #chat-messages 右上外侧，向右下展开 */
+.plan-dock {
+  --plan-popover-w: 300px;
+  --plan-fab-h: 44px;
+  --plan-ring-len: 88;
+  --plan-pct: 0;
+  position: fixed;
+  z-index: 14;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  pointer-events: none;
+}
+
+.plan-dock:not(.plan-dock--hidden) {
+  pointer-events: auto;
+}
+
+.plan-dock--hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.plan-fab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--plan-fab-h);
+  height: var(--plan-fab-h);
+  padding: 0;
+  border: 1px solid rgb(25 118 210 / 0.1);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.97);
+  cursor: pointer;
+  box-shadow: 0 4px 22px rgb(15 23 42 / 0.06);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.plan-fab:hover {
+  border-color: rgb(25 118 210 / 0.22);
+  background: #fff;
+  box-shadow: 0 6px 24px rgb(25 118 210 / 0.1);
+}
+
+.plan-fab__visual {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.plan-fab__ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.plan-fab__ring-track {
+  fill: none;
+  stroke: rgb(25 118 210 / 0.12);
+  stroke-width: 2.25;
+}
+
+.plan-fab__ring-progress {
+  fill: none;
+  stroke: #1976d2;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-dasharray: var(--plan-ring-len);
+  stroke-dashoffset: calc(var(--plan-ring-len) * (1 - var(--plan-pct) / 100));
+  transition: stroke-dashoffset 0.35s ease;
+}
+
+.plan-fab__glyph {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  color: #5c6bc0;
+}
+
+.plan-fab__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border: 2px solid #fff;
+  border-radius: 8px;
+  background: #1976d2;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgb(25 118 210 / 0.35);
+}
+
+.plan-fab__badge[hidden] {
+  display: none;
+}
+
+.plan-dock--open .plan-fab {
+  border-color: rgb(25 118 210 / 0.28);
+  background: #fff;
+  box-shadow: 0 2px 12px rgb(25 118 210 / 0.12);
+}
+
+.plan-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  width: var(--plan-popover-w);
+  max-width: min(var(--plan-popover-w), calc(100vw - 24px));
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid rgb(25 118 210 / 0.14);
+  border-radius: 12px;
+  box-shadow:
+    0 4px 6px rgb(15 23 42 / 0.04),
+    0 12px 32px rgb(25 118 210 / 0.1);
+  overflow: hidden;
+  transform-origin: 0 0;
+  transform: scale(0.9);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease,
+    visibility 0.2s;
+}
+
+.plan-dock--open .plan-popover {
+  transform: scale(1);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.plan-popover__card {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-dock__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgb(25 118 210 / 0.14);
+  background: linear-gradient(180deg, rgb(25 118 210 / 0.07) 0%, #fff 100%);
+}
+
+.plan-dock__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #115293;
+}
+
+.plan-dock__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+}
+
+.plan-dock__action:hover {
+  background: rgb(25 118 210 / 0.07);
+  color: #1976d2;
+}
+
+.plan-dock__progress-wrap {
+  padding: 10px 14px 0;
+}
+
+.plan-dock__progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+.plan-dock__progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.plan-dock__progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1976d2, #42a5f5);
+  transition: width 0.35s ease;
+}
+
+.plan-dock__list {
+  margin: 10px 0 0;
+  padding: 0 10px 10px;
+  list-style: none;
+  overflow: visible;
+}
+
+.plan-dock__item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.plan-dock__item--pending {
+  color: #666;
+}
+
+.plan-dock__item--in_progress {
+  background: #e3f2fd;
+  border-color: rgb(25 118 210 / 0.15);
+  color: #333;
+}
+
+.plan-dock__item--completed {
+  background: #e8f5e9;
+  border-color: rgb(5 150 105 / 0.12);
+  color: #047857;
+  text-decoration: line-through;
+  text-decoration-color: rgb(5 150 105 / 0.45);
+}
+
+.plan-dock__status {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.plan-dock__item--pending .plan-dock__status {
+  border: 2px solid #cbd5e1;
+  color: transparent;
+}
+
+.plan-dock__item--in_progress .plan-dock__status {
+  border: 2px solid #1976d2;
+  color: #1976d2;
+  animation: plan-pulse 1.4s ease infinite;
+}
+
+@keyframes plan-pulse {
+  50% { box-shadow: 0 0 0 4px rgb(25 118 210 / 0.12); }
+}
+
+.plan-dock__item--completed .plan-dock__status {
+  background: #2e7d32;
+  color: #fff;
+  border: none;
+}
+
+.plan-dock__item-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.plan-dock__item-active {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #1976d2;
+  font-style: italic;
+}
+
+.plan-dock__foot {
+  padding: 10px 14px 12px;
+  border-top: 1px solid #e0e0e0;
+  font-size: 10px;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plan-dock__foot-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1976d2;
+  animation: plan-foot-blink 2s ease infinite;
+}
+
+@keyframes plan-foot-blink {
+  50% { opacity: 0.35; }
+}
+
+/* P3-01-06：todo 单槽工具卡 — 单行对齐 MCP/System 卡 */
+.tool-call--todo-slot .tool-call-content {
+  display: none;
+}
+
+.tool-call--todo-clickable {
+  cursor: pointer;
+}
+
+.tool-call--todo-clickable .todo-card-header {
+  cursor: pointer;
+}
+
+.todo-card-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.todo-card__viz {
+  display: flex;
+  align-items: center;
+}
+
+.todo-card__segments {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.todo-card__seg {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.todo-card__seg--completed {
+  background: #2e7d32;
+}
+
+.todo-card__seg--in_progress {
+  background: #1976d2;
+  animation: todo-seg-pulse 1.2s ease infinite;
+}
+
+.todo-card__seg--pending {
+  border: 1.5px solid #cbd5e1;
+  background: transparent;
+}
+
+.todo-card__seg--idle {
+  background: rgb(100 116 139 / 0.2);
+  animation: todo-seg-pulse 1.2s ease infinite;
+}
+
+.todo-card__seg--empty {
+  width: 28px;
+  height: 4px;
+  border-radius: 2px;
+  background: #e2e8f0;
+}
+
+.todo-card__seg--more {
+  width: auto;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: rgb(100 116 139 / 0.12);
+  color: #64748b;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
+@keyframes todo-seg-pulse {
+  50% { opacity: 0.45; }
+}
+
+.todo-card__pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.todo-card__pill--idle {
+  background: rgb(100 116 139 / 0.1);
+  color: #64748b;
+}
+
+.todo-card__pill--active {
+  background: rgb(25 118 210 / 0.1);
+  color: #1565c0;
+}
+
+.todo-card__pill--done {
+  background: rgb(46 125 50 / 0.1);
+  color: #2e7d32;
+}
+
+.todo-card__pill--cleared {
+  background: rgb(100 116 139 / 0.08);
+  color: #94a3b8;
+}
+
+.todo-card__panel-hint {
+  display: flex;
+  color: #94a3b8;
+  opacity: 0.85;
+}
+
+.tool-call--todo-flash {
+  animation: todo-flash 0.65s ease;
+}
+
+@keyframes todo-flash {
+  0% { box-shadow: 0 0 0 0 rgb(92 107 192 / 0.35); }
+  40% { box-shadow: 0 0 0 6px rgb(92 107 192 / 0.12); }
+  100% { box-shadow: none; }
 }
 
 /* ── 工具卡片 accent 变量 / 伪元素（Tailwind 不便表达） ── */

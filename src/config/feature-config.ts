@@ -39,9 +39,6 @@ export const ToolsConfig = {
   // 默认启用 MCP 工具（Profile 未配置时的 fallback）
   enableMCPTools: true,
 
-  /** System 内置工具（P1-01-11：read_persisted_output 等） */
-  enableSystemTools: true,
-
   // 默认启用提示词
   enablePrompts: true,
 
@@ -50,6 +47,12 @@ export const ToolsConfig = {
 
   /** 客户端可配置上限 */
   maxToolCallRoundsLimit: 100
+};
+
+/** 会话内 Todo 规划（P3-01） */
+export const PlanningConfig = {
+  maxTodoItems: 20,
+  planRefreshRounds: 3
 };
 
 /**
@@ -203,6 +206,9 @@ export const HistoryConfig = {
 export const LogConfig = {
   // 日志级别
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+
+  /** 每轮 LLM 请求前 debug 输出 tools schema */
+  debugLlmTools: true,
   
   // 是否输出到控制台
   console: true,

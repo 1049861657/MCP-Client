@@ -63,6 +63,11 @@ function buildChatOptionsFromBody(body: Record<string, unknown>): ChatOptions | 
       (name): name is string => typeof name === 'string'
     );
   }
+  if (Array.isArray(body.enabledSystemToolNames)) {
+    options.enabledSystemToolNames = body.enabledSystemToolNames.filter(
+      (name): name is string => typeof name === 'string'
+    );
+  }
   if (
     body.permissionMode === 'open' ||
     body.permissionMode === 'interactive' ||

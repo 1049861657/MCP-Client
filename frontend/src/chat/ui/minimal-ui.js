@@ -4,6 +4,7 @@ import { createRenderers, marked } from '../renderers.js';
 import { createCompactModalApi } from './compact-modal.js';
 import { createHistoryModalApi } from './history-modal.js';
 import { createMcpModalApi } from './mcp-modal.js';
+import { createSystemToolsModalApi } from './system-tools-modal.js';
 import { createQuickMessageUi } from './quickmessage.js';
 import { createSettingsModalApi } from './settings-modal.js';
 import { createToolCardsUi } from './tool-cards.js';
@@ -358,6 +359,7 @@ export function createChatUi(getApp) {
   const settings = createSettingsModalApi(getApp, ui);
   const history = createHistoryModalApi(getApp, ui);
   const mcp = createMcpModalApi(getApp, ui);
+  const systemTools = createSystemToolsModalApi(getApp);
   const compact = createCompactModalApi(getApp, ui);
   const quickMessage = createQuickMessageUi(getApp, () => ui);
 
@@ -368,6 +370,7 @@ export function createChatUi(getApp) {
     saveSettings: settings.saveSettings,
     saveMcpServerIds: settings.saveMcpServerIds,
     showMCPServersModal: mcp.showMCPServersModal,
+    showSystemToolsModal: systemTools.showSystemToolsModal,
     updateMCPButtonCounter: mcp.updateMCPButtonCounter,
     showQuickMessagesModal: quickMessage.showQuickMessagesModal,
     showAppendedQuickMessages: quickMessage.showAppendedQuickMessages,

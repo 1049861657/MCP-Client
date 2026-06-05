@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 
-import { isSystemTool } from '../core/agent-harness/system-tools/system-tool-registry.js';
 import type { ChatTool } from '../core/agent-harness/types.js';
 import { mcpClient } from '../core/mcp/index.js';
 import type { ResolvedChatProfile } from '../types/config-plane.types.js';
@@ -60,15 +59,12 @@ export class ToolPolicyService {
   }
 
   /**
-   * 执行层硬拦截：必须在 chatTools 白名单内（system 工具由 ToolsConfig 单独控制）
+   * 执行层硬拦截：必须在本轮 chatTools 白名单内（含已启用的 system 工具）
    */
   static assertToolCallable(
     codeName: string,
     allowedCodeNames: Set<string>
   ): { allowed: true } | { allowed: false; message: string } {
-    if (isSystemTool(codeName)) {
-      return { allowed: true };
-    }
     if (allowedCodeNames.has(codeName)) {
       return { allowed: true };
     }

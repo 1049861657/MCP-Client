@@ -10,6 +10,7 @@ import {
   ToolsConfig
 } from '../config/feature-config.js';
 import { ConfigService } from '../services/config.service.js';
+import { sanitizeEnabledSystemToolNames } from '../core/agent-harness/system-tools/system-tool-registry.js';
 import { ToolPolicyService } from '../services/tool-policy.service.js';
 import { ToolPreferencesService } from '../services/tool-preferences.service.js';
 import { getWebChannelAdapter } from '../channels/web/web-channel.adapter.js';
@@ -167,6 +168,7 @@ export class AiController {
         const body = req.body as Record<string, unknown>;
         await AiController.sanitizeWebMcpServerIds(body);
         await AiController.sanitizeWebEnabledToolNames(body);
+        AiController.sanitizeWebEnabledSystemToolNames(body);
         envelope = normalizeWebInbound({
           body,
           requestId,
@@ -466,6 +468,16 @@ export class AiController {
     );
     body.mcpServerIds = body.mcpServerIds.filter(
       (id): id is string => typeof id === 'string' && connectedIds.has(id)
+    );
+  }
+
+  /** Web 请求体 enabledSystemToolNames 仅保留已注册的 System 工具 */
+  static sanitizeWebEnabledSystemToolNames(body: Record<string, unknown>): void {
+    if (!Array.isArray(body.enabledSystemToolNames)) {
+      return;
+    }
+    body.enabledSystemToolNames = sanitizeEnabledSystemToolNames(
+      body.enabledSystemToolNames.filter((name): name is string => typeof name === 'string')
     );
   }
 

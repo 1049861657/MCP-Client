@@ -3,6 +3,24 @@
  */
 
 /**
+ * harness_reminder 仅用于 Harness 当轮上下文，不进入持久化 / API 回放
+ * @param {object | null | undefined} entry
+ */
+export function isEphemeralHarnessMessage(entry) {
+  if (!entry || entry.role !== 'user' || typeof entry.content !== 'string') {
+    return false;
+  }
+  if (!entry.content.startsWith('{')) {
+    return false;
+  }
+  try {
+    return JSON.parse(entry.content)?.type === 'harness_reminder';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * @param {object} entry
  * @returns {Array<{ role: string; content?: string; tool_calls?: unknown[]; tool_call_id?: string; reasoning_content?: string }>}
  */
@@ -12,6 +30,9 @@ export function entryToApiMessages(entry) {
   }
 
   if (entry.role === 'user') {
+    if (isEphemeralHarnessMessage(entry)) {
+      return [];
+    }
     return [{ role: 'user', content: entry.content ?? '' }];
   }
 
@@ -73,6 +94,9 @@ export function buildApiMessagesFromHistory(history, count) {
   const apiMessages = [];
 
   for (const entry of recent) {
+    if (isEphemeralHarnessMessage(entry)) {
+      continue;
+    }
     if (entry.role === 'tool') {
       apiMessages.push({
         role: 'tool',

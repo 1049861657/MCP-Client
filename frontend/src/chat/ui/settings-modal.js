@@ -461,7 +461,9 @@ export function createSettingsModalApi(getApp, ui) {
       settings.enabledServerIds = Array.isArray(state.enabledServerIds)
         ? [...state.enabledServerIds]
         : [];
-
+      settings.enabledSystemToolNames = Array.isArray(state.enabledSystemToolNames)
+        ? [...state.enabledSystemToolNames]
+        : [];
       localStorage.setItem(CHAT_SETTINGS_KEY, JSON.stringify(settings));
     } catch {
       /* ignore storage errors */
@@ -504,6 +506,9 @@ export function createSettingsModalApi(getApp, ui) {
     if (elements.enableAutoCompact) {
       elements.enableAutoCompact.checked = state.enableAutoCompact;
     }
+    state.enabledSystemToolNames = (app.state.systemToolCatalog ?? []).map(
+      (tool) => tool.codeName,
+    );
 
     app.updateCompactModelOptions?.();
     syncSettingsUi(getApp);
@@ -591,7 +596,16 @@ export function createSettingsModalApi(getApp, ui) {
         state.enabledServerIds = settings.enabledServerIds.filter((id) => typeof id === 'string');
       }
 
+      if (Array.isArray(settings.enabledSystemToolNames)) {
+        state.enabledSystemToolNames = settings.enabledSystemToolNames.filter(
+          (name) => typeof name === 'string',
+        );
+      } else if (app.state.systemToolCatalog?.length) {
+        state.enabledSystemToolNames = app.state.systemToolCatalog.map((tool) => tool.codeName);
+      }
+
       syncSettingsUi(getApp);
+      ui.updateMCPButtonCounter?.();
     } catch (error) {
       console.error('加载聊天设置失败:', error);
     }

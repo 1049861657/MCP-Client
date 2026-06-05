@@ -42,7 +42,11 @@ import {
   applyPromptPipelineToMessages,
   type PromptPipelineOptions
 } from '../core/agent-harness/prompt-pipeline.js';
-import { getSystemToolSchemas } from '../core/agent-harness/system-tools/system-tool-registry.js';
+import {
+  getDefaultEnabledSystemToolNames,
+  getSystemToolSchemas
+} from '../core/agent-harness/system-tools/system-tool-registry.js';
+import { logLlmToolsIfEnabled } from '../utils/llm-tools-debug.js';
 
 /**
  * AI 提供商客户端（Provider 层：模型 I/O + 流式解析，OpenAI SDK 兼容 Chat Completions）
@@ -204,16 +208,38 @@ export class AiProvider {
    * @returns 格式化后的消息数组
    */
   private buildPromptPipelineOptions(
-    enableTools: boolean,
+    enableMcpTools: boolean,
     enablePrompts: boolean,
     resolvedProfile?: ResolvedChatProfile
   ): PromptPipelineOptions {
-    return { enableTools, enablePrompts, resolvedProfile };
+    return {
+      enableTools: this.hasActiveToolCapabilities(enableMcpTools, resolvedProfile),
+      enablePrompts,
+      resolvedProfile
+    };
+  }
+
+  private hasActiveToolCapabilities(
+    enableMcpTools: boolean,
+    resolvedProfile?: ResolvedChatProfile
+  ): boolean {
+    if (enableMcpTools) {
+      return true;
+    }
+    const names = resolvedProfile?.enabledSystemToolNames;
+    if (names === undefined) {
+      return getDefaultEnabledSystemToolNames().length > 0;
+    }
+    return names.length > 0;
+  }
+
+  private resolveSystemToolSchemas(resolvedProfile?: ResolvedChatProfile): ChatTool[] {
+    return getSystemToolSchemas(resolvedProfile?.enabledSystemToolNames);
   }
 
   private async formatMessages(
     message: string | InternalMessage[],
-    enableTools: boolean = false,
+    enableMcpTools: boolean = false,
     enablePrompts: boolean = false,
     resolvedProfile?: ResolvedChatProfile
   ): Promise<InternalMessage[]> {
@@ -223,7 +249,7 @@ export class AiProvider {
 
     return applyPromptPipelineToMessages(
       messages,
-      this.buildPromptPipelineOptions(enableTools, enablePrompts, resolvedProfile)
+      this.buildPromptPipelineOptions(enableMcpTools, enablePrompts, resolvedProfile)
     );
   }
   
@@ -235,16 +261,17 @@ export class AiProvider {
 
   /**
    * 使用辅助函数获取工具定义列表
-   * @param enableTools 是否启用工具调用
+   * @param enableMcpTools 是否启用 MCP 工具
    * @returns 工具定义列表
    */
   private async getToolDefinitions(
-    enableTools: boolean,
+    enableMcpTools: boolean,
     resolvedProfile?: ResolvedChatProfile
   ): Promise<ChatTool[]> {
-    if (!enableTools) return [];
-
-    const systemTools = ToolsConfig.enableSystemTools ? getSystemToolSchemas() : [];
+    const systemTools = this.resolveSystemToolSchemas(resolvedProfile);
+    if (!enableMcpTools) {
+      return systemTools;
+    }
 
     try {
       const serverIds = resolvedProfile?.mcpServerIds ?? [];
@@ -297,6 +324,7 @@ export class AiProvider {
     tools: ChatTool[] = [],
     stream: boolean = false
   ) {
+    logLlmToolsIfEnabled(model, tools);
     const params = {
       model,
       messages: normalizeMessages(messages),

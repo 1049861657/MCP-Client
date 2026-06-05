@@ -6,6 +6,7 @@ import {
   CHAT_DB_VERSION,
   CHAT_MESSAGES_STORE,
 } from './storage-contract.js';
+import { isEphemeralHarnessMessage } from './message-history-builder.js';
 
 /**
  * @param {object} app
@@ -474,6 +475,7 @@ export function createChatData(app) {
     app.state.sessionId = sessionId;
 
     app.api?.resetContextCompressionState?.();
+    app.ui?.clearPlanning?.();
 
     app.state.messageHistory = [];
 
@@ -562,17 +564,19 @@ export function createChatData(app) {
             app.elements.chatMessages.innerHTML = '';
           }
 
-          app.state.messageHistory = messages.map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-            turnId: msg.turnId,
-            reasoning: msg.reasoning ?? msg.reasoning_content,
-            reasoning_content: msg.reasoning_content ?? msg.reasoning,
-            tool_calls: msg.tool_calls,
-            tool_call_id: msg.tool_call_id,
-            toolCalls: msg.toolCalls,
-            _toolResultsExpanded: msg._toolResultsExpanded,
-          }));
+          app.state.messageHistory = messages
+            .filter((msg) => !isEphemeralHarnessMessage(msg))
+            .map((msg) => ({
+              role: msg.role,
+              content: msg.content,
+              turnId: msg.turnId,
+              reasoning: msg.reasoning ?? msg.reasoning_content,
+              reasoning_content: msg.reasoning_content ?? msg.reasoning,
+              tool_calls: msg.tool_calls,
+              tool_call_id: msg.tool_call_id,
+              toolCalls: msg.toolCalls,
+              _toolResultsExpanded: msg._toolResultsExpanded,
+            }));
 
           app.api?.loadCompactedBaselineFromStorage?.(app);
 
@@ -648,6 +652,7 @@ export function createChatData(app) {
       .then((messages) => {
         if (messages && messages.length > 0) {
           app.state.messageHistory = messages
+            .filter((msg) => !isEphemeralHarnessMessage(msg))
             .filter((msg) => msg.role && (
               msg.content != null && msg.content !== '' ||
               msg.role === 'tool' ||
@@ -692,6 +697,9 @@ export function createChatData(app) {
     const turnMessages = app.state.messageHistory.slice(startIdx);
 
     for (const msg of turnMessages) {
+      if (isEphemeralHarnessMessage(msg)) {
+        continue;
+      }
       saveChatMessage(msg)
         .catch((error) => console.error('保存消息失败:', error));
     }

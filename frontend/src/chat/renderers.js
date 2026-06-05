@@ -9,6 +9,7 @@ import sql from 'highlight.js/lib/languages/sql';
 import xml from 'highlight.js/lib/languages/xml';
 
 import { CHAT_TOOLBAR_ICONS } from './icons.js';
+import { renderTodoCard } from './todo-card-view.js';
 
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('js', javascript);
@@ -28,7 +29,7 @@ marked.use({
   breaks: true,
 });
 
-const SYSTEM_TOOL_NAMES = new Set(['read_persisted_output']);
+const SYSTEM_TOOL_NAMES = new Set(['read_persisted_output', 'todo']);
 
 /**
  * @param {object} ui 需含 parseMarkdown / processCodeBlocks / attachReasoningToggleEvent
@@ -176,7 +177,7 @@ export function createRenderers(ui) {
     if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
       return;
     }
-    for (const tc of toolCalls) {
+    for (const tc of mergeHistoricalTodoCalls(toolCalls)) {
       renderHistoricalToolCall(tc, messageDiv, api);
     }
   });
@@ -206,6 +207,11 @@ export function createRenderers(ui) {
 function renderHistoricalToolCall(tc, messageDiv, R) {
   const chatBubble = messageDiv.querySelector('.chat-bubble');
   if (!chatBubble) {
+    return;
+  }
+
+  if (tc.name === 'todo') {
+    renderHistoricalTodoCall(tc, messageDiv, R);
     return;
   }
 
@@ -272,6 +278,73 @@ function renderHistoricalToolCall(tc, messageDiv, R) {
   R.attachToolCallHeaderToggle(toolCallEl);
 
   const contentRoot = chatBubble.querySelector('.ai-bubble-inner') ?? chatBubble;
+  const markdownDiv = contentRoot.querySelector(':scope > .markdown-content:not(.reasoning-content)');
+  if (markdownDiv) {
+    contentRoot.insertBefore(toolCallEl, markdownDiv);
+  } else {
+    contentRoot.appendChild(toolCallEl);
+  }
+}
+
+/**
+ * 历史回放：同轮多条 todo 合并为单卡
+ * @param {object[]} toolCalls
+ */
+function mergeHistoricalTodoCalls(toolCalls) {
+  const todos = toolCalls.filter((tc) => tc.name === 'todo');
+  if (todos.length <= 1) {
+    return toolCalls;
+  }
+  const last = todos[todos.length - 1];
+  const mergedTodo = {
+    ...last,
+    revision: last.revision ?? todos.length,
+  };
+  const out = [];
+  let todoMerged = false;
+  for (const tc of toolCalls) {
+    if (tc.name === 'todo') {
+      if (!todoMerged) {
+        out.push(mergedTodo);
+        todoMerged = true;
+      }
+      continue;
+    }
+    out.push(tc);
+  }
+  return out;
+}
+
+/**
+ * @param {object} tc
+ * @param {HTMLElement} messageDiv
+ * @param {ReturnType<createRenderers>} R
+ */
+function renderHistoricalTodoCall(tc, messageDiv, R) {
+  const chatBubble = messageDiv.querySelector('.chat-bubble');
+  if (!chatBubble) {
+    return;
+  }
+
+  const contentRoot = chatBubble.querySelector('.ai-bubble-inner') ?? chatBubble;
+  let summary = '';
+  if (tc.result?._truncated) {
+    summary = tc.result.preview ?? '';
+  } else if (tc.result !== null && tc.result !== undefined) {
+    summary = typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result);
+  }
+
+  const toolCallEl = document.createElement('div');
+  toolCallEl.className = 'tool-call collapsed tool-call--system tool-call--todo-slot';
+  toolCallEl.dataset.todoSlot = 'single';
+  toolCallEl.dataset.todoRevision = String(tc.revision ?? 1);
+  toolCallEl.dataset.toolName = 'todo';
+  if (tc.id) {
+    toolCallEl.dataset.toolId = tc.id;
+  }
+  R.decorateToolCallElement(toolCallEl, 'system');
+  renderTodoCard(toolCallEl, summary, tc.planningItems ?? []);
+
   const markdownDiv = contentRoot.querySelector(':scope > .markdown-content:not(.reasoning-content)');
   if (markdownDiv) {
     contentRoot.insertBefore(toolCallEl, markdownDiv);

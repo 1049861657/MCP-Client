@@ -40,8 +40,14 @@ import {
 import type { PermissionMode } from '../../config/permission.types.js';
 import type { ChannelId } from '../../types/channel.types.js';
 import {
+  finalizePlanningAfterToolRound,
+  TODO_TOOL_CODE_NAME
+} from './planning-state.js';
+import { READ_PERSISTED_OUTPUT_CODE_NAME } from './system-tools/read-persisted-output.js';
+import {
   executeSystemTool,
-  isSystemTool
+  isSystemTool,
+  type SystemToolContext
 } from './system-tools/system-tool-registry.js';
 import { ToolPolicyService } from '../../services/tool-policy.service.js';
 import { normalizeToolResult } from './tool-executor.js';
@@ -171,6 +177,16 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
 
   const toolManager = new ToolCallManager(provider.providerName, onChunk);
   const allowedCodeNames = ToolPolicyService.buildAllowedCodeNames(chatTools);
+  const readBackEnabled = allowedCodeNames.has(READ_PERSISTED_OUTPUT_CODE_NAME);
+  const loopState = createLoopState(messages);
+
+  const systemToolCtx: SystemToolContext = {
+    signal,
+    planning: loopState.planning,
+    onPlanningUpdated: (items) => {
+      onChunk({ planning_update: { items: items.map(item => ({ ...item })) } }, false);
+    }
+  };
 
   const sessionHook = await runHooks('SessionStart', {
     requestId,
@@ -349,7 +365,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
 
       const isExecuteApi = current.name === 'executeApi';
       const toolResult = isSystemTool(current.codeName)
-        ? await executeSystemTool(current.codeName, current.arguments, { signal })
+        ? await executeSystemTool(current.codeName, current.arguments, systemToolCtx)
         : await mcpClient.callTool<unknown>(
           current.codeName,
           current.arguments,
@@ -372,7 +388,9 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         serverName: mcpServerId ? mcpClient.getServerName(mcpServerId) : undefined,
         raw: toolResult
       });
-      const materialized = await materializeToolOutput(current.id, unified.preview);
+      const materialized = await materializeToolOutput(current.id, unified.preview, {
+        readBackEnabled
+      });
       if (materialized.artifact) {
         unified.rawPath = materialized.artifact.filePath;
       }
@@ -411,8 +429,6 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   };
 
   toolManager.attachStreamingExecutor(executeOneToolCall);
-
-  const loopState = createLoopState(messages);
 
   let fullContent = '';
   let fullReasoningContent = '';
@@ -566,6 +582,24 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         _internal: internal
       });
     }
+
+    let roundHadSuccessfulTodo = false;
+    for (const toolCall of toolCalls) {
+      if (toolCall.codeName !== TODO_TOOL_CODE_NAME) {
+        continue;
+      }
+      const globalIndex = toolCall.meta?.globalIndex as number;
+      const current = toolManager.getToolCall(globalIndex) ?? toolCall;
+      if (current.meta?.status === 'completed') {
+        roundHadSuccessfulTodo = true;
+      }
+    }
+    finalizePlanningAfterToolRound(
+      messages,
+      loopState.planning,
+      roundHadSuccessfulTodo,
+      requestId ? { requestId, round } : undefined
+    );
 
     try {
       await prepareContext(round);

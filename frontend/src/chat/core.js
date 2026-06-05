@@ -5,7 +5,6 @@
 import { createChatApi } from './api.js';
 import { createChatData } from './data.js';
 import { buildApiMessagesFromHistory } from './message-history-builder.js';
-import { filterEnabledToKnownServers } from './mcp-selection.js';
 import { compactBaselineStorageKey } from './storage-contract.js';
 import { TurnCollector } from './turn-collector.js';
 import { bindChatModalClose, closeChatModal, openChatModal } from './ui/modal-host.js';
@@ -82,6 +81,8 @@ function createInitialState() {
     isEventsInitialized: false,
     isLoading: false,
     enabledServerIds: [],
+    enabledSystemToolNames: [],
+    systemToolCatalog: [],
     mcpServers: [],
     apiContextOverride: null,
     contextCompactedActive: false,
@@ -250,7 +251,8 @@ function createAppMethods() {
 
           this.updateSessionDisplay();
           this.ui.loadSettings?.();
-          this.loadMCPServers();
+          this.ui.updateMCPButtonCounter?.();
+          this.scheduleMcpServersReload();
 
           const event = new CustomEvent('AIChatAppInitialized');
           document.dispatchEvent(event);
@@ -387,6 +389,14 @@ function createAppMethods() {
         });
       }
 
+      const openSystemToolsButton = document.getElementById('open-system-tools');
+      if (openSystemToolsButton && openSystemToolsButton.dataset.bound !== '1') {
+        openSystemToolsButton.dataset.bound = '1';
+        openSystemToolsButton.addEventListener('click', () => {
+          this.ui.showSystemToolsModal?.();
+        });
+      }
+
       const editPromptsButton = document.getElementById('edit-prompts');
       if (editPromptsButton) {
         editPromptsButton.addEventListener('click', () => {
@@ -468,6 +478,14 @@ function createAppMethods() {
         }
 
         if (data.success && data.config) {
+          if (Array.isArray(data.config.systemTools)) {
+            this.state.systemToolCatalog = data.config.systemTools;
+            if (!this.state.enabledSystemToolNames?.length) {
+              this.state.enabledSystemToolNames = data.config.systemTools.map(
+                (tool) => tool.codeName,
+              );
+            }
+          }
           if (data.config.tools) {
             this.state.enableMCPTools = data.config.tools.enableMCPTools;
             this.state.enablePrompts = data.config.tools.enablePrompts;
@@ -707,20 +725,33 @@ function createAppMethods() {
       return (this.state.enabledServerIds || []).filter((id) => allowed.has(id));
     },
 
+    scheduleMcpServersReload(attempt = 0) {
+      const maxAttempts = 8;
+      const delayMs = 3000;
+
+      this.loadMCPServers()
+        .then((data) => {
+          if (data.servers?.length || attempt >= maxAttempts) {
+            return;
+          }
+          window.setTimeout(() => {
+            this.scheduleMcpServersReload(attempt + 1);
+          }, delayMs);
+        })
+        .catch(() => {
+          if (attempt < maxAttempts) {
+            window.setTimeout(() => {
+              this.scheduleMcpServersReload(attempt + 1);
+            }, delayMs);
+          }
+        });
+    },
+
     async loadMCPServers() {
       try {
         const data = await this.api.getMCPServers();
         this.state.mcpServers = data.servers || [];
-        const previous = this.state.enabledServerIds || [];
-        this.state.enabledServerIds = filterEnabledToKnownServers(
-          previous,
-          this.state.mcpServers,
-        );
-        if (this.state.enabledServerIds.length !== previous.length) {
-          this.ui.saveMcpServerIds?.();
-        }
         this.ui.updateMCPButtonCounter?.();
-
         return data;
       } catch (error) {
         console.error('加载MCP服务器列表失败:', error);
@@ -774,6 +805,7 @@ function createAppMethods() {
       }
 
       this.elements.chatMessages.innerHTML = '';
+      this.ui.clearPlanning?.();
       this.ui.showTooltip?.('对话已清除');
 
       setTimeout(() => {
@@ -885,9 +917,15 @@ function createAppMethods() {
       }
     },
 
+    hasAnyToolsEnabled() {
+      const mcpOn = this.state.enableMCPTools !== false;
+      const systemOn = (this.state.enabledSystemToolNames ?? []).length > 0;
+      return mcpOn || systemOn;
+    },
+
     buildPromptPreviewParams() {
       const params = new URLSearchParams({
-        enableTools: String(this.state.enableMCPTools !== false),
+        enableTools: String(this.hasAnyToolsEnabled()),
         enablePrompts: String(this.state.enablePrompts !== false)
       });
       const textarea = document.getElementById('tool-prompt-content');
@@ -1067,7 +1105,7 @@ function createAppMethods() {
         const data = await response.json();
         const assembled = data.assembled ?? null;
 
-        if (this.state.enableMCPTools === false) {
+        if (!this.hasAnyToolsEnabled()) {
           this.paintAssembledPreview('off');
         } else if (!assembled?.content?.trim()) {
           this.paintAssembledPreview('idle');

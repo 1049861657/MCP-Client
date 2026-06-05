@@ -1,4 +1,5 @@
 import { Logger } from '../../utils/logger.js';
+import { createPlanningState } from './planning-state.js';
 import {
   ChunkResponse,
   InternalMessage,
@@ -13,7 +14,8 @@ export function createLoopState(messages: InternalMessage[]): LoopState {
   return {
     messages,
     turnCount: 0,
-    transitionReason: null
+    transitionReason: null,
+    planning: createPlanningState()
   };
 }
 

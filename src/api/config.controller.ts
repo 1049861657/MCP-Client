@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Logger } from '../utils/logger.js';
 import { FeatureConfig } from '../config/feature-config.js';
+import { listSystemToolDescriptors } from '../core/agent-harness/system-tools/system-tool-registry.js';
 import { ConfigService } from '../services/config.service.js';
 import { QuickMessage, QuickMessagesPayload } from '../types/config.types.js';
 
@@ -41,7 +42,10 @@ export class ConfigController {
       Logger.info('API', '请求特性配置');
       res.json({
         success: true,
-        config: FeatureConfig
+        config: {
+          ...FeatureConfig,
+          systemTools: listSystemToolDescriptors()
+        }
       });
     } catch (error) {
       Logger.error('API', '获取特性配置失败:', error);

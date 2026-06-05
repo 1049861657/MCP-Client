@@ -22,7 +22,7 @@ export const CHAT_DB_INDEX_PROVIDER = 'provider';
 /** 新会话 ID 前缀，完整格式 `session_{yyyyMMdd-HHmmss}-{random}` */
 export const CHAT_SESSION_ID_PREFIX = 'session_';
 
-/** localStorage：聊天页 UI 偏好；Web MCP 选择见 enabledServerIds → body.mcpServerIds */
+/** localStorage：聊天页 UI 偏好；MCP 勾选仅由 MCP 弹窗「保存」写入 enabledServerIds */
 export const CHAT_SETTINGS_KEY = 'aiChatSettings';
 
 /**
@@ -50,6 +50,7 @@ export function compactBaselineStorageKey(sessionId) {
  * @property {number} [maxToolCallRounds] 1–100
  * @property {'open'|'interactive'|'locked'} [permissionMode]
  * @property {string[]} [enabledServerIds] 用户勾选的 MCP server id
+ * @property {string[]} [enabledSystemToolNames] 启用的系统工具 codeName
  */
 
 /** @type {(keyof ChatSettingsStorage)[]} */
@@ -67,6 +68,7 @@ export const CHAT_SETTINGS_FIELDS = [
   'maxToolCallRounds',
   'permissionMode',
   'enabledServerIds',
+  'enabledSystemToolNames',
 ];
 
 /**

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { ContextConfig } from '../../config/feature-config.js';
 import { Logger } from '../../utils/logger.js';
+import { READ_PERSISTED_OUTPUT_CODE_NAME } from './system-tools/read-persisted-output.js';
 import {
   InternalMessage,
   TOOL_OUTPUT_ARTIFACT_TYPE,
@@ -11,7 +12,10 @@ import {
 
 export type { ToolOutputArtifact } from './types.js';
 
-const READ_PERSISTED_OUTPUT_TOOL = 'read_persisted_output';
+export interface MaterializeToolOutputOptions {
+  /** 本轮是否向模型暴露 read_persisted_output */
+  readBackEnabled?: boolean;
+}
 
 export interface MaterializedToolOutput {
   content: string;
@@ -32,13 +36,23 @@ function buildArtifactRecord(
   };
 }
 
-function buildArtifactModelView(artifact: ToolOutputArtifact): string {
-  return JSON.stringify({
+function buildArtifactModelView(artifact: ToolOutputArtifact, readBackEnabled: boolean): string {
+  const base = {
     type: TOOL_OUTPUT_ARTIFACT_TYPE,
     toolCallId: artifact.toolCallId,
-    bytes: artifact.bytes,
-    readTool: READ_PERSISTED_OUTPUT_TOOL,
-    path: artifact.toolCallId
+    bytes: artifact.bytes
+  };
+  if (readBackEnabled) {
+    return JSON.stringify({
+      ...base,
+      readTool: READ_PERSISTED_OUTPUT_CODE_NAME,
+      path: artifact.toolCallId
+    });
+  }
+  return JSON.stringify({
+    ...base,
+    readBackAvailable: false,
+    note: '大结果已落盘；读回工具未启用，仅保留摘要。'
   });
 }
 
@@ -246,8 +260,10 @@ async function maybeCleanupExpiredAgentOutputs(): Promise<void> {
  */
 export async function materializeToolOutput(
   toolUseId: string,
-  output: string
+  output: string,
+  options: MaterializeToolOutputOptions = {}
 ): Promise<MaterializedToolOutput> {
+  const readBackEnabled = options.readBackEnabled ?? true;
   if (output.length <= ContextConfig.persistThresholdChars) {
     return { content: output };
   }
@@ -262,7 +278,7 @@ export async function materializeToolOutput(
 
   const artifact = buildArtifactRecord(toolUseId, output.length, filePath);
   return {
-    content: buildArtifactModelView(artifact),
+    content: buildArtifactModelView(artifact, readBackEnabled),
     artifact
   };
 }

@@ -89,3 +89,16 @@ export function logAgentRunAudit(entry: AgentRunAuditLog): void {
     ...entry
   });
 }
+
+/** P3-01：规划提醒注入审计 */
+export function logPlanningReminderAudit(entry: {
+  requestId: string;
+  round: number;
+  kind: 'plan_refresh' | 'active_plan';
+  itemCount: number;
+}): void {
+  Logger.audit({
+    type: 'planning_reminder_audit',
+    ...entry
+  });
+}

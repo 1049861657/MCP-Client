@@ -1,5 +1,6 @@
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions.mjs';
 
+import type { PlanningState, TodoItem } from './planning-state.js';
 import type { UnifiedToolResult } from '../../types/mcp.types.js';
 
 /** P1-01-12：大 tool 输出落盘元数据（Harness / SSE / UI） */
@@ -55,6 +56,7 @@ export interface LoopState {
   messages: InternalMessage[];
   turnCount: number;
   transitionReason: TransitionReason;
+  planning: PlanningState;
 }
 
 /** 中断/恢复状态骨架（P1 控制面扩展） */
@@ -116,6 +118,10 @@ export interface ChunkResponse {
   contextCompacted?: boolean;
   /** 自动压缩生成的摘要正文（供客户端固化基线） */
   summaryContent?: string;
+  /** P3-01：会话内 Todo 快照（驱动侧栏 UI） */
+  planning_update?: {
+    items: TodoItem[];
+  };
   /** P1-03：工具执行前需用户确认（仅 interactive 确认模式 + Web） */
   permission_request?: {
     tool_call_id: string;

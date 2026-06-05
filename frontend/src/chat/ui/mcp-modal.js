@@ -5,32 +5,48 @@ import {
   readEnabledIdsFromMcpCheckboxes,
   syncMcpCheckboxes,
 } from '../mcp-selection.js';
-import { bindChatModalClose, closeChatModal, openChatModal } from './modal-host.js';
-
-/** @type {string[]} 打开弹窗时的快照，取消时恢复 */
-let snapshotEnabledIds = [];
+import { closeChatModal, openChatModal } from './modal-host.js';
 
 /**
  * @param {() => object} getApp
  * @param {{ showTooltip: Function, updateMCPButtonCounter?: Function, saveMcpServerIds?: Function }} ui
  */
 export function createMcpModalApi(getApp, ui) {
-  let mcpModalBound = false;
+  let actionsBound = false;
 
   function bindMcpModalActions() {
-    if (mcpModalBound) {
+    if (actionsBound) {
       return;
     }
-    mcpModalBound = true;
+    actionsBound = true;
+
+    const modal = document.getElementById('mcp-servers-modal');
+    const dismiss = () => closeChatModal('mcp-servers-modal');
 
     document.getElementById('mcp-save')?.addEventListener('click', () => {
-      finalizeModal();
-      closeChatModal('mcp-servers-modal');
+      const app = getApp();
+      try {
+        const enabledIds = commitMcpSelection(
+          app,
+          readEnabledIdsFromMcpCheckboxes(app.state.mcpServers),
+          ui,
+        );
+        ui.showTooltip(`已更新 MCP 选择，当前启用 ${enabledIds.length} 个`);
+        dismiss();
+      } catch (error) {
+        ui.showTooltip(error instanceof Error ? error.message : '保存失败');
+      }
     });
 
-    document.getElementById('mcp-cancel')?.addEventListener('click', () => {
-      revertMcpSelection();
-      closeChatModal('mcp-servers-modal');
+    document.getElementById('mcp-cancel')?.addEventListener('click', dismiss);
+
+    modal?.querySelectorAll('[data-close-modal="mcp-servers-modal"]').forEach((btn) => {
+      btn.addEventListener('click', dismiss);
+    });
+    modal?.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        dismiss();
+      }
     });
 
     document.getElementById('mcp-select-all')?.addEventListener('click', () => {
@@ -39,22 +55,18 @@ export function createMcpModalApi(getApp, ui) {
         ui.showTooltip('没有可用的服务器');
         return;
       }
-      const allIds = app.state.mcpServers.map((server) => server.id);
-      syncMcpCheckboxes(app.state.mcpServers, allIds);
-      commitMcpSelection(app, allIds, ui);
+      syncMcpCheckboxes(app.state.mcpServers, app.state.mcpServers.map((s) => s.id));
     });
 
     document.getElementById('mcp-deselect-all')?.addEventListener('click', () => {
       const app = getApp();
       syncMcpCheckboxes(app.state.mcpServers, []);
-      commitMcpSelection(app, [], ui);
     });
   }
 
   function showMCPServersModal() {
     bindMcpModalActions();
     openChatModal('mcp-servers-modal');
-    bindChatModalClose('mcp-servers-modal', revertMcpSelection);
     loadMCPServersList();
   }
 
@@ -70,7 +82,6 @@ export function createMcpModalApi(getApp, ui) {
     app
       .loadMCPServers()
       .then(() => {
-        snapshotEnabledIds = [...app.state.enabledServerIds];
         renderMCPServersList();
         updateMCPButtonCounter();
       })
@@ -118,11 +129,6 @@ export function createMcpModalApi(getApp, ui) {
     checkbox.className = 'mcp-server-checkbox';
     checkbox.checked = isMcpServerEnabled(enabledServerIds, server.id);
     checkbox.dataset.serverId = server.id;
-
-    checkbox.addEventListener('change', () => {
-      const app = getApp();
-      commitMcpSelection(app, readEnabledIdsFromMcpCheckboxes(app.state.mcpServers), ui);
-    });
 
     const badge = document.createElement('span');
     badge.className = 'mcp-server-badge';
@@ -177,23 +183,6 @@ export function createMcpModalApi(getApp, ui) {
 
     item.append(select, toolsLink);
     return item;
-  }
-
-  function finalizeModal() {
-    const app = getApp();
-    const enabledIds = commitMcpSelection(
-      app,
-      readEnabledIdsFromMcpCheckboxes(app.state.mcpServers),
-      ui,
-    );
-    snapshotEnabledIds = [...enabledIds];
-    ui.showTooltip(`已更新 MCP 选择，当前启用 ${enabledIds.length} 个`);
-  }
-
-  function revertMcpSelection() {
-    const app = getApp();
-    commitMcpSelection(app, snapshotEnabledIds, ui);
-    syncMcpCheckboxes(app.state.mcpServers, app.state.enabledServerIds);
   }
 
   function updateMCPButtonCounter() {

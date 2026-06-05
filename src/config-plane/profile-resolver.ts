@@ -116,6 +116,7 @@ function mergeLayer(
     profileId: string;
     mcpServerIds: string[];
     enabledToolNames?: string[];
+    enabledSystemToolNames?: string[];
     toolPrompt: string;
     vendor?: string;
     permissionMode: PermissionMode;
@@ -156,6 +157,12 @@ function mergeLayer(
     }
     base.enabledToolNames = [...layer.enabledToolNames];
   }
+  if (layer.enabledSystemToolNames !== undefined) {
+    if (channel !== 'web') {
+      throw new Error('非 Web 渠道不得在入站消息中覆盖 enabledSystemToolNames');
+    }
+    base.enabledSystemToolNames = [...layer.enabledSystemToolNames];
+  }
   if (layer.permissionMode !== undefined) {
     if (channel !== 'web') {
       throw new Error('非 Web 渠道不得在入站消息中覆盖 permissionMode');
@@ -173,6 +180,7 @@ function resolveProfileFromProfileRecord(
     profileId: string;
     mcpServerIds: string[];
     enabledToolNames?: string[];
+    enabledSystemToolNames?: string[];
     toolPrompt: string;
     vendor?: string;
     permissionMode: PermissionMode;
@@ -210,6 +218,7 @@ function resolveProfileFromProfileRecord(
     compactModel: merged.compactModel,
     mcpServerIds: merged.mcpServerIds,
     enabledToolNames: merged.enabledToolNames,
+    enabledSystemToolNames: merged.enabledSystemToolNames,
     toolPrompt: merged.toolPrompt,
     permissionMode: resolvePermissionMode(ctx.channel, merged.permissionMode)
   };

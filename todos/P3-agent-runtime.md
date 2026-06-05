@@ -10,29 +10,55 @@
 
 ## P3-01 会话内规划 Todo
 
-> 参考：[s03 Planning / Todo](https://learn.shareai.run/zh/s03/)
+> 参考：[s03 Planning / Todo](https://learn.shareai.run/zh/s03/)  
+> 设计稿（非生产）：`frontend/design/planning-panel-mockup.html`
 
-**背景**：复杂 MCP 工作流（多 API 串联）无显式计划，模型易漂移、重复调用。
+**背景**：复杂 MCP 工作流（多 API 串联）无显式计划，模型易漂移、重复调用。主流 Client 用对话 **inline** 展示 Todo，长对话易被工具卡埋掉；本 Client 采用 **状态外置 + 固定入口 UI**，且 **不污染会话历史**。
+
+### 架构原则（SSOT 与边界）
+
+| 层 | 规则 |
+|----|------|
+| **真相源** | 仅以 `PlanningState.items` 为准；`todo` 工具只改此状态 |
+| **用户看计划** | SSE `planning_update` → 计划浮层 UI；**不**从对话 JSON / 气泡文本解析列表 |
+| **会话历史** | 同一条 assistant 消息内 **至多一张** 轻量 `todo` 工具卡（原地更新）；存盘 **合并** 多次 `todo` 为一条摘要，避免刷新后多张卡堆叠 |
+| **模型通道** | `tool_result` / `harness_reminder` **可控载荷**（见 P3-01-05）；禁止把整表 items 反复写入可回放 transcript |
 
 ### 任务
 
-- [ ] **P3-01-01** Harness 内置 `todo` 工具（或 MCP 原生 todo 工具注册）  
-  - Schema：`items[{ content, status, activeForm }]`  
-  - 约束：最多 1 个 `in_progress`  
-  - 涉及：`agent-harness/system-tools/todo-tool.ts`  
-  - 验收：模型可读写计划状态
+- [x] **P3-01-01** Harness 内置 `todo` 工具（`system-tool-registry`）  
+  - Schema：`merge` + `items[{ id, content, status, activeForm? }]`（`pending` / `in_progress` / `completed`）  
+  - 约束：至多 1 个 `in_progress`；最多 20 条；校验失败 `throw`  
+  - 涉及：`agent-harness/system-tools/todo-tool.ts`、`planning-state.ts`  
+  - 验收：`merge: true` 按 `id` 更新；`merge: false` 整表替换；双 `in_progress` 被拒绝
 
-- [ ] **P3-01-02** `PlanningState` 独立于 messages 存储  
-  - 涉及：`loop-state.ts`  
-  - 验收：计划渲染为文本注入 reminder（非 system prompt）
+- [x] **P3-01-02** `PlanningState` 独立于 messages（`items[]`、`roundsSinceUpdate`）  
+  - 涉及：`loop-state.ts`、`planning-state.ts`；`todo` 成功后 `roundsSinceUpdate = 0`；`onPlanningUpdated` → SSE `planning_update`  
+  - 验收：计划状态不依赖从 `messages[]` 反解析；初版已注入 `harness_reminder`（**全量 items 载荷待 P3-01-05 收敛**）
 
-- [ ] **P3-01-03** 连续 3 轮未更新计划时注入 `<reminder>Refresh your plan</reminder>`  
-  - 涉及：`agent-loop.ts`  
-  - 验收：日志可见 reminder 触发
+- [x] **P3-01-03** 连续 3 轮未调用 `todo` 时注入 `harness_reminder`（`kind: plan_refresh`）  
+  - 涉及：`agent-loop.ts`、`planning-state.ts`（`finalizePlanningAfterToolRound`）  
+  - 验收：审计可检索 `plan_refresh`；reminder 语义保留，**载荷形态以 P3-01-05 为准**
 
-- [ ] **P3-01-04** UI：侧边栏或折叠面板展示当前 Todo 列表  
-  - 涉及：`frontend/src/chat/`  
-  - 验收：SSE 事件 `planning_update` 驱动 UI
+- [x] **P3-01-04** UI：计划浮层（`planning_update` 驱动，对齐设计稿）  
+  - 入口：`#chat-messages` **右上角外侧**（与聊天框留间距、不重叠）；平时 **胶囊**（进度 + 未完成数）  
+  - 交互：点击向右下展开面板；高度 `min(内容, 视口剩余)`，**列表无内滚条**；收起后入口仍在  
+  - 布局：`fixed` 挂 `body`，**不挤占** `chat-container` 宽度  
+  - 涉及：`frontend/src/chat/ui/planning-panel.js`、`chat-ui.css`、`api.js`  
+  - 验收：SSE 驱动原地刷新；无计划时入口隐藏；长对话滚动时入口锚点仍对齐消息区右上
+
+- [x] **P3-01-05** Harness：`todo` 与会话 transcript 载荷治理  
+  - `formatTodoToolResult`：仅返回 **一行摘要**（如「已更新 N 项」），**禁止**整表 items 文本进入 `messages[]`  
+  - `harness_reminder`：改为短句或不含全量 `items`；若仍进当轮 `messages`，须 **不写入** 前端持久化 transcript（与 P3-01-06 一致）  
+  - 涉及：`planning-state.ts`、`todo-tool.ts`、`agent-loop.ts`；必要时 `message-normalizer` / 存盘路径  
+  - 验收：同会话多轮 `todo` 后，持久化 assistant 条目不因计划条目数线性膨胀；模型仍可通过 `todo` 工具读写计划
+
+- [x] **P3-01-06** 前端：`todo` 工具卡与会话历史合并  
+  - 流式：同一条 AI 消息内 `name===todo` **单槽**（`data-todo-slot`），再次调用 **原地更新** 摘要与「第 N 次更新」角标，不 `append` 第二张卡  
+  - 持久化：`TurnCollector` 同轮多次 `todo` **合并为一条** `toolCalls` 记录；历史回放仍只见一张卡  
+  - 卡片文案：一行摘要 + 指向右上「计划」；**不**展示完整 items 列表  
+  - 涉及：`tool-cards.js`、`turn-collector.js`、`renderers.js`（历史渲染）  
+  - 验收：设计稿步骤 2→6 行为；刷新会话后该 assistant 轮仍单卡；外侧浮层为列表主视图
 
 ---
 
@@ -67,9 +93,9 @@
   - 涉及：`public/settings.html`  
   - 验收：用户说「忽略 memory」时不注入
 
-- [ ] **P3-02-05** Memory 与代码冲突时优先当前观察（写入 system reminder）  
+- [ ] **P3-02-05** Memory 与代码冲突时优先当前观察  
   - 涉及：`prompt-pipeline.ts`  
-  - 验收：规则写入 PromptBuilder 注释与文档
+  - 验收：冲突时 `_source: 'reminder'` 注入 `harness_reminder`（`kind: memory_conflict`）；规则写入 PromptBuilder 注释
 
 ---
 
@@ -194,7 +220,7 @@
 
 ## P3 完成检查清单
 
-- [ ] Todo 计划可外显、可提醒、UI 可见
+- [x] Todo 计划可外显、可提醒、历史不膨胀
 - [ ] Memory 跨会话生效且边界清晰
 - [ ] Skill 按需加载，prompt 不膨胀
 - [ ] 服务端会话可存取

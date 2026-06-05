@@ -4,6 +4,8 @@ import {
 } from './message-history-builder.js';
 
 const TRUNCATE_THRESHOLD = 64 * 1024;
+const TODO_TOOL_NAME = 'todo';
+const TODO_SLOT_KEY = '__todo_slot__';
 
 /**
  * @param {(name: string) => 'system' | 'mcp'} [resolveToolSource]
@@ -37,6 +39,29 @@ export class TurnCollector {
     if (!id) {
       return;
     }
+    if (name === TODO_TOOL_NAME) {
+      const existing = this._toolCallsMap.get(TODO_SLOT_KEY);
+      if (existing) {
+        existing.revision = (existing.revision ?? 1) + 1;
+        existing.args = args ?? existing.args;
+        existing.lastToolCallId = id;
+        return;
+      }
+      this._toolCallsOrder.push(TODO_SLOT_KEY);
+      this._toolCallsMap.set(TODO_SLOT_KEY, {
+        id,
+        name: TODO_TOOL_NAME,
+        source: source ?? 'system',
+        args: args ?? {},
+        result: null,
+        isError: false,
+        executionTime: undefined,
+        progressSteps: [],
+        revision: 1,
+        lastToolCallId: id,
+      });
+      return;
+    }
     this._toolCallsOrder.push(id);
     this._toolCallsMap.set(id, {
       id,
@@ -60,17 +85,43 @@ export class TurnCollector {
       return;
     }
     try {
-      tc.args = JSON.parse(completeArguments);
+      const parsed = JSON.parse(completeArguments);
+      tc.args = parsed;
+      const todo = this._toolCallsMap.get(TODO_SLOT_KEY);
+      if (
+        todo &&
+        (todo.lastToolCallId === toolCallId || todo.id === toolCallId) &&
+        Array.isArray(parsed.items)
+      ) {
+        todo.planningItems = parsed.items.map((item) => ({ ...item }));
+      }
     } catch {
       /* keep previous args */
     }
   }
 
   /**
+   * @param {unknown} items
+   */
+  onPlanningSnapshot(items) {
+    const todo = this._toolCallsMap.get(TODO_SLOT_KEY);
+    if (!todo || !Array.isArray(items)) {
+      return;
+    }
+    todo.planningItems = items.map((item) => ({ ...item }));
+  }
+
+  /**
    * @param {{ tool_call_id: string; result: unknown; error?: boolean; execution_time?: number }} info
    */
   onToolCallResult({ tool_call_id, result, error, execution_time }) {
-    const tc = this._toolCallsMap.get(tool_call_id);
+    let tc = this._toolCallsMap.get(tool_call_id);
+    if (!tc) {
+      const todoSlot = this._toolCallsMap.get(TODO_SLOT_KEY);
+      if (todoSlot?.lastToolCallId === tool_call_id) {
+        tc = todoSlot;
+      }
+    }
     if (!tc) {
       return;
     }
