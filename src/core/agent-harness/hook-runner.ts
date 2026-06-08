@@ -2,7 +2,7 @@ import { Logger } from '../../utils/logger.js';
 
 /** s08 教学版统一退出码 */export type HookExitCode = 0 | 1 | 2;
 
-export type HookEventName = 'SessionStart' | 'PreToolUse' | 'PostToolUse';
+export type HookEventName = 'SessionStart' | 'SessionEnd' | 'PreToolUse' | 'PostToolUse';
 
 export interface HookResult {
   exit_code: HookExitCode;
@@ -13,6 +13,7 @@ export type HookHandler = (payload: Record<string, unknown>) => HookResult | Pro
 
 const HOOKS: Record<HookEventName, HookHandler[]> = {
   SessionStart: [],
+  SessionEnd: [],
   PreToolUse: [],
   PostToolUse: []
 };

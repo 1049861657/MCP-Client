@@ -42,6 +42,7 @@ import {
   applyPromptPipelineToMessages,
   type PromptPipelineOptions
 } from '../core/agent-harness/prompt-pipeline.js';
+import { resolveMemoryPipelineContext } from '../core/memory/memory-pipeline-context.js';
 import {
   getDefaultEnabledSystemToolNames,
   getSystemToolSchemas
@@ -241,16 +242,25 @@ export class AiProvider {
     message: string | InternalMessage[],
     enableMcpTools: boolean = false,
     enablePrompts: boolean = false,
-    resolvedProfile?: ResolvedChatProfile
+    resolvedProfile?: ResolvedChatProfile,
+    signal?: AbortSignal,
+    requestId?: string
   ): Promise<InternalMessage[]> {
     const messages: InternalMessage[] = typeof message === 'string'
       ? [{ role: 'user', content: message, _source: 'user' }]
       : [...message];
 
-    return applyPromptPipelineToMessages(
-      messages,
-      this.buildPromptPipelineOptions(enableMcpTools, enablePrompts, resolvedProfile)
-    );
+    const memoryContext = resolveMemoryPipelineContext(messages, {
+      skipMemory: resolvedProfile?.skipMemory,
+      documentSessionId: resolvedProfile?.documentSessionId
+    });
+
+    return applyPromptPipelineToMessages(messages, {
+      ...this.buildPromptPipelineOptions(enableMcpTools, enablePrompts, resolvedProfile),
+      memoryContext,
+      requestId,
+      signal
+    });
   }
   
   private async resolveEnabledToolCodeNames(
@@ -390,7 +400,17 @@ export class AiProvider {
     permissionCtx?: AgentPermissionContext
   ): Promise<ChatResponse> {
     try {
-      const messages = await this.formatMessages(message, enableTools, enablePrompts);
+      const messages = await this.formatMessages(
+        message,
+        enableTools,
+        enablePrompts,
+        undefined,
+        undefined,
+        requestId
+      );
+      const memoryContext = resolveMemoryPipelineContext(messages, {
+        skipMemory: undefined
+      });
       const chatTools = await this.getToolDefinitions(enableTools);
       const summarizeFn = this.resolveSummarizeFn(enableAutoCompact, compactModel);
 
@@ -406,7 +426,8 @@ export class AiProvider {
         summarizeFn,
         onChunk: () => {},
         provider: this.getAgentLoopProvider(),
-        permission: permissionCtx
+        permission: permissionCtx,
+        memoryContext
       });
     } catch (error: unknown) {
       const errMessage = error instanceof Error ? error.message : String(error);
@@ -742,8 +763,14 @@ export class AiProvider {
         message,
         enableTools,
         enablePrompts,
-        resolvedProfile
+        resolvedProfile,
+        signal,
+        requestId
       );
+      const memoryContext = resolveMemoryPipelineContext(messages, {
+        skipMemory: resolvedProfile?.skipMemory,
+        documentSessionId: resolvedProfile?.documentSessionId
+      });
       const chatTools = await this.getToolDefinitions(enableTools, resolvedProfile);
       const summarizeFn = this.resolveSummarizeFn(enableAutoCompact, compactModel, signal);
 
@@ -762,7 +789,8 @@ export class AiProvider {
         },
         onChunk,
         provider: this.getAgentLoopProvider(),
-        permission: permissionCtx
+        permission: permissionCtx,
+        memoryContext
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

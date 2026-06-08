@@ -24,3 +24,45 @@ export async function fetchJson(url, init) {
 
   return response.json();
 }
+
+/**
+ * POST JSON；解析 `{ success, error }` 业务错误体。
+ *
+ * @param {string} url
+ * @param {unknown} body
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<Record<string, unknown>>}
+ */
+export async function postApiJson(url, body, signal) {
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === 'AbortError') {
+      throw cause;
+    }
+    const error = new Error(`请求失败: ${url}`);
+    error.cause = cause;
+    throw error;
+  }
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok || data?.success === false) {
+    const message =
+      (data && typeof data.error === 'string' && data.error) || `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  return data;
+}

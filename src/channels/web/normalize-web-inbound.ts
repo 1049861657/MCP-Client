@@ -75,6 +75,9 @@ function buildChatOptionsFromBody(body: Record<string, unknown>): ChatOptions | 
   ) {
     options.permissionMode = body.permissionMode;
   }
+  if (typeof body.skipMemory === 'boolean') {
+    options.skipMemory = body.skipMemory;
+  }
 
   return Object.keys(options).length > 0 ? options : undefined;
 }

@@ -11,12 +11,24 @@ export function formatInboundLogFields(envelope: AgentMessageEnvelopeSerialized)
   ].join(' ');
 }
 
-/** 入队日志（T1-02-04） */
-export function logInboundEnqueue(envelope: AgentMessageEnvelopeSerialized): void {
-  Logger.info('BUS', `inbound enqueue ${formatInboundLogFields(envelope)}`);
-}
-
-/** Worker 出队日志（T1-02-04） */
-export function logInboundDequeue(envelope: AgentMessageEnvelopeSerialized): void {
-  Logger.info('BUS', `inbound dequeue ${formatInboundLogFields(envelope)}`);
+/** Worker 开始处理入站任务（T1-02-04） */
+export function logInboundDequeue(
+  envelope: AgentMessageEnvelopeSerialized,
+  options?: { profileId?: string; vendor?: string; mcpCount?: number; permissionMode?: string }
+): void {
+  const extras: string[] = [];
+  if (options?.profileId) {
+    extras.push(`profileId=${options.profileId}`);
+  }
+  if (options?.vendor) {
+    extras.push(`vendor=${options.vendor}`);
+  }
+  if (options?.mcpCount !== undefined) {
+    extras.push(`mcpCount=${options.mcpCount}`);
+  }
+  if (options?.permissionMode) {
+    extras.push(`permissionMode=${options.permissionMode}`);
+  }
+  const suffix = extras.length > 0 ? ` ${extras.join(' ')}` : '';
+  Logger.info('BUS', `inbound processing ${formatInboundLogFields(envelope)}${suffix}`);
 }

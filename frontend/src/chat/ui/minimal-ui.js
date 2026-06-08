@@ -6,6 +6,7 @@ import { createHistoryModalApi } from './history-modal.js';
 import { createMcpModalApi } from './mcp-modal.js';
 import { createSystemToolsModalApi } from './system-tools-modal.js';
 import { createQuickMessageUi } from './quickmessage.js';
+import { createMemoryDebugModalApi } from './memory-debug-modal.js';
 import { createSettingsModalApi } from './settings-modal.js';
 import { createToolCardsUi } from './tool-cards.js';
 
@@ -360,6 +361,7 @@ export function createChatUi(getApp) {
   const history = createHistoryModalApi(getApp, ui);
   const mcp = createMcpModalApi(getApp, ui);
   const systemTools = createSystemToolsModalApi(getApp);
+  const memoryDebug = createMemoryDebugModalApi(getApp);
   const compact = createCompactModalApi(getApp, ui);
   const quickMessage = createQuickMessageUi(getApp, () => ui);
 
@@ -371,6 +373,7 @@ export function createChatUi(getApp) {
     saveMcpServerIds: settings.saveMcpServerIds,
     showMCPServersModal: mcp.showMCPServersModal,
     showSystemToolsModal: systemTools.showSystemToolsModal,
+    showMemoryDebugModal: memoryDebug.showMemoryDebugModal,
     updateMCPButtonCounter: mcp.updateMCPButtonCounter,
     showQuickMessagesModal: quickMessage.showQuickMessagesModal,
     showAppendedQuickMessages: quickMessage.showAppendedQuickMessages,

@@ -7,7 +7,6 @@ import { parseAgentMessageEnvelopeSerialized } from '../types/channel.schema.js'
 import { Logger } from '../utils/logger.js';
 import { tryAcquireIdempotency } from './idempotency.js';
 import { prepareSerializedInbound } from './inbound-envelope.js';
-import { logInboundDequeue, logInboundEnqueue } from './inbound-log.js';
 import {
   INBOUND_JOB_NAME,
   INBOUND_QUEUE_NAME,
@@ -61,7 +60,6 @@ export async function publishInbound(envelope: AgentMessageEnvelope): Promise<vo
   }
 
   const serialized = prepareSerializedInbound(envelope);
-  logInboundEnqueue(serialized);
 
   const queue = getOrCreateInboundQueue();
   await queue.add(INBOUND_JOB_NAME, serialized, {
@@ -85,7 +83,6 @@ export function startInboundWorker(
     INBOUND_QUEUE_NAME,
     async (job: Job<AgentMessageEnvelopeSerialized>) => {
       const envelope = parseAgentMessageEnvelopeSerialized(job.data);
-      logInboundDequeue(envelope);
       await handler(envelope);
     },
     {

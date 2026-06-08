@@ -90,12 +90,18 @@ export interface ResolvedChatProfile extends Required<
   enabledSystemToolNames?: string[];
   toolPrompt: string;
   permissionMode: PermissionMode;
+  /** P3-02-B：来自入站 body 覆盖 */
+  skipMemory?: boolean;
+  /** P3-02-B：retain document_id 作用域（Web=webChatSessionId，IM=sessionKey） */
+  documentSessionId?: string;
 }
 
 /** 解析路由时的入站上下文（T2-02 Resolver 入参） */
 export interface ProfileResolveContext {
   channel: ChannelId;
   sessionKey: string;
+  /** retain document_id 作用域 */
+  documentSessionId?: string;
   /** 群/会话 ID：`conversationId`（钉钉）或 `chatId`（飞书）；Web 可为 requestId */
   routeMatchKey: string;
   envelopeChatOptions?: ChatOptions;

@@ -743,10 +743,6 @@ export async function applyContextBeforeLlm(
     return false;
   }
 
-  Logger.info(
-    'CONTEXT',
-    `触发摘要压缩 estimated=${estimated} threshold=${ContextConfig.compactThresholdTokens}`
-  );
   const compacted = await options.summarizeFn(snapshotForSummary);
   messages.length = 0;
   messages.push(...compacted, ...trailing);

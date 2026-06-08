@@ -80,3 +80,26 @@ export function formatElapsedTime(milliseconds) {
   const seconds = (milliseconds / 1000).toFixed(2);
   return `${seconds}秒`;
 }
+
+/**
+ * @param {string | null | undefined} value
+ * @returns {string}
+ */
+export function formatMemoryMentionedAt(value) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}

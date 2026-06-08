@@ -194,7 +194,8 @@ export class AiController {
         'API',
         `收到流式聊天请求, requestId: ${requestId}, 消息数量: ${messages.length}, tool消息: ${toolMessageCount}, ` +
           `供应商: ${vendor || '默认'}, 工具模式: ${chatOptions.enableTools}, ` +
-          `提示词: ${chatOptions.enablePrompts}, 最大工具轮次: ${chatOptions.maxToolCallRounds}, 自动压缩: ${chatOptions.enableAutoCompact}`
+          `提示词: ${chatOptions.enablePrompts}, 最大工具轮次: ${chatOptions.maxToolCallRounds}, ` +
+          `自动压缩: ${chatOptions.enableAutoCompact}, 忽略跨会话记忆: ${chatOptions.skipMemory === true}`
       );
 
       webAdapter.registerSink(requestId, {

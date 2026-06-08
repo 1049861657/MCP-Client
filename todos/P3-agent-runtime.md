@@ -64,38 +64,127 @@
 
 ## P3-02 跨会话 Memory
 
-> 参考：[s09 Memory](https://learn.shareai.run/zh/s09/)
+> 参考：[s09 Memory](https://learn.shareai.run/zh/s09/)  
+> **主推 P3-02-B**（Hindsight SDK）；**P3-02-A**（文件型）暂缓。
 
-**背景**：IndexedDB 仅存聊天 UI 状态，无「用户偏好 / 项目约定」层。
+**背景**：IndexedDB 仅存聊天 UI；设置「记忆」Tab 为对话历史，非跨会话 memory。
 
-### 存储边界（必须遵守）
+### 存储边界（A / B 共用）
 
 | 存 | 不存 |
 |----|------|
 | 用户偏好、明确纠正、非显然项目约定 | 文件结构、当前任务进度、临时分支名、密钥 |
 
+---
+
+## P3-02-A 跨会话 Memory（文件型 · 暂缓）
+
+> **状态**：⏸ 暂缓，不实施。原 P3-02-01～05 完整保留，若 B 方案受阻可整体回退至此。  
+> **对齐**：s09 + Hermes **精选层**（`save_memory` / `list_memory` + 本地 `.md` 索引）。
+
 ### 任务
 
-- [ ] **P3-02-01** 新建 `src/core/memory/memory-store.ts` — 文件型或 SQLite  
+- [ ] **P3-02-A-01** 新建 `src/core/memory/memory-store.ts` — 文件型或 SQLite  
   - 路径建议：`.mcp-client/memory/*.md` + 索引  
   - 涉及：新建模块  
   - 验收：CRUD + 按 type 过滤（user/feedback/project/reference）
 
-- [ ] **P3-02-02** Harness 工具 `save_memory` / `list_memory`  
+- [ ] **P3-02-A-02** Harness 工具 `save_memory` / `list_memory`  
   - 涉及：`agent-harness/system-tools/memory-tool.ts`  
   - 验收：模型可写入跨会话事实
 
-- [ ] **P3-02-03** `SystemPromptBuilder._buildMemory()` 会话开始时加载  
+- [ ] **P3-02-A-03** `SystemPromptBuilder._buildMemory()` 会话开始时加载  
   - 涉及：`prompt-pipeline.ts`  
   - 验收：新会话可见相关 memory 摘要
 
-- [ ] **P3-02-04** settings 页 Memory 管理（查看/删除/忽略本次）  
+- [ ] **P3-02-A-04** settings 页 Memory 管理（查看/删除/忽略本次）  
   - 涉及：`public/settings.html`  
   - 验收：用户说「忽略 memory」时不注入
 
-- [ ] **P3-02-05** Memory 与代码冲突时优先当前观察  
+- [ ] **P3-02-A-05** Memory 与代码冲突时优先当前观察  
   - 涉及：`prompt-pipeline.ts`  
   - 验收：冲突时 `_source: 'reminder'` 注入 `harness_reminder`（`kind: memory_conflict`）；规则写入 PromptBuilder 注释
+
+---
+
+## P3-02-B 跨会话 Memory（Hindsight SDK · 主推）
+
+> **依赖**：`@vectorize-io/hindsight-client`  
+> **选型**：[MCP vs SDK](https://hindsight.vectorize.io/guides/2026/04/16/comparison-mcp-vs-sdk-memory-with-hindsight) — 自有 Harness、需控制 bank / retain / recall 时机 → **SDK**；禁止 `hindsight-ai-sdk` 全自动 tool 包装。  
+> **文档**：[API Integration](https://docs.hindsight.vectorize.io/api-integration) · [Node SDK](https://hindsight.vectorize.io/sdks/nodejs)
+
+### 接入要点
+
+| 项 | 说明 |
+|----|------|
+| 配置 | `HINDSIGHT_BASE_URL`（默认 Cloud）、`HINDSIGHT_API_KEY`（Cloud 必填；`localhost` 可无 Key） |
+| bank 隔离 | `mcp-client` + 工作区首路径 hash（无 `MCP_CLIENT_ROOTS` 时用 `default`） |
+| recall 类型 | `observation` + `world`（不含 `experience`） |
+| retain | `{ async: true }`；**同轮 retain 后 recall 常无新结果** → 下一会话再 recall |
+| 降级 | 未配置 / `HindsightError`：memory 段为空，不阻断聊天 |
+
+### 编排（Harness 控制面）
+
+1. **Inbound**（`skipMemory=false`）：`resolve bankId` → `recall(query=最近用户消息)` → 写入 system「跨会话记忆」段  
+2. **Agent Loop**：照常 MCP + System 工具，**无** Hindsight tool 中间层  
+3. **SessionEnd**：摘要 user/assistant 对话 → `retain`（JSON 数组 + `retainContext`）；失败仅 `Logger`  
+4. **配置同步**：`updateBankConfig` 推送 `retainMission` / `observationsMission`（变更后下次 ensure 生效）
+
+### 任务
+
+- [x] **P3-02-B-01** 配置与 `hindsight-memory-provider`  
+  - `MemoryConfig`：`retainMission`、`observationsMission`、`retainContext`；`recallTypes`、`recallMaxTokens`  
+  - `ensureHindsightBank`：`createBank` + `updateBankConfig`；封装 `recallForPrompt`、`retainConversation`  
+  - `documentId` + `append` 支持按会话增量 retain  
+  - 涉及：`src/core/memory/hindsight-memory-provider.ts`、`feature-config.ts`、`.env.example`  
+  - 验收：Cloud/本地可调通 retain + recall；缺 Key 时聊天正常  
+  - 完成日期：2026-06-05
+
+- [x] **P3-02-B-02** Prompt 流水线注入 recall  
+  - `_buildMemory()` async；`memoryContext` 传入 `bankId` / `query` / `skipMemory`  
+  - `isSectionIncludedInSystem('memory')`：有内容即进 system  
+  - 涉及：`prompt-pipeline.ts`、`ai-provider.ts`  
+  - 验收：system 预览与真实发送一致；分段 API 可见 memory 段  
+  - 完成日期：2026-06-05
+
+- [x] **P3-02-B-03** 会话结束异步 retain  
+  - `SessionEnd` Hook：`buildRetainContent` → JSON 对话数组（含 `_timestamp`）；跳过 tool/system/reminder  
+  - `retainConversation`：`async: true`、`context`=`MemoryConfig.retainContext`、`metadata.requestId`  
+  - 涉及：`memory-retain-hook.ts`、`memory-pipeline-context.ts`、`hook-runner.ts`  
+  - 验收：会话结束后 bank 有新条目；retain 失败不抛给用户  
+  - 完成日期：2026-06-05
+
+- [x] **P3-02-B-04** `skipMemory` 与设置页  
+  - `ChatOptions.skipMemory`：true 时跳过 recall **与** retain  
+  - Web `chatStream` body 透传；设置页「忽略本次 memory」说明  
+  - 涉及：`channel.types.ts`、`normalize-web-inbound.ts`、`settings-modal.js`  
+  - 验收：勾选后 system 无 memory 段且当轮不 retain  
+  - 完成日期：2026-06-05
+
+- [x] **P3-02-B-05** Memory 与当前观察的优先级  
+  - system 段前缀：任务进度、目录结构、工具实时结果以**本会话**为准  
+  - 矛盾记忆：优先含状态演变（曾为 X、现为 Y）及用户最新表述  
+  - 可选未做：自动检测冲突并注入 `harness_reminder`（`kind: memory_conflict`）  
+  - 涉及：`hindsight-memory-provider.ts`（`MEMORY_SECTION_PREFIX`）、`prompt-pipeline.ts`  
+  - 完成日期：2026-06-05
+
+- [x] **P3-02-B-06** 记忆调试（Recall / Reflect 只读）  
+  - **入口**：设置「记忆」→「跨会话记忆」→「调试」；未配置 Key 时置灰  
+  - **UI**：聊天页弹窗 `memory-debug-modal`（Recall 列表 / Reflect 综合回答）；展示 type、text、`mentioned_at`  
+  - **API**：`POST /api/memory/debug/recall`、`/reflect`；`GET /api/memory/debug/meta`（bankId、enabled）  
+  - **边界**：仅调试读写，无 retain、删记忆、改 bank  
+  - 涉及：`memory-debug.controller.ts`、`memory-debug.ts`、`modal-host.js`、`settings-modal.js`  
+  - 验收：与聊天注入同 bank 同 query；Reflect 返回文本 + 参考记忆；无副作用  
+  - 完成日期：2026-06-08
+
+### 验收（B）
+
+1. 配置 Key 后，新会话 system 含 Hindsight recall 摘要。  
+2. 多轮对话结束 retain 后，**下一会话** recall 可命中偏好/纠正。  
+3. `skipMemory` 时无注入、无 retain。  
+4. Hindsight 不可用（无 Key / 网络错误）时降级，Agent Loop 不 500。  
+5. 不使用 `hindsight-ai-sdk` 包装；MCP Hindsight **非**必需依赖。  
+6. 调试弹窗可独立验证 recall / reflect，不改变聊天主路径。
 
 ---
 
@@ -221,7 +310,7 @@
 ## P3 完成检查清单
 
 - [x] Todo 计划可外显、可提醒、历史不膨胀
-- [ ] Memory 跨会话生效且边界清晰
+- [x] Memory 跨会话生效且边界清晰（P3-02-B B-01～06；A 暂缓）
 - [ ] Skill 按需加载，prompt 不膨胀
 - [ ] 服务端会话可存取
 - [ ] API 有基本鉴权

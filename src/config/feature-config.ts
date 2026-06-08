@@ -55,6 +55,63 @@ export const PlanningConfig = {
   planRefreshRounds: 3
 };
 
+const HINDSIGHT_CLOUD_BASE_URL = 'https://api.hindsight.vectorize.io';
+
+function isLocalHindsightBaseUrl(baseUrl: string): boolean {
+  try {
+    const host = new URL(baseUrl).hostname;
+    return host === 'localhost' || host === '127.0.0.1';
+  } catch {
+    return false;
+  }
+}
+
+/** 跨会话 Memory（P3-02-B Hindsight SDK）；环境变量仅 baseUrl + apiKey */
+export const MemoryConfig = {
+  baseUrl: process.env.HINDSIGHT_BASE_URL?.trim() || HINDSIGHT_CLOUD_BASE_URL,
+  apiKey: process.env.HINDSIGHT_API_KEY?.trim() || '',
+  bankIdPrefix: 'mcp-client',
+  retainMission:
+    'Always extract：用户明确偏好与纠正；非显然的项目约定；用户自述的身份、角色与团队信息。' +
+    '当用户更正先前说法或描述状态变化时，提取最新状态并保留变化关系' +
+    '（例如「曾为 X，现为 Y」），勿并列两条互斥结论。' +
+    'Ignore：问候寒暄、对助手身份的闲聊、会话元数据、目录列表、任务进度、' +
+    '工具实时输出摘要、临时分支名、密钥与 token。事实一律用简体中文书写。',
+  observationsMission:
+    '观察项是跨会话仍成立的用户偏好与项目约定（非任务进度、非目录快照、非工具输出）。' +
+    '综合多条事实时：识别重复模式与行为变化；当新事实与旧观察矛盾时，' +
+    '以更新鲜、更明确的用户表述为准，在单条观察中体现状态演变（曾为 X，现为 Y），' +
+    '勿保留两条互斥的并行结论。忽略一次性寒暄、助手身份闲聊、单轮工具结果、临时分支名与密钥。' +
+    '一律用简体中文书写。',
+  retainExtractionMode: 'concise',
+  retainContext:
+    'MCP-Client 会话：用户偏好、项目约定与明确纠正（非任务进度与工具输出）',
+  /** 跨会话注入：observation（巩固偏好）+ world（约定）；排除 experience（会话行为噪音） */
+  recallTypes: ['observation', 'world'] as const,
+  recallMaxTokens: 4096,
+  recallQueryMaxChars: 500,
+  sessionRetainMaxChars: 8000,
+  perMessageRetainMaxChars: 2000
+};
+
+/** Cloud 需 API Key；本地 localhost 可无 Key */
+export function isHindsightMemoryConfigured(): boolean {
+  if (!MemoryConfig.baseUrl) {
+    return false;
+  }
+  if (isLocalHindsightBaseUrl(MemoryConfig.baseUrl)) {
+    return true;
+  }
+  return MemoryConfig.apiKey.length > 0;
+}
+
+export function resolveSkipMemory(requestValue: unknown): boolean {
+  if (!isHindsightMemoryConfigured()) {
+    return true;
+  }
+  return requestValue === true;
+}
+
 /**
  * 解析请求中的 maxToolCallRounds，钳制到 [1, maxToolCallRoundsLimit]
  */
@@ -208,7 +265,7 @@ export const LogConfig = {
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
 
   /** 每轮 LLM 请求前 debug 输出 tools schema */
-  debugLlmTools: true,
+  debugLlmTools: false,
   
   // 是否输出到控制台
   console: true,
@@ -243,5 +300,6 @@ export const FeatureConfig = {
   history: HistoryConfig,
   log: LogConfig,
   permission: PermissionConfig,
-  hook: HookConfig
+  hook: HookConfig,
+  memory: MemoryConfig
 }; 

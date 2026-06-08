@@ -3,6 +3,7 @@ import { InfoController } from './info.controller.js';
 import { AiController } from './ai.controller.js';
 import { ConfigController } from './config.controller.js';
 import { AdminController } from './admin.controller.js';
+import { MemoryDebugController } from './memory-debug.controller.js';
 import { SettingsController } from './settings.controller.js';
 
 /**
@@ -19,6 +20,11 @@ router.post('/chat/permission-resolve', AiController.permissionResolve);
 
 // 配置路由
 router.get('/config/features', ConfigController.getFeatureConfig);
+
+// P3-02-B-06：Hindsight 记忆调试（只读 recall / reflect）
+router.get('/memory/debug/meta', MemoryDebugController.getMeta);
+router.post('/memory/debug/recall', MemoryDebugController.recall);
+router.post('/memory/debug/reflect', MemoryDebugController.reflect);
 router.get('/config/quick-messages', ConfigController.getQuickMessages);
 router.post('/config/quick-messages/save', ConfigController.saveQuickMessages);
 

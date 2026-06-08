@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import { Logger } from '../utils/logger.js';
-import { FeatureConfig } from '../config/feature-config.js';
+import {
+  FeatureConfig,
+  isHindsightMemoryConfigured,
+  MemoryConfig
+} from '../config/feature-config.js';
 import { listSystemToolDescriptors } from '../core/agent-harness/system-tools/system-tool-registry.js';
 import { ConfigService } from '../services/config.service.js';
 import { QuickMessage, QuickMessagesPayload } from '../types/config.types.js';
@@ -40,10 +44,15 @@ export class ConfigController {
   static async getFeatureConfig(req: Request, res: Response): Promise<void> {
     try {
       Logger.info('API', '请求特性配置');
+      const { memory: _memorySecret, ...publicFeatureConfig } = FeatureConfig;
       res.json({
         success: true,
         config: {
-          ...FeatureConfig,
+          ...publicFeatureConfig,
+          memory: {
+            enabled: isHindsightMemoryConfigured(),
+            bankIdPrefix: MemoryConfig.bankIdPrefix
+          },
           systemTools: listSystemToolDescriptors()
         }
       });

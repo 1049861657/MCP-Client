@@ -704,6 +704,7 @@ export function createChatApi(deps) {
       mcpServerIds,
       enabledSystemToolNames,
       permissionMode: app.state.permissionMode || 'open',
+      skipMemory: app.state.skipMemory === true,
       sessionId: app.state.sessionId,
     });
   }

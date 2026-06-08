@@ -19,7 +19,7 @@ export interface PlanningState {
 
 export interface HarnessReminderPayload {
   type: 'harness_reminder';
-  kind?: 'plan_refresh';
+  kind?: 'plan_refresh' | 'memory_conflict';
   summary: string;
 }
 

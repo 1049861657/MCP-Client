@@ -54,10 +54,16 @@ export function buildProfileResolveContext(
       ? envelope.channelMeta.vendor
       : undefined;
 
+  const documentSessionId =
+    envelope.channel === 'web' && 'webChatSessionId' in envelope.channelMeta
+      ? envelope.channelMeta.webChatSessionId.trim()
+      : envelope.sessionKey.trim();
+
   return {
     channel: envelope.channel,
     sessionKey: envelope.sessionKey,
     routeMatchKey: extractRouteMatchKey(envelope),
+    documentSessionId: documentSessionId.length > 0 ? documentSessionId : undefined,
     envelopeChatOptions: pickDefined(
       (envelope.payload.chatOptions ?? {}) as Record<string, unknown>
     ) as Partial<ChatOptions>,
@@ -120,6 +126,7 @@ function mergeLayer(
     toolPrompt: string;
     vendor?: string;
     permissionMode: PermissionMode;
+    skipMemory?: boolean;
   },
   layer: Partial<ChatOptions>,
   channel: ChannelId
@@ -169,6 +176,12 @@ function mergeLayer(
     }
     base.permissionMode = layer.permissionMode;
   }
+  if (layer.skipMemory !== undefined) {
+    if (channel !== 'web') {
+      throw new Error('非 Web 渠道不得在入站消息中覆盖 skipMemory');
+    }
+    base.skipMemory = layer.skipMemory;
+  }
 }
 
 /** 将指定 Profile 与入站覆盖链合并为 ResolvedChatProfile */
@@ -184,6 +197,7 @@ function resolveProfileFromProfileRecord(
     toolPrompt: string;
     vendor?: string;
     permissionMode: PermissionMode;
+    skipMemory?: boolean;
   } = {
     profileId: profile.profileId,
     model: profile.defaultModel,
@@ -220,7 +234,9 @@ function resolveProfileFromProfileRecord(
     enabledToolNames: merged.enabledToolNames,
     enabledSystemToolNames: merged.enabledSystemToolNames,
     toolPrompt: merged.toolPrompt,
-    permissionMode: resolvePermissionMode(ctx.channel, merged.permissionMode)
+    permissionMode: resolvePermissionMode(ctx.channel, merged.permissionMode),
+    skipMemory: merged.skipMemory,
+    documentSessionId: ctx.documentSessionId
   };
 }
 

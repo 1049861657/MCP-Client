@@ -18,6 +18,7 @@ import { getFeishuChannelAdapter } from '../channels/feishu/feishu-channel.adapt
 import { getWebChannelAdapter } from '../channels/web/web-channel.adapter.js';
 import { aiService, providerServices } from '../providers/ai-providers.js';
 import { AiProvider } from '../providers/ai-provider.js';
+import { logInboundDequeue } from './inbound-log.js';
 import { Logger } from '../utils/logger.js';
 import { getOutboundSink } from './outbound-sink-registry.js';
 import { outboundRouter } from './outbound-router.js';
@@ -72,6 +73,12 @@ async function runHarnessForEnvelope(
 ): Promise<void> {
   const resolved = await resolveProfile(envelope);
   const vendor = resolved.vendor ?? envelope.channelMeta.vendor;
+  logInboundDequeue(envelope, {
+    profileId: resolved.profileId,
+    vendor: vendor ?? 'default',
+    mcpCount: resolved.mcpServerIds.length,
+    permissionMode: resolved.permissionMode
+  });
   const service = resolveServiceForVendor(vendor);
   if (!service) {
     Logger.warn('BUS', `Inbound Worker 跳过：无可用 AI 服务 requestId=${requestId}`);
@@ -80,11 +87,6 @@ async function runHarnessForEnvelope(
 
   const { messages } = envelopeToHarnessInput(envelope);
   const wallStarted = Date.now();
-
-  Logger.info(
-    'BUS',
-    `Harness start channel=${envelope.channel} requestId=${requestId} profileId=${resolved.profileId} vendor=${vendor ?? 'default'} mcpCount=${resolved.mcpServerIds.length} permissionMode=${resolved.permissionMode}`
-  );
 
   const result = await service.chatStream(
     messages,

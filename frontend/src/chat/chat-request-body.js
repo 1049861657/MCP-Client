@@ -24,6 +24,7 @@ export const CHAT_OPTION_BODY_FIELDS = [
   'mcpServerIds',
   'enabledSystemToolNames',
   'permissionMode',
+  'skipMemory',
   'sessionId',
 ];
 
@@ -44,6 +45,7 @@ export const CHAT_OPTION_BODY_FIELDS = [
  * @property {string | undefined} compactModel
  * @property {string[] | undefined} mcpServerIds enableTools 为 true 时写入 body（含空数组表示不启用 MCP）
  * @property {string[] | undefined} enabledSystemToolNames 启用的系统工具 codeName
+ * @property {boolean} [skipMemory] 本次忽略 Hindsight 跨会话记忆
  */
 
 /**
@@ -68,6 +70,7 @@ export function buildChatStreamRequestBody(input) {
     mcpServerIds,
     enabledSystemToolNames,
     permissionMode,
+    skipMemory,
     sessionId,
   } = input;
 
@@ -104,6 +107,10 @@ export function buildChatStreamRequestBody(input) {
 
   if (Array.isArray(enabledSystemToolNames)) {
     body.enabledSystemToolNames = enabledSystemToolNames;
+  }
+
+  if (skipMemory === true) {
+    body.skipMemory = true;
   }
 
   if (Array.isArray(messages) && messages.length > 0) {

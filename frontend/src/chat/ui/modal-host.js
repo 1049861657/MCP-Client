@@ -159,6 +159,35 @@ const MODALS_HTML = `
             </div>
           </div>
 
+          <div class="settings-card" id="settings-hindsight-memory-card">
+            <div class="settings-card-head settings-card-head--with-action">
+              <h3 class="settings-card-title">跨会话记忆</h3>
+              <div class="settings-hindsight-head-right">
+                <span
+                  id="settings-hindsight-memory-status"
+                  class="settings-hindsight-status-dot settings-hindsight-status-dot--off"
+                  role="status"
+                  aria-label="Hindsight 未配置"
+                ></span>
+                <button
+                  type="button"
+                  id="settings-hindsight-memory-debug"
+                  class="settings-hindsight-debug-link"
+                  aria-disabled="true"
+                >调试 →</button>
+              </div>
+            </div>
+            <div class="settings-card-body">
+              <div class="settings-item">
+                <div class="settings-item-text">
+                  <div class="settings-item-title">忽略记忆</div>
+                  <div class="settings-item-hint">开启后不注入历史偏好，且本轮结束不写入 Hindsight</div>
+                </div>
+                <button type="button" class="settings-toggle" id="settings-toggle-skip-memory" aria-pressed="false"></button>
+              </div>
+            </div>
+          </div>
+
           <div class="settings-card">
             <div class="settings-card-head">
               <h3 class="settings-card-title">上下文压缩</h3>
@@ -295,6 +324,7 @@ const MODALS_HTML = `
     </footer>
 
     <input type="checkbox" id="enable-message-history" class="hidden" checked>
+    <input type="checkbox" id="skip-memory" class="hidden">
     <input type="checkbox" id="enable-auto-compact" class="hidden">
     <input type="checkbox" id="enable-mcp-tools" class="hidden" checked>
     <input type="checkbox" id="enable-prompts" class="hidden" checked>
@@ -524,6 +554,64 @@ const MODALS_HTML = `
   </div>
 </div>
 
+<div id="memory-debug-modal" class="chat-modal md-modal hidden" aria-hidden="true">
+  <div class="md-modal-panel">
+    <header class="md-header">
+      <div class="md-header-main">
+        <div>
+          <h2 class="md-title">记忆调试</h2>
+          <p class="md-subtitle">输入问题，查看跨会话记忆的检索与推理结果</p>
+        </div>
+      </div>
+      <div class="md-header-right">
+        <span id="memory-debug-bank" class="md-bank-pill hidden"></span>
+        <button type="button" class="md-close" data-close-modal="memory-debug-modal" aria-label="关闭">&times;</button>
+      </div>
+    </header>
+    <div id="memory-debug-unavailable" class="md-banner md-banner--error hidden" role="alert"></div>
+    <div class="md-body">
+      <div class="md-mode-tabs" role="tablist" aria-label="调试模式">
+        <button type="button" class="md-mode-tab is-active" data-mode="recall" id="memory-debug-tab-recall" role="tab" aria-selected="true">Recall 检索</button>
+        <button type="button" class="md-mode-tab" data-mode="reflect" id="memory-debug-tab-reflect" role="tab" aria-selected="false">Reflect 推理</button>
+      </div>
+      <section class="md-mode-panel is-active" id="memory-debug-panel-recall" role="tabpanel" aria-labelledby="memory-debug-tab-recall">
+        <p class="md-intro">根据提问从记忆库找出相关事实与偏好，以列表返回；正常聊天时这些内容会注入 AI 提示词。</p>
+        <div class="md-query-block">
+          <label class="md-field-label" for="memory-debug-recall-query">提问内容</label>
+          <textarea id="memory-debug-recall-query" class="md-query-input" rows="4" placeholder="输入与聊天中相同的用户消息，例如：我的技术偏好是什么？"></textarea>
+        </div>
+        <div class="md-actions">
+          <button type="button" id="memory-debug-recall-submit" class="md-btn-primary">检索记忆</button>
+        </div>
+        <div class="md-results-head">
+          <h3 class="md-results-title">检索到的记忆</h3>
+          <span id="memory-debug-recall-meta" class="md-results-meta"></span>
+        </div>
+        <div id="memory-debug-recall-results" class="md-results-panel">
+          <div class="md-results-empty">输入提问内容后点击「检索记忆」查看结果</div>
+        </div>
+      </section>
+      <section class="md-mode-panel" id="memory-debug-panel-reflect" role="tabpanel" aria-labelledby="memory-debug-tab-reflect" hidden>
+        <p class="md-intro">读取记忆后思考并组织成一段完整回答，而非返回多条记忆条目；可查看记忆被理解后的表述。</p>
+        <div class="md-query-block">
+          <label class="md-field-label" for="memory-debug-reflect-query">提问内容</label>
+          <textarea id="memory-debug-reflect-query" class="md-query-input" rows="4" placeholder="例如：根据记忆，总结该用户的偏好和习惯"></textarea>
+        </div>
+        <div class="md-actions">
+          <button type="button" id="memory-debug-reflect-submit" class="md-btn-primary">生成回答</button>
+        </div>
+        <div class="md-results-head">
+          <h3 class="md-results-title">推理回答</h3>
+          <span id="memory-debug-reflect-meta" class="md-results-meta"></span>
+        </div>
+        <div id="memory-debug-reflect-results" class="md-results-panel">
+          <div class="md-results-empty">输入提问内容后点击「生成回答」查看结果</div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
 <div id="prompts-modal" class="chat-modal hidden" aria-hidden="true">
   <div class="chat-modal-panel chat-modal-panel-wide prompts-modal-panel">
     <div class="chat-modal-header">
@@ -603,12 +691,12 @@ export function closeChatModal(modalId) {
  */
 export function bindChatModalClose(modalId, onClose) {
   const modal = document.getElementById(modalId);
-  if (!modal || modal.dataset.bound === '1') {
+  if (!modal || modal.dataset.closeBound === '1') {
     return;
   }
-  modal.dataset.bound = '1';
+  modal.dataset.closeBound = '1';
 
-  modal.querySelectorAll(`[data-close-modal="${modalId}"], .context-modal-close`).forEach((btn) => {
+  modal.querySelectorAll(`[data-close-modal="${modalId}"], .context-modal-close, .md-close`).forEach((btn) => {
     btn.addEventListener('click', () => {
       closeChatModal(modalId);
       onClose?.();

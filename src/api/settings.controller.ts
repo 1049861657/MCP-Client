@@ -150,6 +150,7 @@ export class SettingsController {
         enableTools,
         enablePrompts,
         toolPromptOverride,
+        includeMemory: false,
         resolvedProfile:
           mcpServerIds && mcpServerIds.length > 0
             ? {

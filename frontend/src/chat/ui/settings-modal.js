@@ -200,6 +200,12 @@ function syncSettingsUi(getApp) {
     document.getElementById('settings-toggle-history'),
     document.getElementById('settings-history-nested'),
   );
+  syncHindsightMemorySettingsUi(getApp());
+  syncToggleFromCheckbox(
+    elements.skipMemory,
+    document.getElementById('settings-toggle-skip-memory'),
+    null,
+  );
   syncToggleFromCheckbox(
     elements.enableAutoCompact,
     document.getElementById('settings-toggle-compact'),
@@ -244,6 +250,39 @@ const PERMISSION_MODE_FOOTNOTES = {
 /**
  * @param {'open'|'interactive'|'locked'} mode
  */
+/**
+ * @param {object} app
+ */
+function syncHindsightMemorySettingsUi(app) {
+  const enabled = app.state.hindsightMemoryEnabled === true;
+  const card = document.getElementById('settings-hindsight-memory-card');
+  const statusDot = document.getElementById('settings-hindsight-memory-status');
+  const debugLink = document.getElementById('settings-hindsight-memory-debug');
+  const toggle = document.getElementById('settings-toggle-skip-memory');
+
+  if (card) {
+    card.classList.toggle('is-disabled', !enabled);
+  }
+  if (statusDot) {
+    statusDot.classList.toggle('settings-hindsight-status-dot--on', enabled);
+    statusDot.classList.toggle('settings-hindsight-status-dot--off', !enabled);
+    statusDot.setAttribute('aria-label', enabled ? 'Hindsight 已连接' : 'Hindsight 未配置');
+  }
+  if (debugLink instanceof HTMLButtonElement) {
+    debugLink.classList.toggle('is-disabled', !enabled);
+    debugLink.disabled = !enabled;
+    debugLink.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+  }
+  if (toggle instanceof HTMLButtonElement) {
+    toggle.disabled = !enabled;
+    if (!enabled && app.elements.skipMemory) {
+      app.elements.skipMemory.checked = false;
+      app.state.skipMemory = false;
+      syncToggleFromCheckbox(app.elements.skipMemory, toggle, null);
+    }
+  }
+}
+
 function syncPermissionModeUi(mode) {
   const container = document.getElementById('settings-permission-mode');
   if (!container) {
@@ -320,6 +359,21 @@ function bindSettingsModalUi(getApp) {
       elements.enableMessageHistory,
       document.getElementById('settings-history-nested'),
     );
+  }
+  if (elements.skipMemory) {
+    const skipToggle = /** @type {HTMLButtonElement} */ (
+      document.getElementById('settings-toggle-skip-memory')
+    );
+    bindToggle(skipToggle, elements.skipMemory, null);
+    if (elements.skipMemory.dataset.changeBound !== '1') {
+      elements.skipMemory.dataset.changeBound = '1';
+      elements.skipMemory.addEventListener('change', () => {
+        const app = getApp();
+        app.state.skipMemory = elements.skipMemory.checked;
+        syncHindsightMemorySettingsUi(app);
+        app.loadPromptPreview?.();
+      });
+    }
   }
   if (elements.enableAutoCompact) {
     bindToggle(
@@ -409,6 +463,9 @@ export function createSettingsModalApi(getApp, ui) {
     if (elements.maxTokens) {
       state.maxTokens = parseInt(elements.maxTokens.value, 10);
     }
+    if (elements.skipMemory) {
+      state.skipMemory = elements.skipMemory.checked;
+    }
     if (elements.enableAutoCompact) {
       state.enableAutoCompact = elements.enableAutoCompact.checked;
     }
@@ -446,6 +503,7 @@ export function createSettingsModalApi(getApp, ui) {
 
       settings.isStreamMode = true;
       settings.model = state.model;
+      settings.skipMemory = state.skipMemory === true;
       settings.enableAutoCompact = state.enableAutoCompact;
       settings.compactModel = state.compactModel;
       settings.temperature = state.temperature;
@@ -492,6 +550,10 @@ export function createSettingsModalApi(getApp, ui) {
     if (elements.enablePrompts) {
       elements.enablePrompts.checked = true;
     }
+    if (elements.skipMemory) {
+      elements.skipMemory.checked = false;
+    }
+    state.skipMemory = false;
     if (elements.enableMessageHistory) {
       elements.enableMessageHistory.checked = true;
     }
@@ -542,6 +604,11 @@ export function createSettingsModalApi(getApp, ui) {
       }
 
       app.updateCompactModelOptions?.();
+
+      if (typeof settings.skipMemory === 'boolean' && elements.skipMemory) {
+        elements.skipMemory.checked = settings.skipMemory;
+        state.skipMemory = settings.skipMemory;
+      }
 
       if (typeof settings.enableAutoCompact === 'boolean' && elements.enableAutoCompact) {
         elements.enableAutoCompact.checked = settings.enableAutoCompact;

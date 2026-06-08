@@ -211,7 +211,7 @@ P3-* 可在 P1 完成后按需启动
 ### M4 — Agent Client 完整（[P3-agent-runtime.md](./P3-agent-runtime.md)）
 
 - [x] 会话内 Todo 规划工具（P3-01 已验收：计划浮层 + transcript/历史治理）
-- [ ] 跨会话 Memory（SQLite）（P3-02）
+- [x] 跨会话 Memory（P3-02-B 2026-06-05～08；A 暂缓；含 B-06 记忆调试页）
 - [ ] Hook 扩展点深化（P3 任务书；基础 Hook 已由 P1-05 交付，以 P3 书为准再勾）
 - [ ] 服务端 Session API（P3-04）
 

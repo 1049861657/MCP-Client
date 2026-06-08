@@ -57,7 +57,7 @@
 | P0 | 19 | 19 | 100% |
 | P1 | 30 | 30 | 100% |
 | P2 | 20 | 20 | 100% |
-| P3 | 28 | 6 | 21% |
+| P3 | 35 | 12 | 34% |
 | Backlog | 24 | 0 | — |
 
 > 上表「总数/已完成」仅统计各任务书中 **带 ID 的子项**（`- **Px-yy-zz**` / `- **Tx-yy-zz**`），不含各文件末尾「完成检查清单」。每次勾选子项后同步改数字。
@@ -78,6 +78,9 @@ public/admin.html           # T3：渠道管理（Vite 构建产物，源码 fro
 frontend/src/chat/          # T3：Chat ESM（storage-contract、chat-request-body）
 frontend/                   # T3：单体 Vite MPA 源码（见 T3 任务书）
 src/core/agent-harness/     # Harness：agent-loop、tool-call-manager、system-tools、types
+src/core/memory/            # P3-02-B：Hindsight recall/retain、memory-debug
+src/api/memory-debug.controller.ts  # P3-02-B-06：/api/memory/debug/*
+frontend/src/chat/ui/memory-debug-modal.js  # P3-02-B-06：Recall/Reflect 调试弹窗
 src/providers/              # AiProvider、ai-providers（LLM Chat）
 src/api/ai.controller.ts    # 路由 /api/chat/*（T1 瘦身为入队）
 src/core/mcp/               # MCPClientManager、server-connection

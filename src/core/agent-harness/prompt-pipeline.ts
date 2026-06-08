@@ -3,6 +3,12 @@ import { ConfigService } from '../../services/config.service.js';
 import { ToolPolicyService } from '../../services/tool-policy.service.js';
 import type { ResolvedChatProfile } from '../../types/config-plane.types.js';
 import { buildEnabledToolsSchemaSummary } from '../../utils/tool-schema-summary.js';
+import {
+  logMemoryRecallSkipped,
+  recallForPrompt
+} from '../memory/hindsight-memory-provider.js';
+import { isHindsightMemoryConfigured } from '../../config/feature-config.js';
+import type { MemoryPipelineContext } from '../memory/memory-pipeline-context.js';
 import type { InternalMessage } from './types.js';
 
 export const PROMPT_SECTION_ORDER = [
@@ -21,6 +27,13 @@ export interface PromptPipelineOptions {
   resolvedProfile?: ResolvedChatProfile;
   /** 预览 API：覆盖 mcpToolPrompt / Profile.toolPrompt（仅影响分段展示，不改变实际发送） */
   toolPromptOverride?: string;
+  /** 设置页提示词预览为 false，不展示、不 recall memory 段 */
+  includeMemory?: boolean;
+  /** P3-02-B：Hindsight recall 上下文 */
+  memoryContext?: MemoryPipelineContext;
+  /** 对话日志关联 requestId */
+  requestId?: string;
+  signal?: AbortSignal;
 }
 
 export interface AssembledSystemPreview {
@@ -58,12 +71,21 @@ const SECTION_SOURCES: Record<PromptSectionKey, string> = {
   core: '系统预留，当前通常为空',
   tools: '来自本页编辑框或聊天设置中保存的内容',
   skills_catalog: '后续版本支持',
-  memory: '后续版本支持',
+  memory: '来自 Hindsight recall（跨会话偏好与项目约定）',
   project_rules: '来自当前已启用连接服务自带的说明'
 };
 
 function joinNonEmpty(parts: string[]): string {
   return parts.filter(p => p.trim().length > 0).join('\n\n');
+}
+
+/** 工具关闭时仍允许注入 memory 段（P3-02-B） */
+export function shouldAssembleSystemPrompt(options: PromptPipelineOptions): boolean {
+  if (options.enableTools) {
+    return true;
+  }
+  const ctx = options.memoryContext;
+  return Boolean(ctx && !ctx.skipMemory && isHindsightMemoryConfigured());
 }
 
 /**
@@ -77,7 +99,7 @@ export class SystemPromptBuilder {
       core: this._buildCore(),
       tools: await this._buildTools(),
       skills_catalog: this._buildSkillsCatalog(),
-      memory: this._buildMemory(),
+      memory: await this._buildMemory(),
       project_rules: this._buildProjectRules()
     };
   }
@@ -101,7 +123,12 @@ export class SystemPromptBuilder {
       tools: userPrompt
     };
 
-    return PROMPT_SECTION_ORDER.map(key => {
+    const sectionOrder =
+      this.options.includeMemory === false
+        ? PROMPT_SECTION_ORDER.filter((key) => key !== 'memory')
+        : PROMPT_SECTION_ORDER;
+
+    return sectionOrder.map(key => {
       const content = display[key];
       const includedInSystem = this.isSectionIncludedInSystem(key, content);
       const source =
@@ -122,7 +149,14 @@ export class SystemPromptBuilder {
     key: PromptSectionKey,
     content: string
   ): boolean {
-    if (!content.trim() || !this.options.enableTools) {
+    if (!content.trim()) {
+      return false;
+    }
+    // memory 段：有 recall 内容即注入 system，不依赖 enableTools / enablePrompts
+    if (key === 'memory') {
+      return true;
+    }
+    if (!this.options.enableTools) {
       return false;
     }
     if (key === 'tools') {
@@ -175,8 +209,33 @@ export class SystemPromptBuilder {
     return '';
   }
 
-  private _buildMemory(): string {
-    return '';
+  /**
+   * P3-02-B：会话开始时从 Hindsight recall 注入跨会话记忆。
+   * 冲突规则：任务进度与目录结构以当前工具观察为准（见 MEMORY_SECTION_PREFIX）。
+   */
+  private async _buildMemory(): Promise<string> {
+    if (this.options.includeMemory === false) {
+      return '';
+    }
+    const ctx = this.options.memoryContext;
+    if (!ctx) {
+      return '';
+    }
+    if (ctx.skipMemory) {
+      logMemoryRecallSkipped(this.options.requestId, {
+        bankId: ctx.bankId,
+        query: ctx.query,
+        reason: 'skipMemory'
+      });
+      return '';
+    }
+    if (!isHindsightMemoryConfigured()) {
+      return '';
+    }
+    return recallForPrompt(ctx.bankId, ctx.query, {
+      signal: this.options.signal,
+      requestId: this.options.requestId
+    });
   }
 
   private _buildProjectRules(): string {
@@ -198,7 +257,7 @@ export async function applyPromptPipelineToMessages(
 ): Promise<InternalMessage[]> {
   const result: InternalMessage[] = [...messages];
 
-  if (!options.enableTools) {
+  if (!shouldAssembleSystemPrompt(options)) {
     return result;
   }
 
@@ -233,7 +292,7 @@ export async function buildSystemPromptSectionPreviews(
 export async function buildAssembledSystemPreview(
   options: PromptPipelineOptions
 ): Promise<AssembledSystemPreview | null> {
-  if (!options.enableTools) {
+  if (!shouldAssembleSystemPrompt(options)) {
     return null;
   }
   const builder = new SystemPromptBuilder(options);

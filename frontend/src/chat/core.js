@@ -90,6 +90,8 @@ function createInitialState() {
     compactDraft: null,
     enableAutoCompact: false,
     compactModel: '',
+    skipMemory: false,
+    hindsightMemoryEnabled: false,
     isStreaming: false,
   };
 }
@@ -183,6 +185,7 @@ function createAppMethods() {
         chatMessages: document.getElementById('chat-messages'),
         provider: document.getElementById('provider'),
         model: document.getElementById('model'),
+        skipMemory: document.getElementById('skip-memory'),
         enableAutoCompact: document.getElementById('enable-auto-compact'),
         compactModel: document.getElementById('compact-model'),
         temperature: document.getElementById('temperature'),
@@ -534,6 +537,10 @@ function createAppMethods() {
                 this.elements.enableAutoCompact.checked = this.state.enableAutoCompact;
               }
             }
+          }
+
+          if (data.config.memory) {
+            this.state.hindsightMemoryEnabled = data.config.memory.enabled === true;
           }
         }
       } catch (error) {
@@ -926,7 +933,7 @@ function createAppMethods() {
     buildPromptPreviewParams() {
       const params = new URLSearchParams({
         enableTools: String(this.hasAnyToolsEnabled()),
-        enablePrompts: String(this.state.enablePrompts !== false)
+        enablePrompts: String(this.state.enablePrompts !== false),
       });
       const textarea = document.getElementById('tool-prompt-content');
       if (textarea) {
@@ -1016,7 +1023,6 @@ function createAppMethods() {
       const emptyHints = {
         core: '当前无内容(客户端自己硬编码)',
         skills_catalog: '暂未启用',
-        memory: '暂未启用'
       };
 
       const makeIndicator = variant => {

@@ -1,5 +1,6 @@
 import { HookConfig } from '../../config/feature-config.js';
 import { logToolCallAudit, type ToolCallAuditLog } from './audit.js';
+import { registerMemoryRetainHook } from './memory-retain-hook.js';
 import { registerHook } from './hook-runner.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -76,4 +77,5 @@ export function registerBuiltinHooks(): void {
   if (HookConfig.enableAuditHook) {
     registerHook('PostToolUse', postToolAudit);
   }
+  registerMemoryRetainHook();
 }

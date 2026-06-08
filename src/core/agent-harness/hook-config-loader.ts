@@ -24,7 +24,12 @@ interface HooksJsonFile {
 
 const HOOK_CONFIG_PATHS = ['.mcp-client/hooks.json', 'hooks.json'] as const;
 
-const VALID_EVENTS: readonly HookEventName[] = ['SessionStart', 'PreToolUse', 'PostToolUse'];
+const VALID_EVENTS: readonly HookEventName[] = [
+  'SessionStart',
+  'SessionEnd',
+  'PreToolUse',
+  'PostToolUse'
+];
 
 function isHookEventName(value: string): value is HookEventName {
   return (VALID_EVENTS as readonly string[]).includes(value);

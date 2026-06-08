@@ -51,6 +51,7 @@ export function compactBaselineStorageKey(sessionId) {
  * @property {'open'|'interactive'|'locked'} [permissionMode]
  * @property {string[]} [enabledServerIds] 用户勾选的 MCP server id
  * @property {string[]} [enabledSystemToolNames] 启用的系统工具 codeName
+ * @property {boolean} [skipMemory] P3-02-B：本次忽略 Hindsight 跨会话记忆
  */
 
 /** @type {(keyof ChatSettingsStorage)[]} */
@@ -69,6 +70,7 @@ export const CHAT_SETTINGS_FIELDS = [
   'permissionMode',
   'enabledServerIds',
   'enabledSystemToolNames',
+  'skipMemory',
 ];
 
 /**

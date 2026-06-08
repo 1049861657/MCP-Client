@@ -49,6 +49,7 @@ import {
   isSystemTool,
   type SystemToolContext
 } from './system-tools/system-tool-registry.js';
+import type { MemoryPipelineContext } from '../memory/memory-pipeline-context.js';
 import { ToolPolicyService } from '../../services/tool-policy.service.js';
 import { normalizeToolResult } from './tool-executor.js';
 import {
@@ -134,6 +135,8 @@ export interface RunAgentLoopParams {
   onChunk: (chunk: ChunkResponse, done: boolean) => void;
   provider: AgentLoopProvider;
   permission?: AgentPermissionContext;
+  /** P3-02-B：跨会话 memory 上下文（recall 已在 formatMessages 完成；此处供 SessionEnd retain） */
+  memoryContext?: MemoryPipelineContext;
 }
 
 /**
@@ -154,7 +157,8 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     onContextCompacted,
     onChunk,
     provider,
-    permission
+    permission,
+    memoryContext
   } = params;
 
   const prepareContext = async (round: number): Promise<void> => {
@@ -523,7 +527,6 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     }
 
     const round = toolManager.getCurrentRound();
-    Logger.info('OPENAI', `回合${round}: 处理 ${toolCalls.length} 个工具调用`);
 
     const assistantMessage: InternalMessage = {
       role: 'assistant',
@@ -621,13 +624,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       finishReasonResult = result.finishReasonResult;
       const harnessTurn = round + 1;
       const reason = result.hasNewToolCalls ? 'tool_result' : 'end';
-      recordTurnEnd(
-        loopState,
-        harnessTurn,
-        reason,
-        result.newToolCalls.length,
-        provider.providerName
-      );
+      recordTurnEnd(loopState, harnessTurn, reason);
 
       const nextAssistantReasoning = result.fullReasoningContent.slice(reasoningBeforeResponse);
 
@@ -653,7 +650,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       onChunk({
         error: `获取模型回复失败: ${errMessage}`
       }, false);
-      recordTurnEnd(loopState, round + 1, 'end', 0, provider.providerName);
+      recordTurnEnd(loopState, round + 1, 'end');
     }
 
     return { shouldContinue: false, nextAssistantReasoning: '' };
@@ -678,13 +675,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
   const initialToolCount = toolManager.hasValidToolCalls()
     ? toolManager.getToolCallsByRound(0).length
     : 0;
-  recordTurnEnd(
-    loopState,
-    1,
-    initialToolCount > 0 ? 'tool_result' : 'end',
-    initialToolCount,
-    provider.providerName
-  );
+  recordTurnEnd(loopState, 1, initialToolCount > 0 ? 'tool_result' : 'end');
 
   if (toolManager.hasValidToolCalls()) {
     toolManager.setCurrentRound(1);
@@ -703,13 +694,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         const unprocessed = toolManager.getToolCallsByRound(round - 1);
         const partialResults = buildPartialResults(unprocessed);
         emitMaxToolCallsReached(onChunk, round, partialResults);
-        recordTurnEnd(
-          loopState,
-          round + 1,
-          'max_rounds',
-          unprocessed.length,
-          provider.providerName
-        );
+        recordTurnEnd(loopState, round + 1, 'max_rounds');
         break;
       }
 
@@ -748,6 +733,15 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       providerName: provider.providerName
     });
   }
+
+  await runHooks('SessionEnd', {
+    requestId,
+    messages: [...messages],
+    bankId: memoryContext?.bankId,
+    documentSessionId: memoryContext?.documentSessionId,
+    skipMemory: memoryContext?.skipMemory ?? true,
+    signal
+  });
 
   return {
     content: fullContent,

@@ -4,7 +4,7 @@
   @apply m-0 min-h-screen bg-[var(--color-page-bg)] font-sans text-[var(--color-text)] antialiased;
 }
 
-.chat-page button:not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.mcp-action-chip):not(.mcp-footer-btn):not(.history-action-btn):not(.history-link-btn):not(.app-confirm-btn):not(.context-footer-btn):not(.settings-nav-item):not(.settings-toggle):not(.settings-chip):not(.settings-btn-ghost):not(.settings-text-link):not(.settings-modal-close):not(.settings-seg-btn):not(.settings-stepper-btn):not(.qm-btn-add):not(.qm-cat-add-btn):not(.qm-cat-item):not(.qm-cat-menu-btn):not(.qm-icon-btn):not(.qm-status-pill):not(.qm-result-seg-btn):not(.qm-btn-ghost):not(.qm-btn-primary):not(.qm-modal-close):not(.qm-ctx-btn) {
+.chat-page button:not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.mcp-action-chip):not(.mcp-footer-btn):not(.history-action-btn):not(.history-link-btn):not(.app-confirm-btn):not(.context-footer-btn):not(.settings-nav-item):not(.settings-toggle):not(.settings-chip):not(.settings-btn-ghost):not(.settings-text-link):not(.settings-modal-close):not(.settings-seg-btn):not(.settings-stepper-btn):not(.qm-btn-add):not(.qm-cat-add-btn):not(.qm-cat-item):not(.qm-cat-menu-btn):not(.qm-icon-btn):not(.qm-status-pill):not(.qm-result-seg-btn):not(.qm-btn-ghost):not(.qm-btn-primary):not(.qm-modal-close):not(.qm-ctx-btn):not(.md-mode-tab):not(.md-btn-primary):not(.md-close) {
   @apply m-0 cursor-pointer border-0 p-0 font-[inherit];
 }
 

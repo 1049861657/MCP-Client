@@ -1,4 +1,3 @@
-import { Logger } from '../../utils/logger.js';
 import { createPlanningState } from './planning-state.js';
 import {
   ChunkResponse,
@@ -19,27 +18,14 @@ export function createLoopState(messages: InternalMessage[]): LoopState {
   };
 }
 
-/** 每轮结束后更新续行原因并打结构化日志 */
+/** 每轮结束后更新续行原因（收尾见 agent_run_audit / llm_step_audit） */
 export function recordTurnEnd(
   state: LoopState,
   turn: number,
-  reason: TransitionReason,
-  toolCount: number,
-  providerName: string
+  reason: TransitionReason
 ): void {
   state.turnCount = turn;
   state.transitionReason = reason;
-  logTurnSummary(providerName, turn, reason, toolCount);
-}
-
-/** 输出 { turn, reason, toolCount } 供排障 */
-export function logTurnSummary(
-  providerName: string,
-  turn: number,
-  reason: TransitionReason,
-  toolCount: number
-): void {
-  Logger.info('HARNESS', `[${providerName}] loop turn end ${JSON.stringify({ turn, reason, toolCount })}`);
 }
 
 /** 从工具记录提取触顶时的未完成/中断摘要 */

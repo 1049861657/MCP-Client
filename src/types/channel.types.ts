@@ -72,6 +72,8 @@ export interface ChatOptions {
   enabledSystemToolNames?: string[];
   /** P1-03：open | interactive | locked */
   permissionMode?: 'open' | 'interactive' | 'locked';
+  /** P3-02-B：true 时跳过 Hindsight recall 与 retain */
+  skipMemory?: boolean;
 }
 
 /** 入站 payload */

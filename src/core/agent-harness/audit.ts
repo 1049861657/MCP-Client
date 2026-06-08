@@ -90,6 +90,22 @@ export function logAgentRunAudit(entry: AgentRunAuditLog): void {
   });
 }
 
+/** P3-02-B：Hindsight recall 审计（对话日志可按时序重建） */
+export function logMemoryRecallAudit(entry: {
+  requestId: string;
+  bankId: string;
+  query: string;
+  skipped: boolean;
+  skipReason?: string;
+  resultCount: number;
+  results: Array<{ type: string; text: string }>;
+}): void {
+  Logger.audit({
+    type: 'memory_recall_audit',
+    ...entry
+  });
+}
+
 /** P3-01：规划提醒注入审计 */
 export function logPlanningReminderAudit(entry: {
   requestId: string;
