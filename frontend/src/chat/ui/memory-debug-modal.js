@@ -5,9 +5,10 @@ import { bindChatModalClose, openChatModal } from './modal-host.js';
 const API_BASE = '/api/memory/debug';
 const MODAL_ID = 'memory-debug-modal';
 
-/** @type {Record<'recall'|'reflect', { apiPath: string; failLabel: string }>} */
+/** @type {Record<'recall'|'prompt'|'reflect', { apiPath: string; failLabel: string }>} */
 const MODES = {
   recall: { apiPath: '/recall', failLabel: '检索失败' },
+  prompt: { apiPath: '/prompt', failLabel: '预览失败' },
   reflect: { apiPath: '/reflect', failLabel: '推理失败' },
 };
 
@@ -99,7 +100,16 @@ function renderReflect(data) {
   return `<div class="md-reflect-body"><p class="md-reflect-answer">${esc(answer)}</p>${refs ? `<div class="md-reflect-sources"><p class="md-reflect-sources-title">参考记忆</p>${refs}</div>` : ''}</div>`;
 }
 
-/** @param {'recall'|'reflect'} mode */
+/** @param {string} content */
+function renderPrompt(content) {
+  const text = (content ?? '').trim();
+  if (!text) {
+    return '<div class="md-results-empty">本轮不会注入记忆（无相关内容）</div>';
+  }
+  return `<pre class="md-prompt-preview">${esc(text)}</pre>`;
+}
+
+/** @param {'recall'|'prompt'|'reflect'} mode */
 function setMode(mode) {
   const modal = document.getElementById(MODAL_ID);
   if (!modal) {
@@ -174,7 +184,7 @@ export function createMemoryDebugModalApi(getApp) {
     }
   }
 
-  /** @param {'recall'|'reflect'} mode @param {AbortSignal} [signal] */
+  /** @param {'recall'|'prompt'|'reflect'} mode @param {AbortSignal} [signal] */
   async function runMode(mode, signal) {
     const cfg = MODES[mode];
     const root = modal();
@@ -204,6 +214,14 @@ export function createMemoryDebugModalApi(getApp) {
         resultsEl.innerHTML = renderRecall(results);
         const duration = formatDuration(Number(data.durationMs));
         metaEl.textContent = duration ? `${results.length} 条 · ${duration}` : `${results.length} 条`;
+      } else if (mode === 'prompt') {
+        const content = typeof data.content === 'string' ? data.content : '';
+        resultsEl.innerHTML = renderPrompt(content);
+        const chars = Number(data.charCount) || content.length;
+        const duration = formatDuration(Number(data.durationMs));
+        metaEl.textContent = duration
+          ? `约 ${chars.toLocaleString()} 字 · ${duration}`
+          : `约 ${chars.toLocaleString()} 字`;
       } else {
         resultsEl.innerHTML = renderReflect({
           text: typeof data.text === 'string' ? data.text : '',
@@ -231,7 +249,7 @@ export function createMemoryDebugModalApi(getApp) {
     el.querySelectorAll('.md-mode-tab').forEach((tab) => {
       tab.addEventListener('click', () => {
         const mode = tab.getAttribute('data-mode');
-        if (mode === 'recall' || mode === 'reflect') {
+        if (mode === 'recall' || mode === 'prompt' || mode === 'reflect') {
           activeMode = mode;
           setMode(mode);
         }

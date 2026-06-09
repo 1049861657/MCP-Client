@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 
 import {
+  debugPrompt,
   debugRecall,
   debugReflect,
   formatMemoryDebugError,
@@ -45,6 +46,16 @@ export class MemoryDebugController {
       res.json({ success: true, ...payload });
     } catch (error) {
       MemoryDebugController.sendError(res, 'reflect', error);
+    }
+  }
+
+  static async prompt(req: Request, res: Response): Promise<void> {
+    try {
+      const query = parseQueryBody(req.body);
+      const payload = await debugPrompt(query);
+      res.json({ success: true, ...payload });
+    } catch (error) {
+      MemoryDebugController.sendError(res, 'prompt', error);
     }
   }
 

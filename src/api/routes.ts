@@ -21,10 +21,11 @@ router.post('/chat/permission-resolve', AiController.permissionResolve);
 // 配置路由
 router.get('/config/features', ConfigController.getFeatureConfig);
 
-// P3-02-B-06：Hindsight 记忆调试（只读 recall / reflect）
+// P3-02-B-06：Hindsight 记忆调试（只读 recall / reflect / prompt 注入预览）
 router.get('/memory/debug/meta', MemoryDebugController.getMeta);
 router.post('/memory/debug/recall', MemoryDebugController.recall);
 router.post('/memory/debug/reflect', MemoryDebugController.reflect);
+router.post('/memory/debug/prompt', MemoryDebugController.prompt);
 router.get('/config/quick-messages', ConfigController.getQuickMessages);
 router.post('/config/quick-messages/save', ConfigController.saveQuickMessages);
 

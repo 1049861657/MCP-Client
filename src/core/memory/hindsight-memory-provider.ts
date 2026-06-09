@@ -17,15 +17,23 @@ import { Logger } from '../../utils/logger.js';
 const RECALL_LOG_TEXT_MAX = 300;
 
 const MEMORY_SECTION_PREFIX =
-  '## 跨会话记忆（Hindsight）\n\n' +
-  '以下为历史会话中提取的用户偏好与项目约定。**当前任务进度、目录结构、工具实时观察结果以本会话上下文为准。**' +
-  '若多条记忆矛盾，优先采纳含状态演变（曾为 X、现为 Y）的条目及本会话用户最新表述。';
+  '## 跨会话记忆\n\n' +
+  '以下内容来自以往会话：长期**归纳观察**（多事实综合后的巩固知识）与**世界事实**（客观第三人称陈述）。' +
+  '文首摘要（若有）为更高优先级的长期偏好汇总。\n\n' +
+  '使用规则：\n' +
+  '- **当前会话优先**：任务进度、工作目录、工具返回的实时结果，以本会话上下文为准。\n' +
+  '- **矛盾时**：优先采纳写明状态演变（「曾为 X，现为 Y」）的条目；其余以本会话用户最新表述为准。\n' +
+  '- **按需引用**：仅在与当前问题相关时采用；无关条目可忽略。\n' +
+  '- **类型说明**：「归纳观察」为综合结论；「世界事实」为单条客观记录，二者可重叠，以归纳观察为准。';
 
 const RECALL_TYPE_LABELS: Record<string, string> = {
-  observation: '已巩固的偏好与模式',
-  world: '项目约定与客观事实',
-  experience: '相关经历'
+  observation: '归纳观察（长期偏好与模式）',
+  world: '世界事实（客观信息与事件）',
+  experience: '代理经历（助手侧行为记录）'
 };
+
+/** Cloud 控制台心智模型 id，与 bank 绑定；不存在或 content 空时跳过 */
+const USER_PREFERENCES_MENTAL_MODEL_ID = 'user-preferences';
 
 let client: HindsightClient | null = null;
 const ensuredBanks = new Set<string>();
@@ -228,6 +236,35 @@ export async function ensureHindsightBank(
   syncedBankConfigKeys.set(bankId, configSyncKey);
 }
 
+async function fetchUserPreferencesMentalModelForPrompt(
+  bankId: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const hindsight = getHindsightClient();
+  if (!hindsight) {
+    return '';
+  }
+
+  try {
+    const model = await hindsight.getMentalModel(bankId, USER_PREFERENCES_MENTAL_MODEL_ID, {
+      signal
+    });
+    const content = (model.content ?? '').trim();
+    if (!content) {
+      return '';
+    }
+    return content;
+  } catch (error) {
+    if (!(error instanceof HindsightError && error.statusCode === 404)) {
+      Logger.warn(
+        'MEMORY',
+        `getMentalModel(${USER_PREFERENCES_MENTAL_MODEL_ID}) failed: ${formatHindsightError(error)}`
+      );
+    }
+    return '';
+  }
+}
+
 export async function recallForPrompt(
   bankId: string,
   query: string,
@@ -242,12 +279,16 @@ export async function recallForPrompt(
 
   try {
     await ensureHindsightBank(bankId, signal);
-    const response = await hindsight.recall(bankId, trimmedQuery, {
-      budget: 'mid',
-      maxTokens: MemoryConfig.recallMaxTokens,
-      types: [...MemoryConfig.recallTypes],
-      signal
-    });
+    const [mentalModelSection, response] = await Promise.all([
+      fetchUserPreferencesMentalModelForPrompt(bankId, signal),
+      hindsight.recall(bankId, trimmedQuery, {
+        budget: 'mid',
+        maxTokens: MemoryConfig.recallMaxTokens,
+        types: [...MemoryConfig.recallTypes],
+        signal
+      })
+    ]);
+
     const auditResults = toRecallAuditResults(response);
     emitMemoryRecallLog({
       requestId: options?.requestId,
@@ -258,11 +299,12 @@ export async function recallForPrompt(
       results: auditResults
     });
 
-    const body = formatRecallResultsForPrompt(response).trim();
-    if (!body) {
+    const recallBody = formatRecallResultsForPrompt(response).trim();
+    const sections = [mentalModelSection, recallBody].filter((part) => part.length > 0);
+    if (sections.length === 0) {
       return '';
     }
-    return `${MEMORY_SECTION_PREFIX}\n\n${body}`;
+    return `${MEMORY_SECTION_PREFIX}\n\n${sections.join('\n\n')}`;
   } catch (error) {
     Logger.warn('MEMORY', `recall(${bankId}) failed: ${formatHindsightError(error)}`);
     return '';

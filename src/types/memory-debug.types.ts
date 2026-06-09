@@ -31,6 +31,16 @@ export interface MemoryDebugReflectPayload {
   references: MemoryDebugReflectReference[];
 }
 
+/** 记忆调试：与聊天注入 system 一致的 memory 段正文 */
+export interface MemoryDebugPromptPayload {
+  bankId: string;
+  query: string;
+  durationMs: number;
+  content: string;
+  charCount: number;
+  injected: boolean;
+}
+
 /** GET /api/memory/debug/meta */
 export interface MemoryDebugMetaPayload {
   enabled: boolean;

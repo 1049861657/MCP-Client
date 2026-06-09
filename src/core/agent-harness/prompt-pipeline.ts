@@ -71,7 +71,7 @@ const SECTION_SOURCES: Record<PromptSectionKey, string> = {
   core: '系统预留，当前通常为空',
   tools: '来自本页编辑框或聊天设置中保存的内容',
   skills_catalog: '后续版本支持',
-  memory: '来自 Hindsight recall（跨会话偏好与项目约定）',
+  memory: '跨会话记忆：长期偏好摘要 + 归纳观察与世界事实',
   project_rules: '来自当前已启用连接服务自带的说明'
 };
 

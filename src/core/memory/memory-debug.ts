@@ -3,6 +3,7 @@ import { HindsightError, type RecallResult, type ReflectResponse } from '@vector
 import { isHindsightMemoryConfigured, MemoryConfig } from '../../config/feature-config.js';
 import type {
   MemoryDebugMetaPayload,
+  MemoryDebugPromptPayload,
   MemoryDebugRecallItem,
   MemoryDebugRecallPayload,
   MemoryDebugReflectPayload,
@@ -11,6 +12,7 @@ import type {
 import {
   ensureHindsightBank,
   getHindsightClient,
+  recallForPrompt,
   resolveHindsightBankId
 } from './hindsight-memory-provider.js';
 
@@ -87,6 +89,24 @@ export async function debugRecall(
     query: trimmedQuery,
     durationMs: Date.now() - startedAt,
     results: (response.results ?? []).map(mapRecallItem)
+  };
+}
+
+/** 与聊天 `_buildMemory` 相同路径，返回最终注入 system 的 memory 段 */
+export async function debugPrompt(
+  query: string,
+  options?: { signal?: AbortSignal }
+): Promise<MemoryDebugPromptPayload> {
+  const { bankId, trimmedQuery } = resolveDebugContext(query);
+  const startedAt = Date.now();
+  const content = await recallForPrompt(bankId, trimmedQuery, { signal: options?.signal });
+  return {
+    bankId,
+    query: trimmedQuery,
+    durationMs: Date.now() - startedAt,
+    content,
+    charCount: content.length,
+    injected: content.trim().length > 0
   };
 }
 

@@ -573,6 +573,7 @@ const MODALS_HTML = `
       <div class="md-mode-tabs" role="tablist" aria-label="调试模式">
         <button type="button" class="md-mode-tab is-active" data-mode="recall" id="memory-debug-tab-recall" role="tab" aria-selected="true">Recall 检索</button>
         <button type="button" class="md-mode-tab" data-mode="reflect" id="memory-debug-tab-reflect" role="tab" aria-selected="false">Reflect 推理</button>
+        <button type="button" class="md-mode-tab" data-mode="prompt" id="memory-debug-tab-prompt" role="tab" aria-selected="false">注入预览</button>
       </div>
       <section class="md-mode-panel is-active" id="memory-debug-panel-recall" role="tabpanel" aria-labelledby="memory-debug-tab-recall">
         <p class="md-intro">根据提问从记忆库找出相关事实与偏好，以列表返回；正常聊天时这些内容会注入 AI 提示词。</p>
@@ -606,6 +607,23 @@ const MODALS_HTML = `
         </div>
         <div id="memory-debug-reflect-results" class="md-results-panel">
           <div class="md-results-empty">输入提问内容后点击「生成回答」查看结果</div>
+        </div>
+      </section>
+      <section class="md-mode-panel" id="memory-debug-panel-prompt" role="tabpanel" aria-labelledby="memory-debug-tab-prompt" hidden>
+        <p class="md-intro">与真实聊天相同：合并长期偏好摘要与 recall（归纳观察、世界事实）后写入 system 的正文（临时调试用）。</p>
+        <div class="md-query-block">
+          <label class="md-field-label" for="memory-debug-prompt-query">提问内容</label>
+          <textarea id="memory-debug-prompt-query" class="md-query-input" rows="4" placeholder="输入与聊天中相同的用户消息"></textarea>
+        </div>
+        <div class="md-actions">
+          <button type="button" id="memory-debug-prompt-submit" class="md-btn-primary">预览注入</button>
+        </div>
+        <div class="md-results-head">
+          <h3 class="md-results-title">注入 system 的 memory 段</h3>
+          <span id="memory-debug-prompt-meta" class="md-results-meta"></span>
+        </div>
+        <div id="memory-debug-prompt-results" class="md-results-panel">
+          <div class="md-results-empty">输入提问内容后点击「预览注入」查看结果</div>
         </div>
       </section>
     </div>
