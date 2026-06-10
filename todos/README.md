@@ -21,6 +21,7 @@
 | [T1-channel-bus.md](./T1-channel-bus.md) | **T1** 个人任务：渠道层 + 消息总线（Web + 飞书 + 钉钉） |
 | [T2-config-plane.md](./T2-config-plane.md) | **T2** 个人任务：配置平面 + 管理员平台（多渠道能力隔离） |
 | [T3-frontend-modernization.md](./T3-frontend-modernization.md) | **T3** 个人任务：遗留 Web UI 全面现代化（Vite + Tailwind · 功能等价） |
+| [T4-account-session.md](./T4-account-session.md) | **T4** 个人任务：用户账号 + Web 会话持久化 |
 
 > AI 改造任务：启用项目 Skill `.cursor/skills/roadmap/`（薄路由，正文以本目录为准）
 
@@ -54,19 +55,20 @@
 | T1（渠道+总线） | 34 | 34 | 100% |
 | T2（配置平面+Admin） | 24 | 24 | 100% |
 | T3（前端现代化） | 31 | 31 | 100% |
+| T4（账号+会话） | 22 | 6 | 27% |
 | P0 | 19 | 19 | 100% |
 | P1 | 30 | 30 | 100% |
 | P2 | 20 | 20 | 100% |
-| P3 | 35 | 12 | 34% |
+| P3 | 31 | 12 | 39% |
 | Backlog | 24 | 0 | — |
 
 > 上表「总数/已完成」仅统计各任务书中 **带 ID 的子项**（`- **Px-yy-zz**` / `- **Tx-yy-zz**`），不含各文件末尾「完成检查清单」。每次勾选子项后同步改数字。
 
 ## 当前阶段
 
-**P3 — Agent 运行时进阶**（主线： [P2-mcp-platform.md](./P2-mcp-platform.md) **已验收** 2026-06-04，子项 20/20、检查清单 5/5；[P0-core-harness.md](./P0-core-harness.md) 完成检查清单仍有未勾 E2E 项）
+**P3 — Agent 运行时进阶**（主线： [P2-mcp-platform.md](./P2-mcp-platform.md) **已验收** 2026-06-04；[P3-03 Skill](./P3-agent-runtime.md) **暂缓** 2026-06-09；[P0-core-harness.md](./P0-core-harness.md) 完成检查清单仍有未勾 E2E 项）
 
-并行 **T**： [T1-channel-bus.md](./T1-channel-bus.md)、[T2-config-plane.md](./T2-config-plane.md) **均已验收**（2026-06-03；T1-07-07 飞书 E2E 为搁置收口）
+并行 **T**： [T4-account-session.md](./T4-account-session.md)；T1/T2 **已验收**（2026-06-03）
 
 ## 相关代码入口
 
@@ -90,7 +92,8 @@ src/config/feature-config.ts
 frontend/src/settings/      # T3：Settings 页 ESM
 frontend/src/info/          # T3：Info 页 ESM
 frontend/src/landing/       # T3：Landing 页
-prisma/schema.prisma
+prisma/schema.prisma            # T4：User / ChatSession / ChatMessage（待增）
+src/api/user-auth.ts          # T4 统一会话鉴权（替代 admin-auth / ADMIN_API_TOKEN）
 ```
 
 > T0 目录架构任务已全部完成，详见 [T0-architecture.md](./T0-architecture.md)（2026-05-26）

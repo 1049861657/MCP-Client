@@ -403,8 +403,10 @@ function setupEventListeners() {
 }
 
 /**
+ * 保存并尝试热重载，返回是否已热应用（false 表示需重启）。提示交由调用方统一展示。
+ *
  * @param {ProvidersData} data
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>}
  */
 async function saveAndReloadProviders(data) {
   await requestJson('/api/settings/providers', {
@@ -415,17 +417,18 @@ async function saveAndReloadProviders(data) {
 
   providersData = data;
 
+  let applied = true;
   try {
     await requestJson('/api/settings/providers/reload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
-    showToast('配置已保存并应用，无需重启服务器', 'success');
   } catch {
-    showToast('配置已保存，但需要重启服务器才能应用更改', 'error');
+    applied = false;
   }
 
   renderProvidersUI();
+  return applied;
 }
 
 /**
@@ -512,8 +515,11 @@ async function saveProvidersConfig() {
     }
 
     syncDefaultProviderFromSelectedProvider();
-    await saveAndReloadProviders(providersData);
-    showToast('配置保存成功', 'success');
+    const applied = await saveAndReloadProviders(providersData);
+    showToast(
+      applied ? '配置保存成功' : '配置已保存，但需要重启服务器才能应用更改',
+      applied ? 'success' : 'error'
+    );
   } catch (error) {
     console.error('保存配置失败:', error);
     showToast(error instanceof Error ? error.message : '保存配置失败', 'error');
@@ -593,7 +599,11 @@ async function deleteProvider(event) {
       activeProviderIndex = Math.max(0, providersData.providers.length - 1);
     }
 
-    await saveAndReloadProviders(providersData);
+    const applied = await saveAndReloadProviders(providersData);
+    showToast(
+      applied ? '提供商已删除' : '已删除，但需要重启服务器才能应用更改',
+      applied ? 'success' : 'error'
+    );
   } catch (error) {
     console.error('删除提供商失败:', error);
     showToast(error instanceof Error ? error.message : '删除失败', 'error');

@@ -26,6 +26,14 @@ export const CHAT_SESSION_ID_PREFIX = 'session_';
 export const CHAT_SETTINGS_KEY = 'aiChatSettings';
 
 /**
+ * localStorage：快捷消息本地自治（T4-02-04）。
+ * 首次访问从 `GET /api/config/quick-messages` 拉服务端种子写入；之后增删改全在本地，
+ * guest/authed 同行为；清空此键后回落服务端种子默认值。
+ * 存储结构：`{ messages: QuickMessage[]; categories: string[] }`。
+ */
+export const CHAT_QUICK_MESSAGES_KEY = 'aiQuickMessages';
+
+/**
  * 压缩基线 localStorage 键前缀；完整键 `aiCompactBaseline:{sessionId}`。
  *
  * @param {string} sessionId

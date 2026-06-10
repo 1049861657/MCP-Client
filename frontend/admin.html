@@ -14,6 +14,7 @@
                     <span class="auth-status-dot auth-status-dot--on" aria-hidden="true"></span>
                     已连接
                 </span>
+                <button type="button" id="btn-users" class="btn-secondary btn-sm hidden">用户管理</button>
                 <button type="button" id="btn-logout" class="btn-text btn-sm hidden">退出</button>
             </div>
         </header>
@@ -22,27 +23,9 @@
             <div class="w-full max-w-[400px] rounded-xl border border-[var(--color-border)] bg-white px-7 py-8 shadow-[0_8px_28px_rgb(0_0_0/0.06)]">
                 <header class="text-center">
                     <h1 class="m-0 text-[22px] font-semibold tracking-tight">渠道管理</h1>
-                    <p class="auth-gate-lead mt-2.5 text-sm leading-relaxed text-[var(--color-text-muted)]">配置钉钉、飞书等 IM 渠道</p>
                 </header>
-                <form id="auth-form" class="auth-gate-form mt-7 border-t border-[#eee] pt-6" autocomplete="off">
-                    <label class="mb-2 block text-[13px] font-medium" for="admin-token">密钥</label>
-                    <input
-                        type="text"
-                        id="admin-token"
-                        name="gate-secret"
-                        placeholder="输入密钥"
-                        autocomplete="off"
-                        autocapitalize="off"
-                        autocorrect="off"
-                        spellcheck="false"
-                        inputmode="text"
-                        data-1p-ignore
-                        data-lpignore="true"
-                        class="field-input field-input--secret min-h-11 w-full text-[15px] tracking-wide"
-                    >
-                    <p id="auth-error" class="field-error mt-2.5 hidden"></p>
-                    <button type="button" id="btn-connect" class="btn-primary btn-block mt-5 min-h-11 text-sm">连接</button>
-                </form>
+                <div id="auth-mount" class="mt-2"></div>
+                <p id="auth-error" class="field-error mt-2.5 hidden"></p>
             </div>
         </div>
 

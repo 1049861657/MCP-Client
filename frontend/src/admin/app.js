@@ -1,11 +1,12 @@
 import './style.css';
 import { icon } from './icons.js';
 import { mountNavbar } from '../shared/navbar.js';
+import { openAuthModal } from '../auth/auth-modal.js';
+import { getSession, signOut } from '../auth/session.js';
 
 mountNavbar();
 
 const API = '/api/admin';
-const SESSION_TOKEN_KEY = 'mcp-admin-token';
 
 const IM_PERMISSION_FOOTNOTES = {
   open: '除黑名单外自动执行；对话中不询问。',
@@ -20,10 +21,10 @@ const IM_CHANNELS = [
 const els = {
   shell: document.querySelector('.admin-shell'),
   pageHeader: document.getElementById('page-header'),
-  authForm: document.getElementById('auth-form'),
-  token: document.getElementById('admin-token'),
+  authMount: document.getElementById('auth-mount'),
   authError: document.getElementById('auth-error'),
   authStatus: document.getElementById('auth-status'),
+  btnUsers: document.getElementById('btn-users'),
   btnLogout: document.getElementById('btn-logout'),
   emptyState: document.getElementById('empty-state'),
   workspace: document.getElementById('workspace'),
@@ -52,13 +53,15 @@ const els = {
   saveOk: document.getElementById('save-ok'),
   saveErr: document.getElementById('save-err'),
   btnSave: document.getElementById('btn-save'),
-  btnDiscard: document.getElementById('btn-discard'),
-  btnConnect: document.getElementById('btn-connect')
+  btnDiscard: document.getElementById('btn-discard')
 };
+
+const SUPERADMIN_ROLE = 'SUPERADMIN';
 
 const state = {
   connected: false,
   connecting: false,
+  currentUser: null,
   activeChannel: 'dingtalk',
   providers: [],
   defaultProvider: '',
@@ -351,9 +354,10 @@ function updateAuthTrigger() {
   const connected = state.connected;
   show(els.authStatus, connected);
   show(els.btnLogout, connected);
+  show(els.btnUsers, connected && state.currentUser?.role === SUPERADMIN_ROLE);
 }
 
-function logout() {
+async function logout() {
   if (state.dirtyChannels.size > 0) {
     const ok = window.confirm('有未保存的更改，确定退出？');
     if (!ok) return;
@@ -368,42 +372,27 @@ function logout() {
   setText(els.saveOk, '');
   setText(els.saveErr, '');
   setText(els.authError, '');
-  clearStoredToken();
-  if (els.token) els.token.value = '';
+  try {
+    await signOut();
+  } catch {
+    // 已失效会话忽略
+  }
   setConnectedUI(false);
 }
 
-function readStoredToken() {
+async function restoreSession() {
   try {
-    const token = sessionStorage.getItem(SESSION_TOKEN_KEY);
-    return token && token.trim() ? token.trim() : '';
-  } catch {
-    return '';
-  }
-}
-
-function persistToken(token) {
-  try {
-    const value = token.trim();
-    if (value) {
-      sessionStorage.setItem(SESSION_TOKEN_KEY, value);
-    } else {
-      sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    const user = await getSession();
+    if (user) {
+      state.currentUser = user;
+      await loadWorkspace();
+      return;
     }
   } catch {
-    // ignore quota / private mode
+    // 未登录走登录面板
   }
-}
-
-function clearStoredToken() {
-  persistToken('');
-}
-
-function tryRestoreSession() {
-  const stored = readStoredToken();
-  if (!stored || !els.token) return;
-  els.token.value = stored;
-  void connect();
+  state.currentUser = null;
+  setConnectedUI(false);
 }
 
 function bindFormToDom() {
@@ -525,21 +514,33 @@ function setConnectedUI(connected) {
   document.body.classList.toggle('admin-page--connected', connected);
   updateAuthTrigger();
   if (!connected) {
-    window.requestAnimationFrame(() => {
-      els.token?.focus({ preventScroll: true });
-    });
+    renderAuthPanel();
   }
 }
 
+function renderAuthPanel() {
+  if (!els.authMount) return;
+  const prompt = document.createElement('div');
+  prompt.className = 'flex flex-col items-center gap-4 text-center';
+  prompt.innerHTML =
+    '<p class="auth-gate-lead text-sm leading-relaxed text-[var(--color-text-muted)]">登录后管理钉钉、飞书等 IM 渠道</p>';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn-primary btn-block min-h-11 text-sm';
+  btn.textContent = '登录';
+  btn.addEventListener('click', () =>
+    openAuthModal({ onSuccess: () => void loadWorkspace(), lead: '登录后管理钉钉、飞书等 IM 渠道' })
+  );
+  prompt.appendChild(btn);
+  els.authMount.replaceChildren(prompt);
+}
+
 async function adminFetch(path, init) {
-  const token = els.token ? els.token.value.trim() : '';
-  if (!token) throw new Error('请填写密钥');
   const headers = new Headers(init?.headers ?? {});
-  headers.set('X-Admin-Token', token);
   if (init?.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  const res = await fetch(API + path, { ...init, headers });
+  const res = await fetch(API + path, { ...init, headers, credentials: 'include' });
   const text = await res.text();
   let data = null;
   if (text) {
@@ -556,23 +557,21 @@ async function adminFetch(path, init) {
   return data;
 }
 
-async function connect() {
+async function loadWorkspace() {
   if (state.connecting) return;
   state.connecting = true;
   setText(els.authError, '');
   setText(els.saveOk, '');
   setText(els.saveErr, '');
-  if (els.btnConnect) {
-    els.btnConnect.textContent = '连接中…';
-    els.btnConnect.disabled = true;
-  }
 
   try {
-    const [profileList, provRes, mcpRes] = await Promise.all([
+    const [user, profileList, provRes, mcpRes] = await Promise.all([
+      getSession(),
       adminFetch('/profiles'),
       fetch('/api/settings/providers'),
       fetch('/api/mcp/servers?scope=configured')
     ]);
+    state.currentUser = user;
 
     const profiles = Array.isArray(profileList) ? profileList : [];
     state.profilesById = {};
@@ -602,22 +601,13 @@ async function connect() {
     }
 
     state.dirtyChannels.clear();
-    persistToken(els.token ? els.token.value : '');
     setConnectedUI(true);
     loadFormForActive();
   } catch (e) {
     setConnectedUI(false);
-    const message = e instanceof Error ? e.message : String(e);
-    if (/未授权|401|无效|Unauthorized/i.test(message)) {
-      clearStoredToken();
-    }
-    setText(els.authError, message);
+    setText(els.authError, e instanceof Error ? e.message : String(e));
   } finally {
     state.connecting = false;
-    if (els.btnConnect) {
-      els.btnConnect.disabled = false;
-      els.btnConnect.textContent = '连接';
-    }
   }
 }
 
@@ -780,6 +770,96 @@ function bindFormListeners() {
   });
 }
 
+async function openUserManagement() {
+  const overlay = document.createElement('div');
+  overlay.className = 'app-confirm-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  const panel = document.createElement('div');
+  panel.className = 'app-confirm-panel';
+  panel.style.maxWidth = '560px';
+  panel.style.width = '92%';
+  panel.innerHTML = '<h2 class="app-confirm-title">用户管理</h2><div class="users-body mt-3 text-sm">加载中…</div>';
+  const body = panel.querySelector('.users-body');
+  overlay.appendChild(panel);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+  document.body.appendChild(overlay);
+
+  async function refresh() {
+    try {
+      const users = await adminFetch('/users');
+      renderUsers(Array.isArray(users) ? users : []);
+    } catch (e) {
+      if (body) body.textContent = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  function renderUsers(users) {
+    if (!body) return;
+    body.replaceChildren();
+    const list = document.createElement('div');
+    list.className = 'flex flex-col gap-2';
+    for (const u of users) {
+      const row = document.createElement('div');
+      row.className = 'flex items-center justify-between gap-2 rounded-md border border-[#eee] bg-[#fafafa] px-3 py-2';
+      const info = document.createElement('div');
+      info.className = 'min-w-0';
+      info.innerHTML = `<div class="font-medium truncate">${u.username || '(无用户名)'}</div><div class="text-xs text-[var(--color-text-muted)] truncate">${u.email || ''}</div>`;
+
+      const actions = document.createElement('div');
+      actions.className = 'flex items-center gap-2 shrink-0';
+      const roleSel = document.createElement('select');
+      roleSel.className = 'field-input';
+      for (const r of [SUPERADMIN_ROLE, 'USER']) {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r === SUPERADMIN_ROLE ? '超级管理员' : '普通用户';
+        if (u.role === r) opt.selected = true;
+        roleSel.appendChild(opt);
+      }
+      roleSel.addEventListener('change', async () => {
+        try {
+          await adminFetch('/users/' + encodeURIComponent(u.id) + '/role', {
+            method: 'POST',
+            body: JSON.stringify({ role: roleSel.value })
+          });
+          await refresh();
+        } catch (e) {
+          window.alert(e instanceof Error ? e.message : String(e));
+          await refresh();
+        }
+      });
+
+      const resetBtn = document.createElement('button');
+      resetBtn.type = 'button';
+      resetBtn.className = 'btn-text btn-text--sm';
+      resetBtn.textContent = '重置密码';
+      resetBtn.addEventListener('click', async () => {
+        const pwd = window.prompt('输入新密码（至少 8 位）');
+        if (!pwd) return;
+        try {
+          await adminFetch('/users/' + encodeURIComponent(u.id) + '/reset-password', {
+            method: 'POST',
+            body: JSON.stringify({ password: pwd })
+          });
+          window.alert('已重置并吊销该用户会话');
+        } catch (e) {
+          window.alert(e instanceof Error ? e.message : String(e));
+        }
+      });
+
+      actions.append(roleSel, resetBtn);
+      row.append(info, actions);
+      list.appendChild(row);
+    }
+    body.appendChild(list);
+  }
+
+  await refresh();
+}
+
 function mountStaticIcons() {
   const map = {
     'sec-model-icon': 'cpu',
@@ -796,33 +876,14 @@ function init() {
   mountStaticIcons();
 
   renderChannelRail();
-  setConnectedUI(false);
 
-  els.authForm?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    connect();
-  });
-
-  els.token?.addEventListener('mousedown', (e) => {
-    e.stopPropagation();
-    els.token?.focus();
-  });
-
-  els.token?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      connect();
-    }
-  });
-
-  els.btnConnect?.addEventListener('click', connect);
-  els.btnLogout?.addEventListener('click', logout);
-
+  els.btnLogout?.addEventListener('click', () => void logout());
+  els.btnUsers?.addEventListener('click', () => void openUserManagement());
   els.btnSave?.addEventListener('click', save);
   els.btnDiscard?.addEventListener('click', discardChanges);
 
   bindFormListeners();
-  tryRestoreSession();
+  void restoreSession();
 }
 
 init();

@@ -1,5 +1,6 @@
 import './navbar-shell.css';
 import { fetchJson } from './fetch-json.js';
+import { mountNavAuth } from '../auth/nav-auth.js';
 
 const NAV_LINKS = [
   { href: '/', label: '首页', match: (path) => path === '/' || path === '/index.html' },
@@ -47,8 +48,17 @@ export function mountNavbar(doc = document) {
     <span id="client-version" class="navbar__client-version"></span>
   `;
 
+  const authArea = doc.createElement('div');
+  authArea.id = 'navbar-auth';
+  authArea.className = 'flex h-full items-center gap-2';
+
+  const right = doc.createElement('div');
+  right.className = 'flex items-center gap-2.5 pr-3';
+  right.appendChild(clientInfo);
+  right.appendChild(authArea);
+
   nav.appendChild(links);
-  nav.appendChild(clientInfo);
+  nav.appendChild(right);
 
   const body = doc.body;
   if (body.firstChild) {
@@ -60,6 +70,7 @@ export function mountNavbar(doc = document) {
   body.classList.add('has-navbar');
 
   void loadClientInfo(doc);
+  void mountNavAuth(authArea);
 }
 
 /**

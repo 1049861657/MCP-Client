@@ -2,6 +2,7 @@
  * AI 聊天应用核心模块 — ESM 工厂，编排 data / api / ui / utils
  */
 
+import { getSession } from '../auth/session.js';
 import { createChatApi } from './api.js';
 import { createChatData } from './data.js';
 import { buildApiMessagesFromHistory } from './message-history-builder.js';
@@ -1146,6 +1147,13 @@ function createAppMethods() {
 
         const promptContent = promptTextarea.value;
 
+        // guest 配置只读：未登录不允许保存服务端 tool-prompt（看到的是默认 seed）
+        const user = await getSession();
+        if (!user) {
+          this.ui.showTooltip?.('请先登录后再保存配置');
+          return;
+        }
+
         promptTextarea.disabled = true;
 
         const response = await fetch('/api/settings/tool-prompt', {
@@ -1153,6 +1161,7 @@ function createAppMethods() {
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include',
           body: JSON.stringify({ prompt: promptContent }),
         });
 

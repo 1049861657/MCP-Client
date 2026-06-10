@@ -1,9 +1,11 @@
 import 'dotenv/config';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import { toNodeHandler } from 'better-auth/node';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ServerConfig } from './config/app.config.js';
+import { auth } from './lib/auth.js';
 import apiRoutes from './api/routes.js';
 import { Logger } from './utils/logger.js';
 import { ConfigService } from './services/config.service.js';
@@ -22,6 +24,11 @@ const app = express();
 
 // 配置中间件
 app.use(cors());
+
+// better-auth 内置端点（注册/登录/登出/get-session/change-password 等）。
+// 必须在 express.json() 之前挂载：toNodeHandler 自行消费原始请求体。
+app.all('/api/auth/*splat', toNodeHandler(auth));
+
 app.use(express.json({ limit: ServerConfig.jsonBodyLimit }));
 app.use(express.static(path.join(__dirname, '../public')));
 

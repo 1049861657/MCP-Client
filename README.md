@@ -86,7 +86,7 @@ MCP-Client/
 
 ### 渠道管理（`admin.html`）
 
-- 配置钉钉、飞书等渠道的默认模型与 MCP 工具（需 `ADMIN_API_TOKEN`）
+- 配置钉钉、飞书等渠道的默认模型与 MCP 工具（需登录；账号体系见 better-auth）
 - 聊天页偏好存浏览器 `localStorage`；IM 渠道能力存 AgentProfile
 
 ## 配置
@@ -97,7 +97,8 @@ MCP-Client/
 |------|------|
 | `DATABASE_URL` | Prisma SQLite 路径 |
 | `REDIS_URL` | 消息总线（必填） |
-| `ADMIN_API_TOKEN` | Admin API 鉴权（请求头 `X-Admin-Token`） |
+| `BETTER_AUTH_SECRET` | better-auth 会话/Cookie 签名密钥（生产必填） |
+| `BETTER_AUTH_URL` | 站点基址（如 `http://localhost:3000`） |
 | `INBOUND_WORKER_CONCURRENCY` | Inbound Worker 并发数（可选，默认 5） |
 | `FEISHU_APP_ID` / `FEISHU_APP_SECRET` | 飞书渠道（未配置则不启动） |
 | `FEISHU_DOMAIN` | 国际 Lark 租户设为 `lark`（可选） |

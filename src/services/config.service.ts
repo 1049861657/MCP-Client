@@ -249,13 +249,6 @@ export class ConfigService {
     return merged;
   }
 
-  static async saveQuickMessageCategories(categories: string[]): Promise<boolean> {
-    const normalized = categories.filter(
-      (category): category is string => typeof category === 'string' && category.trim().length > 0,
-    );
-    return this.saveSetting(QUICK_MESSAGE_CATEGORIES_KEY, normalized);
-  }
-
   static async getQuickMessagesConfig(): Promise<QuickMessage[]> {
     try {
       // 直接从QuickMessage表获取数据
@@ -279,33 +272,4 @@ export class ConfigService {
     }
   }
 
-  /**
-   * 保存快捷消息配置
-   * @param config 快捷消息配置
-   * @returns 成功返回true，失败抛出异常
-   */
-  static async saveQuickMessagesConfig(config: QuickMessage[]): Promise<boolean> {
-    try {
-      // 清空现有数据
-      await prisma.quickMessage.deleteMany({});
-
-      // 创建新数据
-      for (const msg of config) {
-        await prisma.quickMessage.create({
-          data: {
-            sortId: msg.sortId,
-            content: msg.content,
-            result: msg.result,
-            category: msg.category
-          }
-        });
-      }
-
-      Logger.info('ConfigService', '快捷消息配置已保存到数据库');
-      return true;
-    } catch (error) {
-      Logger.error('ConfigService', '保存快捷消息配置失败:', error);
-      throw error;
-    }
-  }
 } 

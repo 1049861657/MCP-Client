@@ -1,4 +1,5 @@
 import { confirmModal } from '../../shared/ui/modal.js';
+import { CHAT_QUICK_MESSAGES_KEY } from '../storage-contract.js';
 import { bindChatModalClose, closeChatModal, openChatModal } from './modal-host.js';
 
 const ICON_EDIT =
@@ -28,6 +29,36 @@ function parseQuickMessagesResponse(data) {
     messages: payload.messages,
     categories: payload.categories.filter((item) => typeof item === 'string' && item.trim().length > 0),
   };
+}
+
+/**
+ * 本地优先加载快捷消息：localStorage 有则用，无则拉服务端种子并落地（T4-02-04）。
+ * @returns {Promise<{ messages: Array<{ id: string; sortId: number; content: string; result: string; category: string }>; categories: string[] }>}
+ */
+async function loadLocalQuickMessages() {
+  try {
+    const raw = localStorage.getItem(CHAT_QUICK_MESSAGES_KEY);
+    if (raw) {
+      return parseQuickMessagesResponse(JSON.parse(raw));
+    }
+  } catch {
+    // 本地数据损坏则回落服务端种子
+  }
+  const response = await fetch('/api/config/quick-messages');
+  if (!response.ok) {
+    throw new Error(`请求失败: ${response.status}`);
+  }
+  const seed = parseQuickMessagesResponse(await response.json());
+  persistLocalQuickMessages(seed.messages, seed.categories);
+  return seed;
+}
+
+/**
+ * @param {Array<{ id: string; sortId: number; content: string; result: string; category: string }>} messages
+ * @param {string[]} categories
+ */
+function persistLocalQuickMessages(messages, categories) {
+  localStorage.setItem(CHAT_QUICK_MESSAGES_KEY, JSON.stringify({ messages, categories }));
 }
 
 /**
@@ -734,28 +765,8 @@ export function createQuickMessageUi(getApp, getUi) {
       getUi().showTooltip('没有可保存的数据');
       return;
     }
-
-    try {
-      const response = await fetch('/api/config/quick-messages/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: quickMessagesData,
-          categories: categoryNames,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(`保存失败: ${response.status}`);
-      }
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.message || '未知错误');
-      }
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      console.error('保存快捷消息失败:', err);
-      getUi().showTooltip(`保存失败: ${err.message}`);
-    }
+    // 本地自治：写 localStorage，不再回写服务端（服务端仅作种子，见 T4-02-04）
+    persistLocalQuickMessages(quickMessagesData, categoryNames);
   }
 
   async function showQuickMessagesModal() {
@@ -770,11 +781,7 @@ export function createQuickMessageUi(getApp, getUi) {
     document.getElementById('qm-empty-state')?.classList.add('hidden');
 
     try {
-      const response = await fetch('/api/config/quick-messages');
-      if (!response.ok) {
-        throw new Error(`请求失败: ${response.status}`);
-      }
-      const payload = parseQuickMessagesResponse(await response.json());
+      const payload = await loadLocalQuickMessages();
       quickMessagesData = payload.messages;
       categoryNames = payload.categories;
       currentCategory = categoryNames[0] ?? '';
@@ -819,11 +826,7 @@ export function createQuickMessageUi(getApp, getUi) {
     existingBubbles?.remove();
 
     try {
-      const response = await fetch('/api/config/quick-messages');
-      if (!response.ok) {
-        throw new Error(`请求失败: ${response.status}`);
-      }
-      const { messages } = parseQuickMessagesResponse(await response.json());
+      const { messages } = await loadLocalQuickMessages();
       if (messages.length === 0) {
         return;
       }

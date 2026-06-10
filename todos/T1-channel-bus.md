@@ -91,7 +91,7 @@ register(requestId, res, abortController)
 | 消息总线 | `bullmq` + `ioredis` + Redis **6.2+**（公司实例 6.2.6） | 内存队列、Kafka/NATS |
 | Envelope | `zod` + CloudEvents 核心字段 | `@cloudevents/sdk` |
 | Web | 自研 Adapter | 第三方 Gateway 嵌入 |
-| Session 持久化 | Web 用 body **`messages[]`**；飞书用 **`feishu:{chatId}`** + 当轮消息 | 跨端统一会话见 P3-04 |
+| Session 持久化 | Web 用 body **`messages[]`**；飞书用 **`feishu:{chatId}`** + 当轮消息 | Web 账号+服务端会话见 [T4-account-session.md](./T4-account-session.md) |
 
 **BullMQ**：`maxRetriesPerRequest: null`；`attempts` + 指数退避；`removeOnComplete` / `removeOnFail`。
 

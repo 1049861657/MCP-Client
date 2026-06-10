@@ -14,17 +14,20 @@ datasource db {
 }
 
 // 提供商类型枚举
+
 enum ProviderType {
   OPENAI
 }
 
 // 连接类型枚举（远程 MCP 使用 Streamable HTTP，不再使用 SSE 命名）
+
 enum ConnectionType {
   STDIO
   HTTP
 }
 
 // T2 配置平面：路由渠道（与 ChannelId 一致）
+
 enum ConfigChannelId {
   web
   feishu
@@ -32,83 +35,91 @@ enum ConfigChannelId {
 }
 
 // 通用设置模型
+
 model Setting {
   key   String @id // 主键，例如 'defaultProvider', 'ChatConfig', 'HistoryConfig'
-  value Json   // 存储设置值，对于复杂结构可以存储 JSON 字符串
+  value Json // 存储设置值，对于复杂结构可以存储 JSON 字符串
 }
 
 // AI 提供商模型
+
 model AIProvider {
-  id                String         @id @default(cuid())
-  name              String      @unique // 提供商名称
+  id                String       @id @default(cuid())
+  name              String       @unique // 提供商名称
   type              ProviderType // 使用枚举类型
   apiUrl            String
   apiKey            String
-  defaultModelValue String      // 该提供商的默认模型 value
-  models            AIModel[]   // 关联的模型列表
+  defaultModelValue String // 该提供商的默认模型 value
+  models            AIModel[] // 关联的模型列表
 }
 
 // AI 模型模型
+
 model AIModel {
-  id         String        @id @default(cuid())
-  value      String     // 模型的值
-  label      String     // 模型的标签
-  providerId String        // 外键
+  id         String     @id @default(cuid())
+  value      String // 模型的值
+  label      String // 模型的标签
+  providerId String // 外键
   provider   AIProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
-  @@unique([providerId, value]) // 确保每个提供商下模型值唯一
+  // 确保每个提供商下模型值唯一
+  @@unique([providerId, value])
 }
 
 // MCP 服务器模型
+
 model MCPServer {
-  id             String            @id @default(cuid())
+  id             String         @id @default(cuid())
   serverId       String         @unique // 对应 JSON 中的 id 字段
   name           String
   isActive       Boolean
   connectionType ConnectionType // 使用枚举类型
-  command        String?        // stdio 类型可选
-  args           Json?          // stdio 类型可选，存储 ["arg1", "arg2"]
-  mcpUrl         String?        // HTTP 类型：MCP Streamable HTTP 端点
-  headers        Json?          // HTTP 类型可选：自定义请求头，存储 {"key": "value"}
+  command        String? // stdio 类型可选
+  args           Json? // stdio 类型可选，存储 ["arg1", "arg2"]
+  mcpUrl         String? // HTTP 类型：MCP Streamable HTTP 端点
+  headers        Json? // HTTP 类型可选：自定义请求头，存储 {"key": "value"}
 }
 
 // MCP 远程服 OAuth 凭据（按 serverId 隔离）
+
 model MCPServerAuth {
-  serverId       String   @id
+  serverId       String    @id
   tokens         Json?
   expiresAt      DateTime?
   clientInfo     Json?
   codeVerifier   String?
   discoveryState Json?
   oauthState     String?
-  updatedAt      DateTime @updatedAt
+  updatedAt      DateTime  @updatedAt
 }
 
 // T2：Agent 能力档案（模型、工具、Prompt 等）
+
 model AgentProfile {
-  id                    String        @id @default(cuid())
-  profileId             String        @unique
-  displayName           String
-  vendor                String?
-  defaultModel          String
-  temperature           Float?
-  maxTokens             Int?
-  enableTools           Boolean       @default(true)
-  enablePrompts         Boolean       @default(true)
-  maxToolCallRounds     Int           @default(25)
+  id                String      @id @default(cuid())
+  profileId         String      @unique
+  displayName       String
+  vendor            String?
+  defaultModel      String
+  temperature       Float?
+  maxTokens         Int?
+  enableTools       Boolean     @default(true)
+  enablePrompts     Boolean     @default(true)
+  maxToolCallRounds Int         @default(25)
   /// open | interactive | locked；IM 管理端仅 open / locked
-  permissionMode        String        @default("locked")
-  enableAutoCompact     Boolean?
-  compactModel          String?
-  mcpServerIds          Json          @default("[]")
-  toolPrompt            String?
-  tenantId              String?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-  routes                RouteRule[]
+  permissionMode    String      @default("locked")
+  enableAutoCompact Boolean?
+  compactModel      String?
+  mcpServerIds      Json        @default("[]")
+  toolPrompt        String?
+  tenantId          String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  routes            RouteRule[]
 }
 
 // T2：入站路由（channel + matchKey → profileId）
+
 model RouteRule {
   id        String          @id @default(cuid())
   channel   ConfigChannelId
@@ -126,12 +137,112 @@ model RouteRule {
 }
 
 // 快捷消息模型
+
 model QuickMessage {
-  id         String    @id @default(cuid())
-  sortId     Int    @unique // 排序用
-  content    String
-  result     String
-  category   String @default("默认")
+  id       String @id @default(cuid())
+  sortId   Int    @unique // 排序用
+  content  String
+  result   String
+  category String @default("默认")
 }
 
+model User {
+  id              String    @id
+  name            String
+  email           String
+  emailVerified   Boolean   @default(false)
+  image           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  username        String?
+  displayUsername String?
+  role            String?
+  banned          Boolean?  @default(false)
+  banReason       String?
+  banExpires      DateTime?
+  sessions        Session[]
+  accounts        Account[]
+  chatSessions    ChatSession[]
 
+  @@unique([email])
+  @@unique([username])
+  @@map("user")
+}
+
+model Session {
+  id             String   @id
+  expiresAt      DateTime
+  token          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// T4：聊天会话（仅已登录用户；guest 走浏览器 IndexedDB 不入库）。
+// 区别于 better-auth Session（登录会话）与 Bus sessionKey（消息总线分区键）。
+model ChatSession {
+  id                  String        @id @default(cuid())
+  userId              String
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title               String? // 落库时由首条 user 消息截断生成
+  compactBaselineJson Json? // 压缩基线（摘要 + tail 切片），随会话存服务端
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  messages            ChatMessage[]
+
+  @@index([userId])
+}
+
+// T4：聊天消息。append-only：写入后不更新不删除，重试产生新消息；仅随会话级联删除
+model ChatMessage {
+  id            String      @id @default(cuid())
+  sessionId     String
+  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role          String // user | assistant | tool
+  content       String?
+  toolCallsJson Json?
+  reasoning     String?
+  createdAt     DateTime    @default(now())
+
+  @@index([sessionId, createdAt])
+}

@@ -11,7 +11,6 @@ import type { AgentProfileRecord } from '../types/config-plane.types.js';
 import { EDITABLE_IM_CHANNEL_PROFILE_IDS } from '../types/config-plane.types.js';
 import { McpReachabilityService } from '../services/mcp-reachability.service.js';
 import { Logger } from '../utils/logger.js';
-import { assertAdminAuth } from './admin-auth.js';
 
 const VALID_CHANNELS: ChannelId[] = ['web', 'feishu', 'dingtalk'];
 const EDITABLE_PROFILE_IDS = new Set<string>(EDITABLE_IM_CHANNEL_PROFILE_IDS);
@@ -114,7 +113,6 @@ async function reloadAfterMutation(
 
 export class AdminController {
   static async listProfiles(req: Request, res: Response): Promise<void> {
-    if (!assertAdminAuth(req, res)) return;
     try {
       const rows = await prisma.agentProfile.findMany({ orderBy: { profileId: 'asc' } });
       res.json(rows.map(mapProfileRow));
@@ -124,7 +122,6 @@ export class AdminController {
   }
 
   static async getProfile(req: Request, res: Response): Promise<void> {
-    if (!assertAdminAuth(req, res)) return;
     const profileId = routeParamToString(req.params.profileId);
     if (!profileId) {
       sendError(res, 400, '参数无效', 'profileId 不能为空');
@@ -143,12 +140,10 @@ export class AdminController {
   }
 
   static async createProfile(req: Request, res: Response): Promise<void> {
-    if (!assertAdminAuth(req, res)) return;
     sendError(res, 403, '不支持', '渠道方案不可新建，仅可修改钉钉/飞书默认方案');
   }
 
   static async updateProfile(req: Request, res: Response): Promise<void> {
-    if (!assertAdminAuth(req, res)) return;
     const profileId = routeParamToString(req.params.profileId);
     if (!profileId) {
       sendError(res, 400, '参数无效', 'profileId 不能为空');
@@ -223,12 +218,10 @@ export class AdminController {
   }
 
   static async deleteProfile(req: Request, res: Response): Promise<void> {
-    if (!assertAdminAuth(req, res)) return;
     sendError(res, 403, '不支持', '渠道方案不可删除');
   }
 
   static async listRoutes(req: Request, res: Response): Promise<void> {
-    if (!assertAdminAuth(req, res)) return;
     try {
       const channel = parseChannel(req.query.channel);
       const rows = await prisma.routeRule.findMany({
@@ -242,7 +235,6 @@ export class AdminController {
   }
 
   static async createRoute(req: Request, res: Response): Promise<void> {
-    if (!assertAdminAuth(req, res)) return;
     if (!isRecord(req.body)) {
       sendError(res, 400, '参数无效', '请求体无效');
       return;
@@ -277,7 +269,6 @@ export class AdminController {
   }
 
   static async updateRoute(req: Request, res: Response): Promise<void> {
-    if (!assertAdminAuth(req, res)) return;
     const routeId = routeParamToString(req.params.routeId);
     if (!routeId) {
       sendError(res, 400, '参数无效', 'routeId 不能为空');
@@ -305,7 +296,6 @@ export class AdminController {
   }
 
   static async deleteRoute(req: Request, res: Response): Promise<void> {
-    if (!assertAdminAuth(req, res)) return;
     const routeId = routeParamToString(req.params.routeId);
     if (!routeId) {
       sendError(res, 400, '参数无效', 'routeId 不能为空');
@@ -322,7 +312,6 @@ export class AdminController {
 
   /** 手工触发 seed（空库全量写入，或补齐缺失的默认方案） */
   static async seedDefaults(req: Request, res: Response): Promise<void> {
-    if (!assertAdminAuth(req, res)) return;
     try {
       const result = await runConfigPlaneSeed();
       const didWrite =
