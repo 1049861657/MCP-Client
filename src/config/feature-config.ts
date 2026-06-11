@@ -255,7 +255,10 @@ export const HistoryConfig = {
   enableMessageHistory: true,
 
   // 默认历史消息条数（按存储条目计，含 tool 消息）
-  defaultMessageHistoryCount: 20
+  defaultMessageHistoryCount: 20,
+
+  // T4-03：已登录会话历史只读分页每页条数
+  messagesPageSize: 50
 };
 
 /**

@@ -254,9 +254,13 @@ const PERMISSION_MODE_FOOTNOTES = {
  * @param {object} app
  */
 function syncHindsightMemorySettingsUi(app) {
-  const enabled = app.state.hindsightMemoryEnabled === true;
+  // T4-05：guest 无稳定身份关闭外接记忆，整个跨会话记忆模块（含调试）变灰不可点
+  const isAuthed = app.sessionStore?.isAuthed?.() === true;
+  const memoryConfigured = app.state.hindsightMemoryEnabled === true;
+  const enabled = memoryConfigured && isAuthed;
   const card = document.getElementById('settings-hindsight-memory-card');
   const statusDot = document.getElementById('settings-hindsight-memory-status');
+  const statusLabel = document.getElementById('settings-hindsight-memory-status-text');
   const debugLink = document.getElementById('settings-hindsight-memory-debug');
   const toggle = document.getElementById('settings-toggle-skip-memory');
 
@@ -266,12 +270,19 @@ function syncHindsightMemorySettingsUi(app) {
   if (statusDot) {
     statusDot.classList.toggle('settings-hindsight-status-dot--on', enabled);
     statusDot.classList.toggle('settings-hindsight-status-dot--off', !enabled);
-    statusDot.setAttribute('aria-label', enabled ? 'Hindsight 已连接' : 'Hindsight 未配置');
+  }
+  if (statusLabel) {
+    if (enabled) {
+      statusLabel.hidden = true;
+    } else {
+      statusLabel.hidden = false;
+      statusLabel.textContent = !memoryConfigured ? '未配置' : '登录后可用';
+    }
   }
   if (debugLink instanceof HTMLButtonElement) {
-    debugLink.classList.toggle('is-disabled', !enabled);
+    debugLink.hidden = !enabled;
     debugLink.disabled = !enabled;
-    debugLink.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+    debugLink.classList.toggle('is-disabled', !enabled);
   }
   if (toggle instanceof HTMLButtonElement) {
     toggle.disabled = !enabled;

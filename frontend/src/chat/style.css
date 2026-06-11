@@ -1535,6 +1535,10 @@
     @apply overflow-hidden rounded-[14px] border border-[rgb(15_23_42/0.08)] bg-white;
   }
 
+  .settings-card.is-disabled {
+    @apply opacity-55;
+  }
+
   .settings-card-head {
     @apply px-4 pb-1 pt-[13px];
   }
@@ -1559,8 +1563,12 @@
     @apply m-0 mt-[3px] text-xs leading-[1.5] text-[var(--color-text-muted)];
   }
 
+  .settings-hindsight-status {
+    @apply flex items-center gap-1.5;
+  }
+
   .settings-hindsight-status-dot {
-    @apply mt-0.5 h-2 w-2 shrink-0 rounded-full;
+    @apply h-2 w-2 shrink-0 rounded-full;
   }
 
   .settings-hindsight-status-dot--on {
@@ -1569,6 +1577,10 @@
 
   .settings-hindsight-status-dot--off {
     @apply bg-[#e53935];
+  }
+
+  .settings-hindsight-status-text {
+    @apply text-xs font-medium whitespace-nowrap text-[var(--color-text-muted)];
   }
 
   .settings-hindsight-head-right {

@@ -163,17 +163,21 @@ const MODALS_HTML = `
             <div class="settings-card-head settings-card-head--with-action">
               <h3 class="settings-card-title">跨会话记忆</h3>
               <div class="settings-hindsight-head-right">
-                <span
-                  id="settings-hindsight-memory-status"
-                  class="settings-hindsight-status-dot settings-hindsight-status-dot--off"
-                  role="status"
-                  aria-label="Hindsight 未配置"
-                ></span>
+                <div class="settings-hindsight-status">
+                  <span
+                    id="settings-hindsight-memory-status"
+                    class="settings-hindsight-status-dot settings-hindsight-status-dot--off"
+                  ></span>
+                  <span
+                    id="settings-hindsight-memory-status-text"
+                    class="settings-hindsight-status-text"
+                  >未配置</span>
+                </div>
                 <button
                   type="button"
                   id="settings-hindsight-memory-debug"
                   class="settings-hindsight-debug-link"
-                  aria-disabled="true"
+                  hidden
                 >调试 →</button>
               </div>
             </div>

@@ -29,6 +29,14 @@ async function resolveUser(req: Request): Promise<AuthedUser | undefined> {
   return { id: u.id, email: u.email, username: u.username ?? null, role: u.role ?? null };
 }
 
+/**
+ * 可选鉴权：解析到有效会话则返回用户，否则 undefined（不拦截）。
+ * 用于 /api/chat/* 等匿名可用、但已登录时需服务端分流（组上下文 + 落库）的路径。
+ */
+export async function resolveOptionalUser(req: Request): Promise<AuthedUser | undefined> {
+  return resolveUser(req);
+}
+
 /** 需登录：未携带有效会话 Cookie 返回 401，否则注入 req.user */
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const user = await resolveUser(req);

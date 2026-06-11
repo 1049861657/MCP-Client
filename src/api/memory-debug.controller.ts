@@ -8,7 +8,9 @@ import {
   getMemoryDebugMeta,
   MemoryDebugUnavailableError
 } from '../core/memory/memory-debug.js';
+import type { MemoryIdentityScope } from '../types/channel.types.js';
 import { Logger } from '../utils/logger.js';
+import { resolveOptionalUser } from './user-auth.js';
 
 function parseQueryBody(body: unknown): string {
   if (!body || typeof body !== 'object') {
@@ -22,17 +24,24 @@ function parseQueryBody(body: unknown): string {
 }
 
 export class MemoryDebugController {
-  static getMeta(_req: Request, res: Response): void {
+  private static async resolveMemoryScope(req: Request): Promise<MemoryIdentityScope | undefined> {
+    const user = await resolveOptionalUser(req);
+    return user ? { channel: 'web', userId: user.id } : undefined;
+  }
+
+  static async getMeta(req: Request, res: Response): Promise<void> {
+    const scope = await MemoryDebugController.resolveMemoryScope(req);
     res.json({
       success: true,
-      ...getMemoryDebugMeta()
+      ...getMemoryDebugMeta(scope)
     });
   }
 
   static async recall(req: Request, res: Response): Promise<void> {
     try {
       const query = parseQueryBody(req.body);
-      const payload = await debugRecall(query);
+      const scope = await MemoryDebugController.resolveMemoryScope(req);
+      const payload = await debugRecall(query, { scope });
       res.json({ success: true, ...payload });
     } catch (error) {
       MemoryDebugController.sendError(res, 'recall', error);
@@ -42,7 +51,8 @@ export class MemoryDebugController {
   static async reflect(req: Request, res: Response): Promise<void> {
     try {
       const query = parseQueryBody(req.body);
-      const payload = await debugReflect(query);
+      const scope = await MemoryDebugController.resolveMemoryScope(req);
+      const payload = await debugReflect(query, { scope });
       res.json({ success: true, ...payload });
     } catch (error) {
       MemoryDebugController.sendError(res, 'reflect', error);
@@ -52,7 +62,8 @@ export class MemoryDebugController {
   static async prompt(req: Request, res: Response): Promise<void> {
     try {
       const query = parseQueryBody(req.body);
-      const payload = await debugPrompt(query);
+      const scope = await MemoryDebugController.resolveMemoryScope(req);
+      const payload = await debugPrompt(query, { scope });
       res.json({ success: true, ...payload });
     } catch (error) {
       MemoryDebugController.sendError(res, 'prompt', error);

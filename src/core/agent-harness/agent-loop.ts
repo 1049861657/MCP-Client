@@ -137,6 +137,8 @@ export interface RunAgentLoopParams {
   permission?: AgentPermissionContext;
   /** P3-02-B：跨会话 memory 上下文（recall 已在 formatMessages 完成；此处供 SessionEnd retain） */
   memoryContext?: MemoryPipelineContext;
+  /** T4-03-04：已登录会话落库目标（透传给 SessionEnd 落库 hook）；guest 无此字段 */
+  persistContext?: { userId: string; chatSessionId: string };
 }
 
 /**
@@ -158,7 +160,8 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     onChunk,
     provider,
     permission,
-    memoryContext
+    memoryContext,
+    persistContext
   } = params;
 
   const prepareContext = async (round: number): Promise<void> => {
@@ -656,92 +659,102 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     return { shouldContinue: false, nextAssistantReasoning: '' };
   };
 
-  await prepareContext(0);
-  const requestParams = provider.createRequestParams(
-    messages,
-    model,
-    temperature,
-    maxTokens,
-    chatTools,
-    stream
-  );
+  let finalUsage = emptyUsage();
 
-  const initialResult = await invokeModelRound(0, requestParams);
+  // 解耦：客户端断流/异常时主循环抛出，SessionEnd（memory retain + 轮末落库）仍须执行，
+  // 不丢已产出轮次（现网 SessionEnd 在循环后无 finally 保护，abort 会跳过——此处修复）
+  try {
+    await prepareContext(0);
+    const requestParams = provider.createRequestParams(
+      messages,
+      model,
+      temperature,
+      maxTokens,
+      chatTools,
+      stream
+    );
 
-  fullContent = initialResult.fullContent;
-  fullReasoningContent = initialResult.fullReasoningContent;
-  usage = initialResult.usage;
-  finishReasonResult = initialResult.finishReasonResult;
-  const initialToolCount = toolManager.hasValidToolCalls()
-    ? toolManager.getToolCallsByRound(0).length
-    : 0;
-  recordTurnEnd(loopState, 1, initialToolCount > 0 ? 'tool_result' : 'end');
+    const initialResult = await invokeModelRound(0, requestParams);
 
-  if (toolManager.hasValidToolCalls()) {
-    toolManager.setCurrentRound(1);
+    fullContent = initialResult.fullContent;
+    fullReasoningContent = initialResult.fullReasoningContent;
+    usage = initialResult.usage;
+    finishReasonResult = initialResult.finishReasonResult;
+    const initialToolCount = toolManager.hasValidToolCalls()
+      ? toolManager.getToolCallsByRound(0).length
+      : 0;
+    recordTurnEnd(loopState, 1, initialToolCount > 0 ? 'tool_result' : 'end');
 
-    const initialToolCalls = toolManager.getToolCallsByRound(0);
-    let roundResult = await processToolCalls(initialToolCalls, initialResult.fullReasoningContent);
+    if (toolManager.hasValidToolCalls()) {
+      toolManager.setCurrentRound(1);
 
-    while (roundResult.shouldContinue && toolManager.getCurrentRound() < maxToolCallRounds) {
-      toolManager.setCurrentRound(toolManager.getCurrentRound() + 1);
-      const round = toolManager.getCurrentRound();
+      const initialToolCalls = toolManager.getToolCallsByRound(0);
+      let roundResult = await processToolCalls(initialToolCalls, initialResult.fullReasoningContent);
 
-      if (round >= maxToolCallRounds) {
-        Logger.warn('OPENAI', `已达到最大工具调用回合数 ${maxToolCallRounds}，停止后续调用`);
-        toolManager.setReachedMaxRounds(true);
+      while (roundResult.shouldContinue && toolManager.getCurrentRound() < maxToolCallRounds) {
+        toolManager.setCurrentRound(toolManager.getCurrentRound() + 1);
+        const round = toolManager.getCurrentRound();
 
-        const unprocessed = toolManager.getToolCallsByRound(round - 1);
-        const partialResults = buildPartialResults(unprocessed);
-        emitMaxToolCallsReached(onChunk, round, partialResults);
-        recordTurnEnd(loopState, round + 1, 'max_rounds');
-        break;
+        if (round >= maxToolCallRounds) {
+          Logger.warn('OPENAI', `已达到最大工具调用回合数 ${maxToolCallRounds}，停止后续调用`);
+          toolManager.setReachedMaxRounds(true);
+
+          const unprocessed = toolManager.getToolCallsByRound(round - 1);
+          const partialResults = buildPartialResults(unprocessed);
+          emitMaxToolCallsReached(onChunk, round, partialResults);
+          recordTurnEnd(loopState, round + 1, 'max_rounds');
+          break;
+        }
+
+        const roundToolCalls = toolManager.getToolCallsByRound(round - 1);
+        roundResult = await processToolCalls(roundToolCalls, roundResult.nextAssistantReasoning);
       }
 
-      const roundToolCalls = toolManager.getToolCallsByRound(round - 1);
-      roundResult = await processToolCalls(roundToolCalls, roundResult.nextAssistantReasoning);
+      toolManager.finalizeAllToolCalls();
     }
 
-    toolManager.finalizeAllToolCalls();
-  }
+    onChunk({}, true);
 
-  onChunk({}, true);
+    finalUsage = hasUsage(cumulativeLlmUsage)
+      ? cumulativeLlmUsage
+      : usage ?? emptyUsage();
 
-  const finalUsage = hasUsage(cumulativeLlmUsage)
-    ? cumulativeLlmUsage
-    : usage ?? emptyUsage();
-
-  if (requestId) {
-    const allTools = toolManager.getAllToolCalls();
-    let toolSuccess = 0;
-    let toolFail = 0;
-    for (const tc of allTools) {
-      if (tc.meta?.status === 'error') {
-        toolFail += 1;
-      } else if (tc.meta?.status === 'completed') {
-        toolSuccess += 1;
+    if (requestId) {
+      const allTools = toolManager.getAllToolCalls();
+      let toolSuccess = 0;
+      let toolFail = 0;
+      for (const tc of allTools) {
+        if (tc.meta?.status === 'error') {
+          toolFail += 1;
+        } else if (tc.meta?.status === 'completed') {
+          toolSuccess += 1;
+        }
       }
+      logAgentRunAudit({
+        requestId,
+        sessionKey: permission?.sessionKey,
+        turnCount: loopState.turnCount,
+        transitionReason: loopState.transitionReason,
+        totalTokens: toAuditUsage(finalUsage),
+        toolSuccess,
+        toolFail,
+        providerName: provider.providerName
+      });
     }
-    logAgentRunAudit({
+  } finally {
+    appendTerminalAssistantMessage(messages, fullContent, fullReasoningContent);
+    await runHooks('SessionEnd', {
       requestId,
-      sessionKey: permission?.sessionKey,
-      turnCount: loopState.turnCount,
-      transitionReason: loopState.transitionReason,
-      totalTokens: toAuditUsage(finalUsage),
-      toolSuccess,
-      toolFail,
-      providerName: provider.providerName
+      messages: [...messages],
+      bankId: memoryContext?.bankId,
+      documentSessionId: memoryContext?.documentSessionId,
+      skipMemory: memoryContext?.skipMemory ?? true,
+      signal,
+      ...(persistContext
+        ? { userId: persistContext.userId, chatSessionId: persistContext.chatSessionId }
+        : {})
     });
   }
-
-  await runHooks('SessionEnd', {
-    requestId,
-    messages: [...messages],
-    bankId: memoryContext?.bankId,
-    documentSessionId: memoryContext?.documentSessionId,
-    skipMemory: memoryContext?.skipMemory ?? true,
-    signal
-  });
 
   return {
     content: fullContent,
@@ -751,4 +764,31 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     finish_reason: finishReasonResult || undefined,
     usage: finalUsage
   };
+}
+
+/**
+ * 终轮 assistant 答复（fullContent/reasoning）未在循环内 push 进 messages，
+ * SessionEnd（落库 / memory retain）前补入；abort 时为已产出的部分内容，同样保留。
+ */
+function appendTerminalAssistantMessage(
+  messages: InternalMessage[],
+  fullContent: string,
+  fullReasoningContent: string
+): void {
+  if (fullContent.trim().length === 0 && fullReasoningContent.trim().length === 0) {
+    return;
+  }
+  const last = messages[messages.length - 1];
+  if (
+    last?.role === 'assistant' &&
+    typeof last.content === 'string' &&
+    last.content === fullContent
+  ) {
+    return;
+  }
+  const terminal: InternalMessage = { role: 'assistant', content: fullContent || null };
+  if (fullReasoningContent) {
+    terminal.reasoning_content = fullReasoningContent;
+  }
+  messages.push(terminal);
 }

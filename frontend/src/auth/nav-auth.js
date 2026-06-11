@@ -4,6 +4,8 @@ import { getSession, signOut } from './session.js';
 // 顶栏登录入口（chat/info/settings/admin 共用）：未登录显示「登录」，已登录显示用户名 + 退出。
 // 登录/登出成功后整页刷新，让各页按新会话态重新初始化（guest↔authed 配置只读/可写切换）。
 
+const SUPERADMIN_ROLE = 'SUPERADMIN';
+
 const ICON_USER =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
 
@@ -19,9 +21,14 @@ export async function mountNavAuth(container) {
   const render = (user) => {
     container.replaceChildren();
     if (user) {
+      const isSuperAdmin = user.role === SUPERADMIN_ROLE;
       const name = document.createElement('span');
-      name.className = 'inline-flex max-w-[160px] items-center gap-1.5 text-[13px] font-medium text-white';
-      name.innerHTML = `<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 [&_svg]:h-3.5 [&_svg]:w-3.5">${ICON_USER}</span><span class="overflow-hidden text-ellipsis whitespace-nowrap">${user.username || user.email}</span>`;
+      name.className = 'inline-flex max-w-[180px] items-center gap-1.5 text-[13px] font-medium text-white';
+      name.title = isSuperAdmin ? '超级管理员' : '普通用户';
+      const avatarClass = isSuperAdmin
+        ? 'inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-400/90 text-brand [&_svg]:h-3.5 [&_svg]:w-3.5'
+        : 'inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 [&_svg]:h-3.5 [&_svg]:w-3.5';
+      name.innerHTML = `<span class="${avatarClass}">${ICON_USER}</span><span class="overflow-hidden text-ellipsis whitespace-nowrap">${user.username || user.email}</span>`;
       const logout = document.createElement('button');
       logout.type = 'button';
       logout.className = BTN_GHOST;

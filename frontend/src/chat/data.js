@@ -40,6 +40,11 @@ export function createChatData(app) {
       db.instance = event.target.result;
       db.isReady = true;
 
+      // authed 走服务端会话（session-store.loadLatest），不读本地 IDB 历史
+      if (app.sessionStore?.isAuthed?.()) {
+        return;
+      }
+
       loadMessageHistory();
 
       if (app.state.isConfigLoaded && app.elements.provider) {
@@ -580,32 +585,7 @@ export function createChatData(app) {
 
           app.api?.loadCompactedBaselineFromStorage?.(app);
 
-          if (app.ui) {
-            let previousUserMessage = null;
-
-            for (const message of messages) {
-              if (message.role === 'user') {
-                previousUserMessage = message;
-                app.ui?.addUserMessage?.(message.content);
-              } else if (message.role === 'tool') {
-                continue;
-              } else if (message.role === 'assistant' && previousUserMessage) {
-                const aiMessageDiv = app.ui?.addAIMessage?.(message.content);
-                const reasoningText = message.reasoning_content ?? message.reasoning;
-                if (reasoningText && aiMessageDiv) {
-                  app.renderers?.render?.('reasoning', reasoningText, aiMessageDiv);
-                }
-                if (message.toolCalls?.length > 0 && aiMessageDiv) {
-                  app.renderers?.render?.('tool-call-group', message.toolCalls, aiMessageDiv);
-                }
-                app.ui?.finalizeAIMessage?.(aiMessageDiv, false);
-              }
-            }
-
-            setTimeout(() => {
-              app.ui?.showAppendedQuickMessages?.();
-            }, 300);
-          }
+          renderConversation(messages);
 
           app.state.isLoading = false;
 
@@ -748,6 +728,40 @@ export function createChatData(app) {
     });
   }
 
+  /**
+   * 把一组会话消息渲染进聊天区（guest IDB 与 authed 服务端历史共用）。
+   * @param {object[]} messages 与 messageHistory 同构的条目（user/assistant/tool）
+   */
+  function renderConversation(messages) {
+    if (!app.ui) {
+      return;
+    }
+
+    let previousUserMessage = null;
+    for (const message of messages) {
+      if (message.role === 'user') {
+        previousUserMessage = message;
+        app.ui?.addUserMessage?.(message.content);
+      } else if (message.role === 'tool') {
+        continue;
+      } else if (message.role === 'assistant' && previousUserMessage) {
+        const aiMessageDiv = app.ui?.addAIMessage?.(message.content);
+        const reasoningText = message.reasoning_content ?? message.reasoning;
+        if (reasoningText && aiMessageDiv) {
+          app.renderers?.render?.('reasoning', reasoningText, aiMessageDiv);
+        }
+        if (message.toolCalls?.length > 0 && aiMessageDiv) {
+          app.renderers?.render?.('tool-call-group', message.toolCalls, aiMessageDiv);
+        }
+        app.ui?.finalizeAIMessage?.(aiMessageDiv, false);
+      }
+    }
+
+    setTimeout(() => {
+      app.ui?.showAppendedQuickMessages?.();
+    }, 300);
+  }
+
   return {
     db,
     init,
@@ -763,6 +777,7 @@ export function createChatData(app) {
     loadMessageHistory,
     saveMessageHistory,
     loadChatHistory,
+    renderConversation,
   };
 }
 

@@ -193,7 +193,8 @@ export function createMcpModalApi(getApp, ui) {
     }
 
     btn.querySelector('.counter')?.remove();
-    const count = app.state.enabledServerIds.length;
+    const selectable = app.getSelectableMcpServerIds?.() ?? app.state.enabledServerIds;
+    const count = selectable.length;
     if (count > 0) {
       const badge = document.createElement('span');
       badge.className = 'counter';

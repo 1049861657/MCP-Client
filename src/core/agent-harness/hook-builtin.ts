@@ -1,5 +1,6 @@
 import { HookConfig } from '../../config/feature-config.js';
 import { logToolCallAudit, type ToolCallAuditLog } from './audit.js';
+import { registerChatPersistHook } from './chat-persist-hook.js';
 import { registerMemoryRetainHook } from './memory-retain-hook.js';
 import { registerHook } from './hook-runner.js';
 
@@ -78,4 +79,5 @@ export function registerBuiltinHooks(): void {
     registerHook('PostToolUse', postToolAudit);
   }
   registerMemoryRetainHook();
+  registerChatPersistHook();
 }

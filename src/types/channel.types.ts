@@ -14,9 +14,11 @@ export interface AgentEnvelopeCore {
 /** Web 入站 channelMeta（序列化 JSON，不含 abortSignal） */
 export interface WebChannelMetaSerialized {
   requestId: string;
-  /** 前端 IndexedDB 会话 ID；权限「本会话始终允许」与 Gate 会话键 */
+  /** 会话 ID：guest=前端 IndexedDB session_*；authed=服务端 ChatSession.id。权限会话键 + retain document 作用域 */
   webChatSessionId: string;
   vendor?: string;
+  /** T4-03：已登录用户 ID（authed 服务端组上下文 + 轮末落库 + per-user 配置分流）；guest 无此字段 */
+  userId?: string;
 }
 
 /** Web 入站 channelMeta（进程内 runtime，含 AbortSignal） */
@@ -53,6 +55,16 @@ export interface DingtalkChannelMetaSerialized {
 export interface DingtalkChannelMeta extends DingtalkChannelMetaSerialized {
   abortSignal?: AbortSignal;
 }
+
+/**
+ * 外接记忆按身份分段的作用域（T4-05）：
+ * - Web authed：`userId`（guest 无 userId → 关闭记忆）；
+ * - IM：会话级标识（飞书 chatId、钉钉 conversationId(+robotCode)），不混入 Web 账号。
+ */
+export type MemoryIdentityScope =
+  | { channel: 'web'; userId?: string }
+  | { channel: 'feishu'; chatId: string }
+  | { channel: 'dingtalk'; conversationId: string; robotCode?: string };
 
 /** 聊天选项（全部可选，Worker 侧 pickDefined 透传） */
 export interface ChatOptions {

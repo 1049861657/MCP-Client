@@ -4,6 +4,7 @@ import {
   resolveSkipMemory
 } from '../../config/feature-config.js';
 import type { InternalMessage } from '../agent-harness/types.js';
+import type { MemoryIdentityScope } from '../../types/channel.types.js';
 import { resolveHindsightBankId } from './hindsight-memory-provider.js';
 
 export interface MemoryPipelineContext {
@@ -12,6 +13,31 @@ export interface MemoryPipelineContext {
   skipMemory: boolean;
   /** retain document_id 作用域；有值时按轮 append，避免重复整段 transcript */
   documentSessionId?: string;
+}
+
+/**
+ * 身份作用域 → bankId；无稳定身份（Web 匿名 / 缺省）返回 undefined → 短路 recall/retain。
+ * 新渠道：扩展 MemoryIdentityScope + 本 switch 即可，bankId 自动带渠道前缀。
+ */
+export function resolveMemoryBankId(scope?: MemoryIdentityScope): string | undefined {
+  if (!scope) {
+    return undefined;
+  }
+  switch (scope.channel) {
+    case 'web':
+      return scope.userId
+        ? resolveHindsightBankId('web', `web:${scope.userId}`)
+        : undefined;
+    case 'feishu':
+      return resolveHindsightBankId('feishu', `feishu:${scope.chatId}`);
+    case 'dingtalk':
+      return resolveHindsightBankId(
+        'dingtalk',
+        scope.robotCode
+          ? `dingtalk:${scope.conversationId}:${scope.robotCode}`
+          : `dingtalk:${scope.conversationId}`
+      );
+  }
 }
 
 /** Hindsight retain 推荐 JSON 对话数组元素 */
@@ -141,17 +167,26 @@ export function buildRetainContent(
 
 export function resolveMemoryPipelineContext(
   messages: InternalMessage[],
-  options: { skipMemory?: boolean; documentSessionId?: string }
+  options: {
+    skipMemory?: boolean;
+    documentSessionId?: string;
+    identityScope?: MemoryIdentityScope;
+  }
 ): MemoryPipelineContext | undefined {
   const skipMemory = resolveSkipMemory(options.skipMemory);
   if (skipMemory || !isHindsightMemoryConfigured()) {
     return undefined;
   }
 
+  const bankId = resolveMemoryBankId(options.identityScope);
+  if (!bankId) {
+    return undefined;
+  }
+
   const documentSessionId = options.documentSessionId?.trim();
 
   return {
-    bankId: resolveHindsightBankId(),
+    bankId,
     query: extractRecallQuery(messages),
     skipMemory: false,
     ...(documentSessionId ? { documentSessionId } : {})

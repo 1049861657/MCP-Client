@@ -6,6 +6,7 @@ import { getSession } from '../auth/session.js';
 import { createChatApi } from './api.js';
 import { createChatData } from './data.js';
 import { buildApiMessagesFromHistory } from './message-history-builder.js';
+import { createSessionStore } from './session-store.js';
 import { compactBaselineStorageKey } from './storage-contract.js';
 import { TurnCollector } from './turn-collector.js';
 import { bindChatModalClose, closeChatModal, openChatModal } from './ui/modal-host.js';
@@ -134,6 +135,7 @@ export function createChatApp(options = {}) {
 
   app.data = createChatData(app);
   app.db = app.data.db;
+  app.sessionStore = createSessionStore(app);
 
   app.api = createChatApi({
     getApp: () => app,
@@ -159,7 +161,7 @@ export function createChatApp(options = {}) {
  */
 function createAppMethods() {
   return {
-    init() {
+    async init() {
       console.log('AI核心模块开始初始化...');
 
       if (!this.ui) {
@@ -177,8 +179,12 @@ function createAppMethods() {
       }
       console.log('时间管理器初始化完成');
 
-      this.state.sessionId = `session_temp_${Date.now().toString(36)}`;
-      console.log('设置临时会话ID:', this.state.sessionId);
+      // 先判定 guest/authed 模式（登录/登出走整页 reload，运行时不切换）
+      await this.sessionStore.init();
+      this.state.sessionId = this.sessionStore.isAuthed()
+        ? ''
+        : `session_temp_${Date.now().toString(36)}`;
+      console.log('会话模式:', this.sessionStore.isAuthed() ? 'authed' : 'guest');
 
       this.elements = {
         message: document.getElementById('message'),
@@ -437,16 +443,18 @@ function createAppMethods() {
       }
 
       try {
-        if (
-          !this.state.sessionId ||
-          this.state.sessionId === 'session_NaN' ||
-          !this.state.sessionId.startsWith('session_')
-        ) {
+        if (!this.sessionStore.isValidActiveSessionId(this.state.sessionId)) {
+          if (this.sessionStore.isAuthed()) {
+            // authed 待建会话：显示占位，绝不重生成服务端 ID（首发懒建）
+            sessionNameElement.textContent = '新会话';
+            sessionNameElement.title = '新会话（发送后创建）';
+            return;
+          }
           console.warn('会话ID无效，重新生成:', this.state.sessionId);
           this.state.sessionId = `session_${Math.random().toString(36).substring(2, 10)}`;
         }
 
-        const displayId = this.state.sessionId.replace('session_', '');
+        const displayId = this.sessionStore.displayId(this.state.sessionId);
 
         if (!displayId || displayId === 'NaN' || displayId === 'undefined') {
           console.warn('提取的显示ID无效:', displayId);
@@ -581,7 +589,16 @@ function createAppMethods() {
           this.updateModelOptions();
         }
 
-        if (this.db.isReady && this.elements.provider) {
+        if (this.sessionStore.isAuthed()) {
+          this.sessionStore
+            .loadLatest()
+            .then(() => this.updateSessionDisplay())
+            .catch((error) => {
+              console.error('自动加载最新会话失败:', error);
+              // 拉取失败回落到新会话，保证可用
+              this.sessionStore.newSession();
+            });
+        } else if (this.db.isReady && this.elements.provider) {
           console.log('尝试加载当前供应商的最新会话');
 
           setTimeout(() => {
@@ -882,7 +899,7 @@ function createAppMethods() {
 
     createNewSession() {
       console.log('创建新的会话');
-      return this.data.createNewSession();
+      return this.sessionStore.newSession();
     },
 
     async openPromptEditor() {

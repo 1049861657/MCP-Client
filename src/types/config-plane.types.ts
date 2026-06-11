@@ -1,4 +1,4 @@
-import type { ChannelId, ChatOptions } from './channel.types.js';
+import type { ChannelId, ChatOptions, MemoryIdentityScope } from './channel.types.js';
 import type { PermissionMode } from '../config/permission.types.js';
 
 /** @deprecated 历史 seed 残留；Resolver 已改为按渠道默认方案解析，不再兜底到此 ID */
@@ -94,6 +94,12 @@ export interface ResolvedChatProfile extends Required<
   skipMemory?: boolean;
   /** P3-02-B：retain document_id 作用域（Web=webChatSessionId，IM=sessionKey） */
   documentSessionId?: string;
+  /** T4-03：已登录用户 ID（仅 Web authed；驱动轮末落库 + 压缩基线回写 + per-user 配置） */
+  userId?: string;
+  /** T4-03：服务端 ChatSession.id（仅 Web authed；落库/基线回写目标会话） */
+  chatSessionId?: string;
+  /** T4-05：外接记忆按身份分段作用域；Web 匿名为 `{channel:'web'}`（无 userId → 关闭记忆） */
+  memoryScope?: MemoryIdentityScope;
 }
 
 /** 解析路由时的入站上下文（T2-02 Resolver 入参） */
@@ -106,4 +112,10 @@ export interface ProfileResolveContext {
   routeMatchKey: string;
   envelopeChatOptions?: ChatOptions;
   vendorFromChannelMeta?: string;
+  /** T4-03：已登录用户 ID（仅 Web authed） */
+  userId?: string;
+  /** T4-03：服务端 ChatSession.id（仅 Web authed） */
+  chatSessionId?: string;
+  /** T4-05：外接记忆按身份分段作用域（据 envelope 渠道构造） */
+  memoryScope?: MemoryIdentityScope;
 }

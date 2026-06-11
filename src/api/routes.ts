@@ -5,6 +5,7 @@ import { ConfigController } from './config.controller.js';
 import { AdminController } from './admin.controller.js';
 import { MemoryDebugController } from './memory-debug.controller.js';
 import { SettingsController } from './settings.controller.js';
+import { SessionsController } from './sessions.controller.js';
 import { UsersController } from './users.controller.js';
 import { requireAuth, requireSuperAdmin } from './user-auth.js';
 
@@ -66,6 +67,13 @@ router.get('/tools/list', AiController.getAvailableTools);
 
 // MCP服务器列表路由
 router.get('/mcp/servers', AiController.getMCPServers);
+
+// T4-03 已登录会话与消息（整组需登录；仅当前用户自己的会话）
+router.use('/sessions', requireAuth);
+router.get('/sessions', SessionsController.listSessions);
+router.post('/sessions', SessionsController.createSession);
+router.delete('/sessions/:id', SessionsController.deleteSession);
+router.get('/sessions/:id/messages', SessionsController.getMessages);
 
 // T2 配置平面 Admin API（T4-02-02：改 Cookie 会话鉴权，整组需登录）
 router.use('/admin', requireAuth);

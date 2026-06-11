@@ -11,6 +11,7 @@ import {
   isHindsightMemoryConfigured,
   MemoryConfig
 } from '../../config/feature-config.js';
+import type { ChannelId } from '../../types/channel.types.js';
 import { logMemoryRecallAudit } from '../agent-harness/audit.js';
 import { Logger } from '../../utils/logger.js';
 
@@ -160,12 +161,26 @@ function resolveRetainDocumentId(documentSessionId?: string): string | undefined
   return `mcp-session-${hash}`;
 }
 
-/** 首期：prefix + 工作区首路径 hash；无 MCP_CLIENT_ROOTS 时用 default */
-export function resolveHindsightBankId(): string {
-  const roots = parseMcpClientRootPathsFromEnv();
-  const scope = roots.length > 0 ? roots[0] : 'default';
-  const hash = createHash('sha256').update(scope).digest('hex').slice(0, 12);
-  return `${MemoryConfig.bankIdPrefix}-${hash}`;
+let cachedMemoryPathScope: string | undefined;
+
+function getMemoryPathScope(): string {
+  if (cachedMemoryPathScope === undefined) {
+    const roots = parseMcpClientRootPathsFromEnv();
+    cachedMemoryPathScope = roots.length > 0 ? roots[0] : 'default';
+  }
+  return cachedMemoryPathScope;
+}
+
+function hashBankSegment(input: string): string {
+  return createHash('sha256').update(input).digest('hex').slice(0, 12);
+}
+
+/**
+ * bankId：`${prefix}-${channel}-${hash12}`（T4-05）。
+ * `channel` 由调用方从 MemoryIdentityScope 直接传入；hash 输入 = scopeKey + 工作区路径。
+ */
+export function resolveHindsightBankId(channel: ChannelId, scopeKey: string): string {
+  return `${MemoryConfig.bankIdPrefix}-${channel}-${hashBankSegment(`${scopeKey}\x1e${getMemoryPathScope()}`)}`;
 }
 
 async function syncBankRetainConfig(

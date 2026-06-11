@@ -19,7 +19,13 @@ export const CHAT_DB_INDEX_SESSION = 'sessionId';
 export const CHAT_DB_INDEX_TIMESTAMP = 'timestamp';
 export const CHAT_DB_INDEX_PROVIDER = 'provider';
 
-/** 新会话 ID 前缀，完整格式 `session_{yyyyMMdd-HHmmss}-{random}` */
+/**
+ * 新会话 ID 前缀，完整格式 `session_{yyyyMMdd-HHmmss}-{random}`。
+ *
+ * 双模式（T4-04）：
+ * - guest：本地 `session_*`（IndexedDB 主键域），可重生成；
+ * - authed：服务端 `ChatSession.id`（Prisma cuid，无前缀），由 session-store 管理，绝不重生成/过滤。
+ */
 export const CHAT_SESSION_ID_PREFIX = 'session_';
 
 /** localStorage：聊天页 UI 偏好；MCP 勾选仅由 MCP 弹窗「保存」写入 enabledServerIds */

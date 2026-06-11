@@ -26,6 +26,7 @@ export const CHAT_OPTION_BODY_FIELDS = [
   'permissionMode',
   'skipMemory',
   'sessionId',
+  'contextOptions',
 ];
 
 /**
@@ -46,6 +47,7 @@ export const CHAT_OPTION_BODY_FIELDS = [
  * @property {string[] | undefined} mcpServerIds enableTools 为 true 时写入 body（含空数组表示不启用 MCP）
  * @property {string[] | undefined} enabledSystemToolNames 启用的系统工具 codeName
  * @property {boolean} [skipMemory] 本次忽略 Hindsight 跨会话记忆
+ * @property {{ messageHistoryCount?: number } | undefined} [contextOptions] authed 模式服务端组上下文裁剪参数（messages[] 不上行时随 body 上行）
  */
 
 /**
@@ -72,6 +74,7 @@ export function buildChatStreamRequestBody(input) {
     permissionMode,
     skipMemory,
     sessionId,
+    contextOptions,
   } = input;
 
   /** @type {Record<string, unknown>} */
@@ -115,6 +118,10 @@ export function buildChatStreamRequestBody(input) {
 
   if (Array.isArray(messages) && messages.length > 0) {
     body.messages = messages;
+  }
+
+  if (contextOptions && typeof contextOptions.messageHistoryCount === 'number') {
+    body.contextOptions = { messageHistoryCount: contextOptions.messageHistoryCount };
   }
 
   return body;

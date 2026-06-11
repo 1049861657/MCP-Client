@@ -183,6 +183,20 @@
 
 ---
 
+## 记忆多租户隔离（T4-06-06）
+
+> 任务 SSOT：[T4-account-session.md](./T4-account-session.md) T4-06-06。评审「记忆按 userId 隔离」时先读本节。核心结论：namespace-per-user + 每次检索强制按 user 作用域过滤；共享向量库无 per-user namespace 是公认反模式。
+
+| 主题 | 说明 | 完整 URL |
+|------|------|----------|
+| Fastio — Multi-Tenant AI Agent 架构(2026) | Namespace/Workspace-per-tenant；向量库混租约风险与严格过滤 | https://fast.io/resources/ai-agent-multi-tenant-architecture/ |
+| Prefactor — MCP 多租户安全 | `{tenant_id,user_id,agent_id,session_id}` 注入每次交互；服务端强制过滤 | https://prefactor.tech/blog/mcp-security-multi-tenant-ai-agents-explained |
+| Mem0 — 记忆策略与作用域 | per-user/per-session/global 三层；`user_id` 强作用域 add/search | https://mem0.ai/blog/ai-agent-frameworks-and-how-to-choose-a-memory-strategy |
+| Agent Memory 2026 横评(Mem0/Zep/Graphiti/Letta/LangMem) | 多租户维度对比；缺 per-user namespace → 跨域泄漏中位 ~53%（反模式） | https://medium.com/@wasowski.jarek/i-compared-5-ai-agent-memory-systems-across-6-dimensions-none-wins-6a658335ed0a |
+| Redis — 多租户数据隔离 | tenant-prefixed key namespace（`tenant:{id}:...`）+ ACL | https://redis.io/blog/data-isolation-multi-tenant-saas/ |
+
+---
+
 ## 本仓库改造路线文件
 
 | 文件 | 路径 |

@@ -43,15 +43,16 @@ export function createHistoryModalApi(getApp, ui) {
     }
 
     if (titleEl) {
-      titleEl.textContent = provider ? `${provider} · 会话列表` : '会话列表';
+      titleEl.textContent =
+        provider && !app.sessionStore.isAuthed() ? `${provider} · 会话列表` : '会话列表';
     }
 
     resetDetailPanel();
     updateBatchDeleteButton();
     container.innerHTML = '<p class="history-empty">正在加载…</p>';
 
-    app.data
-      .getAllChatSessions(provider || null)
+    app.sessionStore
+      .listSessions(provider || null)
       .then((sessions) => {
         if (!sessions.length) {
           container.innerHTML = '<p class="history-empty">暂无聊天会话</p>';
@@ -73,6 +74,8 @@ export function createHistoryModalApi(getApp, ui) {
    * @param {object[]} sessions
    */
   function renderSessionList(sessions) {
+    const app = getApp();
+    const isAuthed = app.sessionStore.isAuthed();
     const container = document.getElementById('sessions-container');
     if (!container) {
       return;
@@ -80,10 +83,11 @@ export function createHistoryModalApi(getApp, ui) {
 
     container.innerHTML = '';
     for (const session of sessions) {
-      if (!session.id?.startsWith('session_')) {
+      // guest 沿用 session_ 前缀校验；authed 服务端 cuid 不做前缀过滤
+      if (!isAuthed && !session.id?.startsWith('session_')) {
         continue;
       }
-      const displayId = session.id.replace('session_', '');
+      const displayId = session.displayId ?? session.id;
       if (!displayId || displayId === 'NaN') {
         continue;
       }
@@ -95,6 +99,11 @@ export function createHistoryModalApi(getApp, ui) {
       item.tabIndex = 0;
       const messageCount = session.messageCount ?? 0;
       const lastActive = formatSessionDate(session.lastActive);
+      // authed 列表带服务端标题；guest 沿用「会话 {displayId}」展示
+      const nameHtml = isAuthed
+        ? escapeHtml(session.title || '无标题会话')
+        : `会话 ${escapeHtml(displayId)}`;
+      const badgeHtml = messageCount > 0 ? `${messageCount} 条` : '';
 
       item.innerHTML = `
         <label class="history-session-check-wrap" aria-label="选择会话 ${escapeHtml(displayId)}">
@@ -102,10 +111,10 @@ export function createHistoryModalApi(getApp, ui) {
         </label>
         <span class="history-session-icon">${SESSION_BUBBLE_SVG}</span>
         <span class="history-session-body">
-          <span class="history-session-name">会话 ${escapeHtml(displayId)}</span>
+          <span class="history-session-name">${nameHtml}</span>
           <span class="history-session-date">${escapeHtml(lastActive)}</span>
         </span>
-        <span class="history-session-badge">${messageCount} 条</span>
+        <span class="history-session-badge">${badgeHtml}</span>
       `;
 
       const checkbox = item.querySelector('.history-session-check');
@@ -206,9 +215,9 @@ export function createHistoryModalApi(getApp, ui) {
     }
 
     try {
-      await Promise.all(ids.map((id) => app.data.deleteSessionMessages(id)));
+      await Promise.all(ids.map((id) => app.sessionStore.deleteSession(id)));
       ui.showTooltip(`已删除 ${ids.length} 个会话`);
-      await app.data.loadLatestProviderSession();
+      await app.sessionStore.loadLatest();
       app.updateSessionDisplay();
       loadSessionList();
     } catch (error) {
@@ -304,12 +313,12 @@ export function createHistoryModalApi(getApp, ui) {
       return;
     }
 
-    const displayId = sessionId.replace('session_', '');
+    const displayId = app.sessionStore.displayId(sessionId);
     titleEl.textContent = `会话 ${displayId}`;
     metaEl.textContent = '正在加载…';
     messagesEl.innerHTML = '<p class="history-empty history-empty--detail">正在加载…</p>';
 
-    app.data
+    app.sessionStore
       .getSessionMessages(sessionId)
       .then((messages) => renderSessionMessages(messages, sessionId))
       .catch((error) => {
@@ -407,7 +416,7 @@ export function createHistoryModalApi(getApp, ui) {
 
     loadBtn.onclick = async () => {
       try {
-        await app.data.loadSession(sessionId);
+        await app.sessionStore.loadSession(sessionId);
         closeChatModal('history-modal');
         ui.showTooltip('已加载会话');
       } catch (error) {
@@ -428,9 +437,9 @@ export function createHistoryModalApi(getApp, ui) {
       }
 
       try {
-        await app.data.deleteSessionMessages(sessionId);
+        await app.sessionStore.deleteSession(sessionId);
         ui.showTooltip('已删除会话');
-        await app.data.loadLatestProviderSession();
+        await app.sessionStore.loadLatest();
         app.updateSessionDisplay();
         loadSessionList();
       } catch (error) {

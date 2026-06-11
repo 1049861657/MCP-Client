@@ -51,6 +51,10 @@ export function createChatApi(deps) {
    * @param {object} app
    */
   function persistMessageHistory(app) {
+    // authed：服务端轮末落库（SessionEnd 钩子），同一条消息不再写本地 IDB
+    if (app.sessionStore?.isAuthed?.()) {
+      return;
+    }
     if (typeof app.saveMessageHistory === 'function') {
       app.saveMessageHistory();
       return;
@@ -61,6 +65,10 @@ export function createChatApi(deps) {
   }
 
   function saveCompactedBaselineToStorage(app) {
+    // authed：压缩基线只在服务端（ChatSession.compactBaselineJson），本地不留副本
+    if (app.sessionStore?.isAuthed?.()) {
+      return;
+    }
     if (!app?.state?.sessionId) {
       return;
     }
@@ -73,6 +81,11 @@ export function createChatApi(deps) {
   }
 
   function loadCompactedBaselineFromStorage(app) {
+    // authed：基线由服务端组上下文使用，本地态恒为 null（不读 localStorage）
+    if (app.sessionStore?.isAuthed?.()) {
+      app.state.compactedBaseline = null;
+      return;
+    }
     if (!app?.state?.sessionId) {
       return;
     }
@@ -688,10 +701,15 @@ export function createChatApi(deps) {
     const enabledSystemToolNames = Array.isArray(app.state.enabledSystemToolNames)
       ? [...app.state.enabledSystemToolNames]
       : [];
+    // authed：messages[] 不上行，服务端按 contextOptions 裁剪组上下文
+    const contextOptions = app.sessionStore?.isAuthed?.()
+      ? { messageHistoryCount: app.state.messageHistoryCount }
+      : undefined;
 
     return buildChatStreamRequestBody({
       message,
       messages,
+      contextOptions,
       model,
       temperature,
       maxTokens,
@@ -730,6 +748,16 @@ export function createChatApi(deps) {
 
     const startTime = Date.now();
 
+    // authed：首发懒建服务端会话（body 只带新消息，须先有 ChatSession.id）
+    if (app.sessionStore?.isAuthed?.()) {
+      try {
+        await app.sessionStore.ensureActiveSession();
+      } catch (error) {
+        UI.showTooltip(`创建会话失败: ${error.message || '未知错误'}`);
+        return;
+      }
+    }
+
     UI.addUserMessage(message);
     const aiMessageDiv = UI.addAIMessage();
 
@@ -738,7 +766,8 @@ export function createChatApi(deps) {
     try {
       beginCompactConsumeTracking(app);
 
-      const outgoing = buildOutgoingMessages(app, message);
+      // authed：不上行历史 messages[]（服务端组上下文）；guest：本地组全量
+      const outgoing = app.sessionStore?.isAuthed?.() ? [] : buildOutgoingMessages(app, message);
       const requestBody = buildStreamRequestBody(
         app,
         message,
@@ -795,6 +824,15 @@ export function createChatApi(deps) {
       return;
     }
 
+    if (app.sessionStore?.isAuthed?.()) {
+      try {
+        await app.sessionStore.ensureActiveSession();
+      } catch (error) {
+        UI.showTooltip(`创建会话失败: ${error.message || '未知错误'}`);
+        return;
+      }
+    }
+
     const startTime = Date.now();
     const { responseContent, tokenUsage } = app.elements;
     responseContent.textContent = '';
@@ -804,7 +842,7 @@ export function createChatApi(deps) {
       '<div class="ai-thinking"><div class="thinking-spinner"></div>AI正在思考中...</div>';
 
     try {
-      const outgoing = buildOutgoingMessages(app, message);
+      const outgoing = app.sessionStore?.isAuthed?.() ? [] : buildOutgoingMessages(app, message);
       const requestBody = buildStreamRequestBody(
         app,
         message,
@@ -978,6 +1016,22 @@ export function createChatApi(deps) {
     return buildApiContextMessages(app, newUserContent);
   }
 
+  /**
+   * authed 模式下 context-preview / compact 的服务端取数字段（sessionId + 裁剪参数）；
+   * guest 返回空对象（服务端据无 user 回退 body messages[]）。
+   * @param {object} app
+   * @returns {Record<string, unknown>}
+   */
+  function authedContextFields(app) {
+    if (!app.sessionStore?.isAuthed?.()) {
+      return {};
+    }
+    return {
+      sessionId: app.state.sessionId,
+      contextOptions: { messageHistoryCount: app.state.messageHistoryCount },
+    };
+  }
+
   function buildBaseContextMessages(app) {
     return buildApiContextMessages(app, null);
   }
@@ -1020,12 +1074,14 @@ export function createChatApi(deps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages,
+          // authed：不上行本地全量历史，服务端按 sessionId 组上下文（T4-04-03）
+          messages: app.sessionStore?.isAuthed?.() ? [] : messages,
           vendor,
           enableAutoCompact: app.state.enableAutoCompact,
           contextOverride: app.state.apiContextOverride?.length
             ? app.state.apiContextOverride
             : null,
+          ...authedContextFields(app),
         }),
       });
 
@@ -1112,7 +1168,12 @@ export function createChatApi(deps) {
       const response = await fetch('/api/chat/compact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, vendor, compactModel }),
+        body: JSON.stringify({
+          messages: app.sessionStore?.isAuthed?.() ? [] : messages,
+          vendor,
+          compactModel,
+          ...authedContextFields(app),
+        }),
       });
       const data = await response.json();
       if (!response.ok) {

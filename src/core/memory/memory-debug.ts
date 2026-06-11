@@ -9,12 +9,13 @@ import type {
   MemoryDebugReflectPayload,
   MemoryDebugReflectReference
 } from '../../types/memory-debug.types.js';
+import type { MemoryIdentityScope } from '../../types/channel.types.js';
 import {
   ensureHindsightBank,
   getHindsightClient,
-  recallForPrompt,
-  resolveHindsightBankId
+  recallForPrompt
 } from './hindsight-memory-provider.js';
+import { resolveMemoryBankId } from './memory-pipeline-context.js';
 
 export class MemoryDebugUnavailableError extends Error {
   constructor(message: string) {
@@ -23,21 +24,26 @@ export class MemoryDebugUnavailableError extends Error {
   }
 }
 
-export function getMemoryDebugMeta(): MemoryDebugMetaPayload {
+/** guest（scope 无 userId）→ bankId null，不暴露任何 bank */
+export function getMemoryDebugMeta(scope?: MemoryIdentityScope): MemoryDebugMetaPayload {
   const enabled = isHindsightMemoryConfigured();
   return {
     enabled,
-    bankId: enabled ? resolveHindsightBankId() : null
+    bankId: enabled ? resolveMemoryBankId(scope) ?? null : null
   };
 }
 
-function resolveDebugContext(query: string): {
+function resolveDebugContext(query: string, scope?: MemoryIdentityScope): {
   bankId: string;
   trimmedQuery: string;
   hindsight: NonNullable<ReturnType<typeof getHindsightClient>>;
 } {
   if (!isHindsightMemoryConfigured()) {
     throw new MemoryDebugUnavailableError('Hindsight 未配置');
+  }
+  const bankId = resolveMemoryBankId(scope);
+  if (!bankId) {
+    throw new MemoryDebugUnavailableError('登录后可用记忆调试');
   }
   const trimmedQuery = query.trim();
   if (!trimmedQuery) {
@@ -47,7 +53,7 @@ function resolveDebugContext(query: string): {
   if (!hindsight) {
     throw new MemoryDebugUnavailableError('Hindsight 未配置');
   }
-  return { bankId: resolveHindsightBankId(), trimmedQuery, hindsight };
+  return { bankId, trimmedQuery, hindsight };
 }
 
 function mapRecallItem(result: RecallResult): MemoryDebugRecallItem {
@@ -72,9 +78,9 @@ function mapReflectReferences(response: ReflectResponse): MemoryDebugReflectRefe
 
 export async function debugRecall(
   query: string,
-  options?: { signal?: AbortSignal }
+  options?: { signal?: AbortSignal; scope?: MemoryIdentityScope }
 ): Promise<MemoryDebugRecallPayload> {
-  const { bankId, trimmedQuery, hindsight } = resolveDebugContext(query);
+  const { bankId, trimmedQuery, hindsight } = resolveDebugContext(query, options?.scope);
   const startedAt = Date.now();
   await ensureHindsightBank(bankId, options?.signal);
   const response = await hindsight.recall(bankId, trimmedQuery, {
@@ -95,9 +101,9 @@ export async function debugRecall(
 /** 与聊天 `_buildMemory` 相同路径，返回最终注入 system 的 memory 段 */
 export async function debugPrompt(
   query: string,
-  options?: { signal?: AbortSignal }
+  options?: { signal?: AbortSignal; scope?: MemoryIdentityScope }
 ): Promise<MemoryDebugPromptPayload> {
-  const { bankId, trimmedQuery } = resolveDebugContext(query);
+  const { bankId, trimmedQuery } = resolveDebugContext(query, options?.scope);
   const startedAt = Date.now();
   const content = await recallForPrompt(bankId, trimmedQuery, { signal: options?.signal });
   return {
@@ -112,9 +118,9 @@ export async function debugPrompt(
 
 export async function debugReflect(
   query: string,
-  options?: { signal?: AbortSignal }
+  options?: { signal?: AbortSignal; scope?: MemoryIdentityScope }
 ): Promise<MemoryDebugReflectPayload> {
-  const { bankId, trimmedQuery, hindsight } = resolveDebugContext(query);
+  const { bankId, trimmedQuery, hindsight } = resolveDebugContext(query, options?.scope);
   const startedAt = Date.now();
   await ensureHindsightBank(bankId, options?.signal);
   const response = await hindsight.reflect(bankId, trimmedQuery, {

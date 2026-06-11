@@ -1,9 +1,9 @@
 # T4 — 用户账号 + Web 会话持久化
 
-> **状态**：进行中（T4-01 完成 2026-06-10）  
+> **状态**：进行中（T4-01/02/03/04/05 完成）  
 > **范围**：Web **用户名+密码**登录、Admin **登录鉴权**（替代 `ADMIN_API_TOKEN`）、**已登录**会话服务端持久化（服务端组上下文 + 轮末落库）；**未登录**保持现有本地聊天  
 > **前置**：T1 Web 入站、T3 聊天页 ESM、P0 完整 message graph  
-> **预估**：22 子项（约 3 周；T4-06 配置 per-user 化约占 1 周）  
+> **预估**：24 子项（约 3 周；T4-06 配置 per-user 化约占 1 周）  
 > **参考**：OWASP Password Storage（Argon2id）、AI SDK Message Persistence（onFinish + consumeStream）、session-as-resource（append-only、服务端 ID）；[s11 Error Recovery](https://learn.shareai.run/zh/s11/)（checkpoint/断流续传 二期）  
 > **冲突排查**：已完成全仓审计（messages[] 消费链、session_ 前缀假设、压缩基线、Abort 生命周期、写接口鉴权），结论已折入各子项
 
@@ -43,7 +43,7 @@
    - **服务端默认配置**（guest 专用）：seed 脚本/配置文件固化，**不经任何 UI 修改**；guest 只读使用；IM 渠道（飞书/钉钉）同样走默认配置  
    - **per-user 覆盖层**（每个账号互不共享，**override 非 fork**）：tool-prompt、AI 供应商（各自维护 Key）、MCP 服务器、AgentProfile/RouteRule 按 `userId` 覆盖；**无用户行 = 继承默认 seed**（GitLab/ABP/LibreChat 同款语义），只存差异、不登录拷贝，seed 更新自动传播到未覆盖账号  
    - **浏览器本地**：快捷消息（服务端默认值仅作首次种子）、聊天偏好 `aiChatSettings`、MCP 勾选——guest/authed 同行为
-5. **Memory 断链接受**：Hindsight `document_id`=hash(sessionId)，authed 新会话用新 ID 即新 document，旧 `session_*` 增量链不迁移（guest/authed 本就隔离，无实际损失）。
+5. **Memory 按身份隔离 + guest 关闭**：bankId `mcp-client-{channel}-{hash12}`（hash = `scopeKey` + 工作区路径）；Web authed=`web:{userId}`，IM=`feishu:{chatId}` / `dingtalk:{conversationId}(:{robotCode})`，guest 关闭 recall/retain；`document_id`=hash(sessionId)，旧链不迁移（见 **T4-06-06** IM 记忆仍按会话、不按绑定账号）。
 
 | 做 | 不做 |
 |----|------|
@@ -65,7 +65,7 @@
 | `better-auth`（+ `@better-auth/prisma-adapter`，插件 `username`、`admin`） | T4-01/02 全组 | 2026 Node 自托管鉴权事实标准（Lucia 弃坑、Auth.js 已并入）；DB 会话 + 签名 HttpOnly Cookie + CSRF + 滚动续期 + 限流内置；Express `toNodeHandler` 挂载；Prisma SQLite 一等支持，CLI 生成 schema |
 | **Node 原生 `crypto.argon2`**（v24.7+，零依赖） | T4-02-01 | 以自定义 hasher 注入 better-auth；需自写 ~40 行 PHC 封装（拼 `$argon2id$...` + `timingSafeEqual` 验证）；`@node-rs/argon2` 已停更近 2 年、生态正收敛到原生（node-argon2 #469），**不引** |
 | `lru-cache` | T4-06-02 | 配置解析结果按 userId 的 TTL 缓存，不自研 |
-| `resumable-stream` | T4-05-02（**二期才引**） | Vercel 官方断流续传，AI SDK 续传示例同款 |
+| `resumable-stream` | T4-07-02（**二期才引**） | Vercel 官方断流续传，AI SDK 续传示例同款 |
 
 明确**不引**：设置分层框架（自研两层 override ~100 行更省）、SuperTokens/Logto/Keycloak（独立 IdP 对单机过重）、Temporal（checkpoint 用不上工作流引擎）；消息 ID 用 Prisma 内置 `cuid()`，零新增依赖。
 
@@ -129,19 +129,19 @@
 
 ## T4-03 服务端会话与持久化（仅已登录）
 
-- [ ] **T4-03-01** `GET /api/sessions`、`POST /api/sessions`、`DELETE /api/sessions/:id`（仅当前用户）  
+- [x] **T4-03-01** `GET /api/sessions`、`POST /api/sessions`、`DELETE /api/sessions/:id`（仅当前用户）  
   - 所有查询强制 `userId` 过滤（防跨用户泄漏）  
   - `title`：创建后由首条 user 消息截断生成（落库时顺带 update，无 LLM 调用）  
   - `DELETE` 级联删除该会话全部 `ChatMessage`（append-only 约束只针对消息内容不可改写，**会话级删除允许**）  
   - 涉及：`src/api/sessions.controller.ts`、`chat-store.service.ts`  
   - 验收：用户隔离；A 用户拿不到 B 的会话（404/403）；删会话后消息不残留
 
-- [ ] **T4-03-02** `GET /api/sessions/:id/messages`（分页，**只读**）  
+- [x] **T4-03-02** `GET /api/sessions/:id/messages`（分页，**只读**）  
   - 字段对齐 P0 完整 graph（content/toolCalls/reasoning）  
   - **无** 前端写消息端点——消息只由 T4-03-04 服务端落库  
   - 验收：换浏览器同账号可拉历史；分页正确
 
-- [ ] **T4-03-03** authed 上下文 **服务端组装**（核心 · 上）  
+- [x] **T4-03-03** authed 上下文 **服务端组装**（核心 · 上）  
   - `normalize-web-inbound.ts`：检测登录态 → body 只带 `sessionId` + 新 user 消息 → 从 `ChatMessage` 单查询取历史 + 注入 `compactBaselineJson` 基线（摘要 + tail 切片，复刻前端 `buildApiContextMessages` 语义）→ 组完整 `payload.messages` 入队（Envelope/Worker/Harness 链路 **零改动**）  
   - **用户偏好参与组装**：`messageHistoryCount` 等影响上下文的本地设置随请求 body 上行（authed 模式新增 `contextOptions` 字段），服务端按其裁剪历史；缺省用 config 默认值  
   - `context-preview` / `compact` 端点：authed 时 messages 来源同上（服务端取），不再依赖 body 全量上行  
@@ -150,7 +150,7 @@
   - 涉及：`normalize-web-inbound.ts`、`ai.controller.ts`、`context-budget.ts` 回写点、`chat-store.service.ts`  
   - 验收：authed 请求体无历史 `messages[]`，多轮上下文正确；手动/自动压缩后换设备基线一致
 
-- [ ] **T4-03-04** 轮末落库 + **Abort 解耦**（核心 · 下）  
+- [x] **T4-03-04** 轮末落库 + **Abort 解耦**（核心 · 下）  
   - 轮次结束将本轮 user/assistant/tool 消息**单事务批量** append 入 `ChatMessage`；钩子挂 `agent-loop.ts` `SessionEnd`（与 memory-retain 并列），hook payload 增加 `userId` + `chatSessionId`  
   - **解耦**：客户端断开 → abort 仅停止 LLM 生成；已产出轮次仍落库；`SessionEnd` 用 `try/finally` 保护（现网 abort 抛错会跳过 hook，必须修）；`inbound-worker.ts` 提前 return 路径同样保证落库执行  
   - 幂等：消息 ID 服务端生成；与 `inbound-queue` 的 `requestId` 幂等键互不干扰  
@@ -161,28 +161,28 @@
 
 ## T4-04 前端双模式
 
-- [ ] **T4-04-01** 存储抽象 + **拆 `session_` 前缀假设**  
+- [x] **T4-04-01** 存储抽象 + **拆 `session_` 前缀假设**  
   - 新建 `frontend/src/chat/session-store.js`：`guest` → 现有 `data.js`/IDB；`authed` → sessions API（只读 + 发新消息）；启动 `GET /api/auth/me` 判定模式  
   - 拆硬编码：`core.js:439-448`（非 `session_*` 即重生成——会**覆盖**服务端 ID，必须改为按模式校验）、`ui/history-modal.js:83-85`（过滤非 `session_*`——会**隐藏**服务端会话）、`data.js:347` 展示 `replace('session_','')`  
   - 涉及：`session-store.js`、`core.js`、`data.js`、`ui/history-modal.js`、`storage-contract.js`（契约注明双模式 ID 格式）  
   - 验收：authed 的服务端 cuid 不被重生成/不被过滤；guest `session_*` 行为不变
 
-- [ ] **T4-04-02** **未登录**：保持现网行为（`session_*`、IDB 加载/保存、body `messages[]`）  
+- [x] **T4-04-02** **未登录**：保持现网行为（`session_*`、IDB 加载/保存、body `messages[]`）  
   - 涉及：`core.js`、`data.js`  
   - 验收：不登录时行为与 T4 前一致（回归）
 
-- [ ] **T4-04-03** **已登录**：`sessionId` 用服务端 `ChatSession.id`；列表/历史 `GET` 自 API；请求 body 只带 `sessionId` + 新消息  
+- [x] **T4-04-03** **已登录**：`sessionId` 用服务端 `ChatSession.id`；列表/历史 `GET` 自 API；请求 body 只带 `sessionId` + 新消息  
   - 本地不写消息（流式渲染仅内存态；刷新后从服务端拉）；停用 `persistMessageHistory` 的 authed 分支  
   - 上下文面板/手动压缩走 T4-03-03 的服务端数据源，不再先组本地全量  
   - 涉及：`core.js`、`api.js`、`chat-request-body.js`  
   - 验收：Memory retain、权限会话键与 server sessionId 一致；请求体不含历史 `messages[]`
 
-- [ ] **T4-04-04** 登录后 UX：会话列表切到服务端；本地 IDB 会话 **不导入、不合并、不展示**（ChatGPT 同款隔离策略）  
+- [x] **T4-04-04** 登录后 UX：会话列表切到服务端；本地 IDB 会话 **不导入、不合并、不展示**（ChatGPT 同款隔离策略）  
   - IDB 数据原地保留，登出回 guest 模式后可继续读写  
   - 涉及：聊天 UI、`data.js`  
   - 验收：登录后看不到 guest 会话；登出后 IDB 历史完好
 
-- [ ] **T4-04-05** `localStorage` 偏好与压缩基线分键  
+- [x] **T4-04-05** `localStorage` 偏好与压缩基线分键  
   - guest：压缩基线沿用 `aiCompactBaseline:{session_*}` 本地键  
   - authed：基线**只在服务端**（`ChatSession.compactBaselineJson`，由 T4-03-03 读写），本地不留副本  
   - 涉及：`storage-contract.js`、`api.js`  
@@ -190,16 +190,23 @@
 
 ---
 
-## T4-05 二期（搁置，按 2026 实践预留方向）
+## T4-05 外接记忆按身份隔离 + guest 关闭
 
-- [ ] **T4-05-01** Harness checkpoint：每轮结束异步持久化 `LoopState`（**仅已登录** server session）  
-  - 涉及：`agent-loop.ts`、`loop-state.ts`  
-  - 验收：进程重启可恢复 checkpoint（手工 E2E）
-
-- [ ] **T4-05-02** 断流续传（durable streaming）：`ChatSession.activeStreamId` + 流式 chunk 持久化；刷新/重连后 `GET /api/chat/:sessionId/stream` 续播，无活跃流返回 204  
-  - 实现基于 `resumable-stream`（Vercel 官方，**二期才加依赖**）  
-  - 前置：T4-03-04 已把生成过程与 HTTP 生命周期解耦（一期完成）  
-  - 验收：流式中刷新页面，回复继续播完不丢
+- [x] **T4-05-01** Hindsight 外接记忆按身份隔离 + guest 关闭  
+  - **目标**：bankId 按身份分段，recall 与 retain 共用同一 bankId（REFERENCES「记忆多租户隔离」）。  
+  - **分渠道**：  
+    - **Web authed**：`scopeKey=web:{userId}` → `mcp-client-web-{hash12}`。  
+    - **Web guest**：`resolveMemoryBankId` 返回 `undefined`，跳过 recall/retain；设置卡片变灰，红点旁「登录后可用」，隐藏调试。  
+    - **IM**：`feishu:{chatId}` / `dingtalk:{conversationId}(:{robotCode})` → `mcp-client-feishu-*` / `mcp-client-dingtalk-*`；按会话分段，不按 Web 账号。飞书同群多 app 的 `chatId` 碰撞接受。  
+  - **方案**：  
+    - `MemoryIdentityScope`（`channel.types.ts`）；`profile-resolver` 构造 `memoryScope` → `ResolvedChatProfile`。  
+    - `resolveMemoryBankId(scope?)` 单一入口（`memory-pipeline-context.ts`）；`resolveHindsightBankId(channel, scopeKey)`（`hindsight-memory-provider.ts`）。  
+    - `ai-provider` 透传 `memoryScope`；`memory-debug` 入参 `MemoryIdentityScope`，guest 返回 `bankId: null`。  
+    - 设置 UI：已连接=绿点+调试；未连接=红点+原因文案（「未配置」/「登录后可用」），隐藏调试。  
+  - **不做**：迁移旧 bank；记忆不进配置 UI；IM 不下沉 open_id。  
+  - **前置**：T4-03 `channelMeta.userId` + `profile-resolver` 会话 id  
+  - **涉及**：`src/types/channel.types.ts`、`src/types/config-plane.types.ts`、`src/config-plane/profile-resolver.ts`、`src/core/memory/hindsight-memory-provider.ts`、`src/core/memory/memory-pipeline-context.ts`、`src/core/memory/memory-debug.ts`、`src/api/memory-debug.controller.ts`、`src/providers/ai-provider.ts`、`frontend/src/chat/ui/settings-modal.js`、`frontend/src/chat/ui/modal-host.js`、`frontend/src/chat/style.css`  
+  - **验收**：账号间不串 recall；guest 不 recall/retain；IM 会话/机器人隔离；同账号跨设备一致；bankId 含可读渠道段；设置 UI 状态与调试入口符合上述规则
 
 ---
 
@@ -238,6 +245,30 @@
   - 涉及：`src/core/mcp/server-connection.ts`、`mcp-manager`、`info.controller.ts`  
   - 验收：账号 A 断开某 server 不影响 B；空闲连接按时回收
 
+- [ ] **T4-06-06** IM 渠道绑定账号（超管）  
+  - **背景**：IM 无 User 行，配置走 `RouteRule(channel, matchKey) → AgentProfile`（T2）、用默认 seed 资源。让超管指定某 IM 路由以哪个账号身份解析配置，复用 T4-06 per-user 覆盖链，零新增配置层。  
+  - **粒度**：绑定挂 `RouteRule`（channel+matchKey），新增 `boundUserId?`，可按群/机器人分别绑账号。  
+  - **作用域**：仅配置/资源——IM 入站以 `userId=boundUserId` 跑 T4-06-02 覆盖链（providers/Key、MCP、Setting、prompt）。记忆维度不受影响，仍按 T4-05 的 `channel+会话 id(+robotCode)` 隔离（避免多终端用户混库 + 隐私）。  
+  - **权限**：整个「渠道管理」Tab（渠道/路由配置 + 账号绑定）仅 SUPERADMIN 可见可改，非超管完全不渲染该入口（把账号 Key/配置授权给共享渠道属组织级特权）；应绑专用服务账号。  
+  - **回退**：`boundUserId` 为空或账号被删/降级 → 回退默认 seed（`userId=null`）。  
+  - **方案**：`RouteRule.boundUserId?`；`profile-resolver`/`config.service` 用 `boundUserId` 作 per-user 解析 key；Admin 端提供路由列表 + 绑定账号下拉（仅超管）。  
+  - **前置**：T4-06-01、T4-06-02、T4-02-05  
+  - **涉及**：`prisma/schema.prisma`、`src/config-plane/profile-resolver.ts`、`src/services/config.service.ts`、`src/api/admin.controller.ts`、Admin 前端  
+  - **验收**：超管给某 IM 路由绑账号 A 后该路由用 A 的 providers/MCP/prompt；解绑/账号失效回退 seed；非超管完全看不到「渠道管理」Tab；IM 记忆仍按会话隔离
+
+---
+
+## T4-07 二期（搁置，按 2026 实践预留方向）
+
+- [ ] **T4-07-01** Harness checkpoint：每轮结束异步持久化 `LoopState`（**仅已登录** server session）  
+  - 涉及：`agent-loop.ts`、`loop-state.ts`  
+  - 验收：进程重启可恢复 checkpoint（手工 E2E）
+
+- [ ] **T4-07-02** 断流续传（durable streaming）：`ChatSession.activeStreamId` + 流式 chunk 持久化；刷新/重连后 `GET /api/chat/:sessionId/stream` 续播，无活跃流返回 204  
+  - 实现基于 `resumable-stream`（Vercel 官方，**二期才加依赖**）  
+  - 前置：T4-03-04 已把生成过程与 HTTP 生命周期解耦（一期完成）  
+  - 验收：流式中刷新页面，回复继续播完不丢
+
 ---
 
 ## T4 完成检查清单
@@ -252,6 +283,7 @@
 - [ ] Admin 与配置写操作需登录；chat 与 GET 读接口匿名仍可用；guest 配置只读（服务端默认 seed）
 - [ ] 快捷消息本地自治（服务端仅种子）；改动不影响其他浏览器
 - [ ] 配置 override：两账号互不可见；未覆盖项跟随 seed；恢复默认可回落；guest/IM 走 seed；seed 仅脚本可改
+- [x] 外接记忆按身份隔离（`mcp-client-{channel}-{hash12}`）；guest 关闭；IM 按会话分段；设置 UI 状态与调试入口符合 T4-05-01
 - [ ] 服务端 ID 不被前端 `session_` 假设覆盖/过滤
 
 ---
@@ -273,8 +305,14 @@ frontend/src/chat/session-store.js        # 新增：双模式抽象
 frontend/src/chat/core.js                 # 拆 session_ 假设
 frontend/src/chat/data.js
 src/api/routes.ts
+src/types/channel.types.ts                # T4-05 MemoryIdentityScope
+src/core/memory/hindsight-memory-provider.ts  # T4-05 resolveHindsightBankId(channel, scopeKey)
+src/core/memory/memory-pipeline-context.ts  # T4-05 resolveMemoryBankId
+src/core/memory/memory-debug.ts           # T4-05 调试按 MemoryIdentityScope
+src/api/memory-debug.controller.ts
+src/config-plane/profile-resolver.ts      # T4-05 memoryScope；T4-06 userId 分流
+frontend/src/chat/ui/settings-modal.js    # T4-05 跨会话记忆状态 UI
 src/services/config.service.ts            # T4-06 userId 分流
-src/config-plane/profile-resolver.ts      # T4-06 userId 分流
 src/core/mcp/server-connection.ts         # T4-06-05 连接按 userId 键控
 prisma/seed                               # guest 默认配置 seed
 ```

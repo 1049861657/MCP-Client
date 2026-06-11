@@ -33,6 +33,7 @@ import {
   ToolsConfig
 } from '../config/feature-config.js';
 import { mcpClient } from '../core/mcp/index.js';
+import { ChatStore } from '../services/chat-store.service.js';
 import { ConfigService } from '../services/config.service.js';
 import { ToolPolicyService } from '../services/tool-policy.service.js';
 import type { ResolvedChatProfile } from '../types/config-plane.types.js';
@@ -252,7 +253,8 @@ export class AiProvider {
 
     const memoryContext = resolveMemoryPipelineContext(messages, {
       skipMemory: resolvedProfile?.skipMemory,
-      documentSessionId: resolvedProfile?.documentSessionId
+      documentSessionId: resolvedProfile?.documentSessionId,
+      identityScope: resolvedProfile?.memoryScope
     });
 
     return applyPromptPipelineToMessages(messages, {
@@ -769,10 +771,19 @@ export class AiProvider {
       );
       const memoryContext = resolveMemoryPipelineContext(messages, {
         skipMemory: resolvedProfile?.skipMemory,
-        documentSessionId: resolvedProfile?.documentSessionId
+        documentSessionId: resolvedProfile?.documentSessionId,
+        identityScope: resolvedProfile?.memoryScope
       });
       const chatTools = await this.getToolDefinitions(enableTools, resolvedProfile);
       const summarizeFn = this.resolveSummarizeFn(enableAutoCompact, compactModel, signal);
+
+      // T4-03：已登录会话才落库 / 回写压缩基线；guest（无 userId/chatSessionId）零改动
+      const persistUserId = resolvedProfile?.userId;
+      const chatSessionId = resolvedProfile?.chatSessionId;
+      const persistContext =
+        persistUserId && chatSessionId
+          ? { userId: persistUserId, chatSessionId }
+          : undefined;
 
       return await runAgentLoop({
         messages,
@@ -786,11 +797,24 @@ export class AiProvider {
         summarizeFn,
         onContextCompacted: (summaryContent: string) => {
           onChunk({ contextCompacted: true, summaryContent }, false);
+          if (persistContext && summaryContent) {
+            void ChatStore.updateCompactBaseline(persistContext.userId, persistContext.chatSessionId, {
+              summaryContent,
+              compactedAt: new Date().toISOString()
+            }).catch((error: unknown) => {
+              Logger.error(
+                'OPENAI',
+                `[${this.providerName}] 压缩基线回写失败 chatSessionId=${persistContext.chatSessionId}:`,
+                error
+              );
+            });
+          }
         },
         onChunk,
         provider: this.getAgentLoopProvider(),
         permission: permissionCtx,
-        memoryContext
+        memoryContext,
+        ...(persistContext ? { persistContext } : {})
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

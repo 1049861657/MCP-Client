@@ -17,6 +17,8 @@ import { getWebChannelAdapter } from '../channels/web/web-channel.adapter.js';
 import { normalizeWebInbound } from '../channels/web/normalize-web-inbound.js';
 import { SSE_KEEP_ALIVE_INTERVAL_MS } from '../channels/web/sse-config.js';
 import { publishInbound } from '../message-bus/inbound-queue.js';
+import { resolveOptionalUser } from './user-auth.js';
+import { ChatStore } from '../services/chat-store.service.js';
 import { resolvePermissionPending } from '../core/agent-harness/permission-pending.js';
 import {
   assertPermissionSessionKey,
@@ -169,10 +171,13 @@ export class AiController {
         await AiController.sanitizeWebMcpServerIds(body);
         await AiController.sanitizeWebEnabledToolNames(body);
         AiController.sanitizeWebEnabledSystemToolNames(body);
-        envelope = normalizeWebInbound({
+        // 可选鉴权：已登录则服务端组上下文 + 轮末落库；guest 维持现网 body messages[] 路径
+        const user = await resolveOptionalUser(req);
+        envelope = await normalizeWebInbound({
           body,
           requestId,
-          abortSignal: abortController.signal
+          abortSignal: abortController.signal,
+          ...(user ? { userId: user.id } : {})
         });
       } catch (error: unknown) {
         const errMessage = error instanceof Error ? error.message : String(error);
@@ -241,7 +246,7 @@ export class AiController {
   static async contextPreview(req: Request, res: Response): Promise<void> {
     try {
       const {
-        messages = [],
+        messages: bodyMessages = [],
         enableAutoCompact,
         contextOverride = null
       } = req.body as {
@@ -250,6 +255,8 @@ export class AiController {
         contextOverride?: InternalMessage[] | null;
       };
 
+      // authed：上下文来源同 chatStream（服务端取历史 + 基线），不依赖 body 全量上行
+      const messages = await AiController.resolveContextMessages(req, bodyMessages);
       if (!Array.isArray(messages)) {
         res.status(400).json({ error: 'messages 必须为数组' });
         return;
@@ -283,7 +290,7 @@ export class AiController {
   static async compact(req: Request, res: Response): Promise<void> {
     try {
       const {
-        messages = [],
+        messages: bodyMessages = [],
         vendor,
         compactModel
       } = req.body as {
@@ -292,6 +299,8 @@ export class AiController {
         compactModel?: string;
       };
 
+      // authed：上下文来源同 chatStream（服务端取历史 + 基线）
+      const messages = await AiController.resolveContextMessages(req, bodyMessages);
       if (!Array.isArray(messages) || messages.length === 0) {
         res.status(400).json({ error: '缺少 messages 参数或消息为空' });
         return;
@@ -456,6 +465,31 @@ export class AiController {
       Logger.error('API', 'permission-resolve 失败:', error);
       res.status(500).json({ success: false, error: errMessage });
     }
+  }
+
+  /**
+   * 解析上下文消息来源：已登录且带 sessionId → 服务端组装（历史 + 压缩基线）；
+   * 否则（guest）沿用 body messages[]。供 context-preview / compact 复用，与 chatStream 同源。
+   */
+  private static async resolveContextMessages(
+    req: Request,
+    bodyMessages: InternalMessage[]
+  ): Promise<InternalMessage[]> {
+    const user = await resolveOptionalUser(req);
+    const sessionId =
+      typeof (req.body as { sessionId?: unknown }).sessionId === 'string'
+        ? (req.body as { sessionId: string }).sessionId.trim()
+        : '';
+    if (!user || !sessionId) {
+      return bodyMessages;
+    }
+    const contextOptions = (req.body as { contextOptions?: { messageHistoryCount?: unknown } })
+      .contextOptions;
+    const messageHistoryCount =
+      typeof contextOptions?.messageHistoryCount === 'number' && contextOptions.messageHistoryCount > 0
+        ? contextOptions.messageHistoryCount
+        : undefined;
+    return ChatStore.assembleContextMessages(user.id, sessionId, { messageHistoryCount });
   }
 
   /** Web 请求体 mcpServerIds 仅保留当前已连接的 MCP 服务器 */

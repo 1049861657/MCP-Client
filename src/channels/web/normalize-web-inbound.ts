@@ -4,12 +4,25 @@ import {
 } from '../../config/feature-config.js';
 import type { ChatOptions, WebAgentMessageEnvelope } from '../../types/channel.types.js';
 import type { InternalMessage } from '../../core/agent-harness/types.js';
+import { ChatStore } from '../../services/chat-store.service.js';
 import { buildWebSessionKey } from '../session-key.js';
 
 export interface WebInboundInput {
   body: Record<string, unknown>;
   requestId: string;
   abortSignal?: AbortSignal;
+  /** 已登录用户 ID；有值走 authed 服务端组上下文（body 只带 sessionId + 新消息），缺省为 guest */
+  userId?: string;
+}
+
+/** authed 上下文裁剪选项：messageHistoryCount 等本地设置随 body.contextOptions 上行 */
+function resolveContextMessageCount(body: Record<string, unknown>): number | undefined {
+  const contextOptions = body.contextOptions;
+  if (typeof contextOptions !== 'object' || contextOptions === null) {
+    return undefined;
+  }
+  const count = (contextOptions as Record<string, unknown>).messageHistoryCount;
+  return typeof count === 'number' && count > 0 ? count : undefined;
 }
 
 function resolveMessages(body: Record<string, unknown>): InternalMessage[] {
@@ -83,16 +96,40 @@ function buildChatOptionsFromBody(body: Record<string, unknown>): ChatOptions | 
 }
 
 /**
- * Web 入站：HTTP body + requestId + AbortSignal → AgentMessageEnvelope
+ * Web 入站：HTTP body + requestId + AbortSignal → AgentMessageEnvelope。
+ * - guest：沿用现网，body messages[] 全量入队。
+ * - authed：body 只带 sessionId + 新 user 消息；服务端单查询取历史 + 注入压缩基线组完整上下文。
  */
-export function normalizeWebInbound(input: WebInboundInput): WebAgentMessageEnvelope {
-  const { body, requestId, abortSignal } = input;
-  const messages = resolveMessages(body);
+export async function normalizeWebInbound(
+  input: WebInboundInput
+): Promise<WebAgentMessageEnvelope> {
+  const { body, requestId, abortSignal, userId } = input;
   const vendor = typeof body.vendor === 'string' ? body.vendor : undefined;
   const webChatSessionId =
     typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
   if (!webChatSessionId) {
     throw new Error('缺少 sessionId（Web 聊天会话标识）');
+  }
+
+  let messages: InternalMessage[];
+  if (userId) {
+    // authed 契约：body 只带新 user 消息（历史由服务端组装）。
+    // 若误传 assistant/tool 历史则 fail-fast，避免历史被标 user 二次落库（双写）。
+    const newMessages = resolveMessages(body);
+    if (newMessages.some((message) => message.role !== 'user')) {
+      throw new Error('已登录会话仅可上行新的 user 消息，历史由服务端组装');
+    }
+    // 新 user 消息标记 _source='user'（落库）；历史/基线由 ChatStore 标记 persisted（落库跳过）
+    const taggedNew = newMessages.map<InternalMessage>((message) => ({
+      ...message,
+      _source: 'user'
+    }));
+    const context = await ChatStore.assembleContextMessages(userId, webChatSessionId, {
+      messageHistoryCount: resolveContextMessageCount(body)
+    });
+    messages = [...context, ...taggedNew];
+  } else {
+    messages = resolveMessages(body);
   }
 
   const chatOptions = buildChatOptionsFromBody(body);
@@ -108,6 +145,7 @@ export function normalizeWebInbound(input: WebInboundInput): WebAgentMessageEnve
       requestId,
       webChatSessionId,
       ...(vendor !== undefined ? { vendor } : {}),
+      ...(userId !== undefined ? { userId } : {}),
       ...(abortSignal !== undefined ? { abortSignal } : {})
     },
     payload: {

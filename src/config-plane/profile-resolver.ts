@@ -11,7 +11,8 @@ import type { PermissionMode } from '../config/permission.types.js';
 import type {
   AgentMessageEnvelopeSerialized,
   ChannelId,
-  ChatOptions
+  ChatOptions,
+  MemoryIdentityScope
 } from '../types/channel.types.js';
 import {
   isDingtalkInboundEnvelope,
@@ -46,6 +47,34 @@ export function extractRouteMatchKey(
   return ROUTE_MATCH_ALL;
 }
 
+/** 已登录 Web 会话用户 ID（guest / 非 Web 为 undefined）；落库与记忆作用域共用 */
+function resolveWebUserId(
+  envelope: AgentMessageEnvelopeSerialized
+): string | undefined {
+  return isWebInboundEnvelope(envelope) && typeof envelope.channelMeta.userId === 'string'
+    ? envelope.channelMeta.userId
+    : undefined;
+}
+
+/** T4-05：据 envelope 渠道构造外接记忆身份作用域（Web 匿名无 userId → 下游关闭记忆） */
+function resolveMemoryScope(
+  envelope: AgentMessageEnvelopeSerialized
+): MemoryIdentityScope {
+  if (isFeishuInboundEnvelope(envelope)) {
+    return { channel: 'feishu', chatId: envelope.channelMeta.chatId };
+  }
+  if (isDingtalkInboundEnvelope(envelope)) {
+    const { conversationId, robotCode } = envelope.channelMeta;
+    return {
+      channel: 'dingtalk',
+      conversationId,
+      ...(robotCode ? { robotCode } : {})
+    };
+  }
+  const userId = resolveWebUserId(envelope);
+  return { channel: 'web', ...(userId ? { userId } : {}) };
+}
+
 export function buildProfileResolveContext(
   envelope: AgentMessageEnvelopeSerialized
 ): ProfileResolveContext {
@@ -59,6 +88,9 @@ export function buildProfileResolveContext(
       ? envelope.channelMeta.webChatSessionId.trim()
       : envelope.sessionKey.trim();
 
+  // T4-03：已登录 Web 会话——userId 透传给落库/per-user 配置，chatSessionId = ChatSession.id
+  const userId = resolveWebUserId(envelope);
+
   return {
     channel: envelope.channel,
     sessionKey: envelope.sessionKey,
@@ -67,7 +99,9 @@ export function buildProfileResolveContext(
     envelopeChatOptions: pickDefined(
       (envelope.payload.chatOptions ?? {}) as Record<string, unknown>
     ) as Partial<ChatOptions>,
-    vendorFromChannelMeta
+    vendorFromChannelMeta,
+    memoryScope: resolveMemoryScope(envelope),
+    ...(userId ? { userId, chatSessionId: documentSessionId } : {})
   };
 }
 
@@ -236,7 +270,10 @@ function resolveProfileFromProfileRecord(
     toolPrompt: merged.toolPrompt,
     permissionMode: resolvePermissionMode(ctx.channel, merged.permissionMode),
     skipMemory: merged.skipMemory,
-    documentSessionId: ctx.documentSessionId
+    documentSessionId: ctx.documentSessionId,
+    memoryScope: ctx.memoryScope,
+    ...(ctx.userId ? { userId: ctx.userId } : {}),
+    ...(ctx.chatSessionId ? { chatSessionId: ctx.chatSessionId } : {})
   };
 }
 

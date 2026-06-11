@@ -19,7 +19,16 @@ export interface MessageInternalMeta {
 }
 
 /** 内部消息来源（Harness 上下文构建 / 审计，不发送给 LLM API） */
-export type MessageSource = 'user' | 'tool' | 'reminder' | 'compact' | 'system' | 'summary' | 'hook';
+export type MessageSource =
+  | 'user'
+  | 'tool'
+  | 'reminder'
+  | 'compact'
+  | 'system'
+  | 'summary'
+  | 'hook'
+  // T4-03：已登录会话从 ChatMessage 取回的历史，落库时据此跳过（不重复 append）
+  | 'persisted';
 
 /**
  * 内部消息扩展字段规范（P0-02）
