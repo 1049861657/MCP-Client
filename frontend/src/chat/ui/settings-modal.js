@@ -1,5 +1,10 @@
+import { bindChipGroup, clearChipGroupActive, syncChipGroup } from '../../shared/ui/chip-group.js';
+import { mountDropdownSelectsIn, refreshDropdownSelect } from '../../shared/ui/dropdown-select.js';
+import { bindSegmentedControl, syncSegmentedControl } from '../../shared/ui/segmented.js';
+import { bindStepper } from '../../shared/ui/stepper.js';
+import { bindToggle, syncToggleFromCheckbox } from '../../shared/ui/toggle.js';
 import { CHAT_SETTINGS_KEY } from '../storage-contract.js';
-import { bindChatModalClose, closeChatModal, openChatModal } from './modal-host.js';
+import { bindChatModalClose, openChatModal } from './modal-host.js';
 
 /** @type {boolean} */
 let settingsUiBound = false;
@@ -9,69 +14,11 @@ const TOKEN_MAX = 8192;
 const TOKEN_STEP = 512;
 
 /**
- * @param {HTMLInputElement | null} checkbox
- * @param {HTMLButtonElement | null} toggle
- * @param {HTMLElement | null} [nested]
- */
-function syncToggleFromCheckbox(checkbox, toggle, nested) {
-  if (!checkbox || !toggle) {
-    return;
-  }
-  const on = checkbox.checked;
-  toggle.classList.toggle('on', on);
-  toggle.setAttribute('aria-pressed', on ? 'true' : 'false');
-  if (nested) {
-    nested.classList.toggle('hidden', !on);
-  }
-}
-
-/**
- * @param {HTMLButtonElement} toggle
- * @param {HTMLInputElement} checkbox
- * @param {HTMLElement | null} [nested]
- */
-function bindToggle(toggle, checkbox, nested) {
-  toggle.addEventListener('click', () => {
-    checkbox.checked = !checkbox.checked;
-    syncToggleFromCheckbox(checkbox, toggle, nested);
-    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-  });
-}
-
-/**
- * @param {HTMLElement | null} display
- * @param {HTMLInputElement | null} input
- * @param {number} min
- * @param {number} max
- * @param {number} step
- */
-function bindStepper(display, input, min, max, step) {
-  if (!display || !input) {
-    return;
-  }
-  const minus = display.previousElementSibling;
-  const plus = display.nextElementSibling;
-  const apply = (value) => {
-    const clamped = Math.min(max, Math.max(min, value));
-    display.textContent = String(clamped);
-    input.value = String(clamped);
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  };
-  if (minus instanceof HTMLButtonElement) {
-    minus.addEventListener('click', () => apply(parseInt(display.textContent ?? '0', 10) - step));
-  }
-  if (plus instanceof HTMLButtonElement) {
-    plus.addEventListener('click', () => apply(parseInt(display.textContent ?? '0', 10) + step));
-  }
-}
-
-/**
  * @param {HTMLInputElement | null} temperatureInput
  */
 function syncTemperatureUi(temperatureInput) {
   const slider = document.getElementById('settings-temp-slider');
   const valueEl = document.getElementById('settings-temp-val');
-  const chips = document.querySelectorAll('#settings-temp-chips .settings-chip[data-temp]');
   if (!temperatureInput || !(slider instanceof HTMLInputElement) || !valueEl) {
     return;
   }
@@ -81,12 +28,13 @@ function syncTemperatureUi(temperatureInput) {
   }
   valueEl.textContent = value.toFixed(1);
   slider.value = String(Math.round(value * 10));
-  chips.forEach((chip) => {
-    if (chip instanceof HTMLButtonElement) {
-      const preset = parseFloat(chip.dataset.temp ?? '');
-      chip.classList.toggle('active', !Number.isNaN(preset) && Math.abs(preset - value) < 0.05);
-    }
-  });
+  syncChipGroup(
+    document.getElementById('settings-temp-chips'),
+    value,
+    'temp',
+    (raw) => parseFloat(raw),
+    (a, b) => typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 0.05,
+  );
 }
 
 /**
@@ -95,7 +43,6 @@ function syncTemperatureUi(temperatureInput) {
 function bindTemperatureControls(temperatureInput) {
   const slider = document.getElementById('settings-temp-slider');
   const valueEl = document.getElementById('settings-temp-val');
-  const chips = document.querySelectorAll('#settings-temp-chips .settings-chip[data-temp]');
   if (!temperatureInput || !(slider instanceof HTMLInputElement) || !valueEl) {
     return;
   }
@@ -104,21 +51,19 @@ function bindTemperatureControls(temperatureInput) {
     const value = parseInt(slider.value, 10) / 10;
     temperatureInput.value = value.toFixed(1);
     valueEl.textContent = value.toFixed(1);
-    chips.forEach((chip) => chip.classList.remove('active'));
+    clearChipGroupActive(document.getElementById('settings-temp-chips'), 'temp');
   });
 
-  chips.forEach((chip) => {
-    if (!(chip instanceof HTMLButtonElement)) {
-      return;
-    }
-    chip.addEventListener('click', () => {
-      const value = parseFloat(chip.dataset.temp ?? '');
+  bindChipGroup(document.getElementById('settings-temp-chips'), {
+    attributeName: 'temp',
+    onSelect: (raw) => {
+      const value = parseFloat(raw);
       if (Number.isNaN(value)) {
         return;
       }
       temperatureInput.value = value.toFixed(1);
       syncTemperatureUi(temperatureInput);
-    });
+    },
   });
 }
 
@@ -128,7 +73,6 @@ function bindTemperatureControls(temperatureInput) {
 function syncTokensUi(maxTokensInput) {
   const slider = document.getElementById('settings-tokens-slider');
   const valueEl = document.getElementById('settings-tokens-val');
-  const chips = document.querySelectorAll('#settings-tokens-chips .settings-chip[data-tokens]');
   if (!maxTokensInput || !(slider instanceof HTMLInputElement) || !valueEl) {
     return;
   }
@@ -139,11 +83,12 @@ function syncTokensUi(maxTokensInput) {
   maxTokensInput.value = String(value);
   slider.value = String(value);
   valueEl.innerHTML = `${value}<span class="settings-value-unit"> tokens</span>`;
-  chips.forEach((chip) => {
-    if (chip instanceof HTMLButtonElement) {
-      chip.classList.toggle('active', parseInt(chip.dataset.tokens ?? '', 10) === value);
-    }
-  });
+  syncChipGroup(
+    document.getElementById('settings-tokens-chips'),
+    value,
+    'tokens',
+    (tokenRaw) => parseInt(tokenRaw, 10),
+  );
 }
 
 /**
@@ -151,7 +96,6 @@ function syncTokensUi(maxTokensInput) {
  */
 function bindTokensControls(maxTokensInput) {
   const slider = document.getElementById('settings-tokens-slider');
-  const chips = document.querySelectorAll('#settings-tokens-chips .settings-chip[data-tokens]');
   if (!maxTokensInput || !(slider instanceof HTMLInputElement)) {
     return;
   }
@@ -161,18 +105,16 @@ function bindTokensControls(maxTokensInput) {
     syncTokensUi(maxTokensInput);
   });
 
-  chips.forEach((chip) => {
-    if (!(chip instanceof HTMLButtonElement)) {
-      return;
-    }
-    chip.addEventListener('click', () => {
-      const value = parseInt(chip.dataset.tokens ?? '', 10);
+  bindChipGroup(document.getElementById('settings-tokens-chips'), {
+    attributeName: 'tokens',
+    onSelect: (raw) => {
+      const value = parseInt(raw, 10);
       if (Number.isNaN(value)) {
         return;
       }
       maxTokensInput.value = String(value);
       syncTokensUi(maxTokensInput);
-    });
+    },
   });
 }
 
@@ -197,28 +139,28 @@ function syncSettingsUi(getApp) {
 
   syncToggleFromCheckbox(
     elements.enableMessageHistory,
-    document.getElementById('settings-toggle-history'),
+    document.getElementById('ui-toggle-history'),
     document.getElementById('settings-history-nested'),
   );
   syncHindsightMemorySettingsUi(getApp());
   syncToggleFromCheckbox(
     elements.skipMemory,
-    document.getElementById('settings-toggle-skip-memory'),
+    document.getElementById('ui-toggle-skip-memory'),
     null,
   );
   syncToggleFromCheckbox(
     elements.enableAutoCompact,
-    document.getElementById('settings-toggle-compact'),
+    document.getElementById('ui-toggle-compact'),
     document.getElementById('settings-compact-nested'),
   );
   syncToggleFromCheckbox(
     elements.enableMCPTools,
-    document.getElementById('settings-toggle-mcp'),
+    document.getElementById('ui-toggle-mcp'),
     null,
   );
   syncToggleFromCheckbox(
     elements.enablePrompts,
-    document.getElementById('settings-toggle-prompts'),
+    document.getElementById('ui-toggle-prompts'),
     null,
   );
 
@@ -262,7 +204,7 @@ function syncHindsightMemorySettingsUi(app) {
   const statusDot = document.getElementById('settings-hindsight-memory-status');
   const statusLabel = document.getElementById('settings-hindsight-memory-status-text');
   const debugLink = document.getElementById('settings-hindsight-memory-debug');
-  const toggle = document.getElementById('settings-toggle-skip-memory');
+  const toggle = document.getElementById('ui-toggle-skip-memory');
 
   if (card) {
     card.classList.toggle('is-disabled', !enabled);
@@ -295,14 +237,11 @@ function syncHindsightMemorySettingsUi(app) {
 }
 
 function syncPermissionModeUi(mode) {
-  const container = document.getElementById('settings-permission-mode');
-  if (!container) {
-    return;
-  }
-  container.querySelectorAll('[data-permission-mode]').forEach((btn) => {
-    const active = btn.getAttribute('data-permission-mode') === mode;
-    btn.classList.toggle('active', active);
-  });
+  syncSegmentedControl(
+    document.getElementById('settings-permission-mode'),
+    mode,
+    'permission-mode',
+  );
 
   const footnote = document.getElementById('settings-permission-footnote');
   if (footnote && PERMISSION_MODE_FOOTNOTES[mode]) {
@@ -315,32 +254,44 @@ function syncPermissionModeUi(mode) {
  * @param {() => object} getApp
  */
 function bindPermissionMode(getApp) {
-  const container = document.getElementById('settings-permission-mode');
-  if (!container || container.dataset.bound === '1') {
-    return;
-  }
-  container.dataset.bound = '1';
-  container.querySelectorAll('[data-permission-mode]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const mode = btn.getAttribute('data-permission-mode');
-      if (!mode || !VALID_PERMISSION_MODES.includes(mode)) {
+  bindSegmentedControl(document.getElementById('settings-permission-mode'), {
+    attributeName: 'permission-mode',
+    onSelect: (mode) => {
+      if (!VALID_PERMISSION_MODES.includes(mode)) {
         return;
       }
       getApp().state.permissionMode = mode;
       syncPermissionModeUi(mode);
       saveSettings();
-    });
+    },
   });
 }
 
 /**
  * @param {() => object} getApp
  */
+/**
+ * @param {HTMLElement | null} settingsModal
+ */
+function ensureSettingsDropdowns(settingsModal) {
+  if (!settingsModal) {
+    return;
+  }
+  mountDropdownSelectsIn(settingsModal, 'select.field-select');
+  settingsModal.querySelectorAll('select.field-select').forEach((select) => {
+    if (select instanceof HTMLSelectElement && select.dataset.fbSelectMounted === '1') {
+      refreshDropdownSelect(select);
+    }
+  });
+}
+
 function bindSettingsModalUi(getApp) {
   if (settingsUiBound) {
     return;
   }
   settingsUiBound = true;
+
+  bindChatModalClose('settings-modal', () => saveSettings());
 
   const app = getApp();
   const { elements } = app;
@@ -366,14 +317,14 @@ function bindSettingsModalUi(getApp) {
 
   if (elements.enableMessageHistory) {
     bindToggle(
-      /** @type {HTMLButtonElement} */ (document.getElementById('settings-toggle-history')),
+      /** @type {HTMLButtonElement} */ (document.getElementById('ui-toggle-history')),
       elements.enableMessageHistory,
       document.getElementById('settings-history-nested'),
     );
   }
   if (elements.skipMemory) {
     const skipToggle = /** @type {HTMLButtonElement} */ (
-      document.getElementById('settings-toggle-skip-memory')
+      document.getElementById('ui-toggle-skip-memory')
     );
     bindToggle(skipToggle, elements.skipMemory, null);
     if (elements.skipMemory.dataset.changeBound !== '1') {
@@ -388,21 +339,21 @@ function bindSettingsModalUi(getApp) {
   }
   if (elements.enableAutoCompact) {
     bindToggle(
-      /** @type {HTMLButtonElement} */ (document.getElementById('settings-toggle-compact')),
+      /** @type {HTMLButtonElement} */ (document.getElementById('ui-toggle-compact')),
       elements.enableAutoCompact,
       document.getElementById('settings-compact-nested'),
     );
   }
   if (elements.enableMCPTools) {
     bindToggle(
-      /** @type {HTMLButtonElement} */ (document.getElementById('settings-toggle-mcp')),
+      /** @type {HTMLButtonElement} */ (document.getElementById('ui-toggle-mcp')),
       elements.enableMCPTools,
       null,
     );
   }
   if (elements.enablePrompts) {
     bindToggle(
-      /** @type {HTMLButtonElement} */ (document.getElementById('settings-toggle-prompts')),
+      /** @type {HTMLButtonElement} */ (document.getElementById('ui-toggle-prompts')),
       elements.enablePrompts,
       null,
     );
@@ -440,7 +391,9 @@ export function createSettingsModalApi(getApp, ui) {
     bindSettingsModalUi(getApp);
     syncSettingsUi(getApp);
     openChatModal('settings-modal');
-    bindChatModalClose('settings-modal', () => saveSettings());
+    window.requestAnimationFrame(() => {
+      ensureSettingsDropdowns(document.getElementById('settings-modal'));
+    });
 
     const resetBtn = document.getElementById('reset-settings');
     if (resetBtn && resetBtn.dataset.bound !== '1') {

@@ -55,7 +55,7 @@
 | T1（渠道+总线） | 34 | 34 | 100% |
 | T2（配置平面+Admin） | 24 | 24 | 100% |
 | T3（前端现代化） | 31 | 31 | 100% |
-| T4（账号+会话） | 24 | 16 | 67% |
+| T4（账号+会话） | 28 | 25 | 89% |
 | P0 | 19 | 19 | 100% |
 | P1 | 30 | 30 | 100% |
 | P2 | 20 | 20 | 100% |
@@ -76,7 +76,7 @@
 src/channels/               # T1：Web / 飞书 / 钉钉 Adapter、bootstrap、envelope-mapper
 src/config-plane/           # T2：resolveProfile、快照（Web 全局偏好走前端 body，非 session override）
 src/message-bus/            # T1：Inbound Queue、Worker、OutboundRouter、幂等
-public/admin.html           # T3：渠道管理（Vite 构建产物，源码 frontend/src/admin/）
+public/admin.html           # T3/T4-07：高级配置（Vite 构建产物，源码 frontend/src/admin/）
 frontend/src/chat/          # T3：Chat ESM（storage-contract、chat-request-body）
 frontend/                   # T3：单体 Vite MPA 源码（见 T3 任务书）
 src/core/agent-harness/     # Harness：agent-loop、tool-call-manager、system-tools、types

@@ -1,0 +1,58 @@
+/**
+ * 空状态 / 占位提示
+ */
+
+@layer components {
+  .ui-empty-state--inline,
+  .history-empty {
+    @apply m-0 px-3 py-8 text-center text-sm text-[var(--color-text-muted)];
+  }
+
+  .ui-empty-state--dashed,
+  .history-empty--detail {
+    @apply rounded-xl border border-dashed border-[rgb(15_23_42/0.1)] bg-[#fafbfc];
+  }
+
+  .ui-empty-state--error,
+  .history-empty--error,
+  .ui-empty-state--dashed.ui-empty-state--error {
+    @apply text-[#b91c1c];
+  }
+
+  .ui-empty-state--compact,
+  .models-empty {
+    @apply m-0 px-3 py-4 text-center text-[0.8125rem] text-[var(--color-text-light)];
+  }
+
+  .ui-empty-state--default,
+  .empty-message {
+    @apply px-6 py-12 text-center text-[var(--color-text-muted)];
+  }
+
+  .ui-empty-state__title,
+  .empty-message h3 {
+    @apply m-0 mb-2 text-base text-[var(--color-text)];
+  }
+
+  .empty-message h3 {
+    @apply mt-4;
+  }
+
+  .ui-empty-state__message,
+  .empty-message p {
+    @apply m-0 text-sm;
+  }
+
+  .ui-empty-state--panel,
+  .empty-state {
+    @apply grid flex-1 place-content-center text-center text-[var(--color-text-muted)];
+  }
+
+  .empty-state h3 {
+    @apply mx-0 mb-1 mt-3 text-base text-[var(--color-text)];
+  }
+
+  .empty-state p {
+    @apply m-0 text-sm;
+  }
+}

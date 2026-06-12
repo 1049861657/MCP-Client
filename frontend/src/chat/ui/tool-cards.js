@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../shared/escape-html.js';
 import {
   normalizePlanningItems,
   readPlanningItemsFromCard,
@@ -552,14 +553,4 @@ export function createToolCardsUi(getApp, ui) {
     showPermissionPrompt,
     syncTodoCardPlanningSnapshot,
   };
-}
-
-/**
- * @param {string} text
- */
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }

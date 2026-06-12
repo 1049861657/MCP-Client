@@ -1,0 +1,20 @@
+/**
+ * 数字步进器
+ */
+
+@layer components {
+  .ui-stepper,
+  .settings-stepper {
+    @apply inline-flex items-center overflow-hidden rounded-[10px] border border-[rgb(15_23_42/0.1)] bg-white;
+  }
+
+  .ui-stepper-btn,
+  .settings-stepper-btn {
+    @apply h-[34px] w-[34px] cursor-pointer border-0 bg-transparent text-[17px] text-[var(--color-text-muted)] hover:bg-[rgb(15_23_42/0.04)] hover:text-[var(--color-text)];
+  }
+
+  .ui-stepper-value,
+  .settings-stepper span {
+    @apply min-w-10 text-center text-sm font-bold tabular-nums text-[var(--color-text)];
+  }
+}

@@ -8,7 +8,14 @@ import {
 } from './normalize-feishu-inbound.js';
 import { getFeishuClient, initFeishuClient, resolveFeishuDomain } from './feishu-sdk.js';
 
+type ChannelLinkStatus = 'connected' | 'disconnected' | 'skipped';
+
 let wsClient: Lark.WSClient | null = null;
+let linkStatus: ChannelLinkStatus = 'skipped';
+
+export function getFeishuLinkStatus(): ChannelLinkStatus {
+  return linkStatus;
+}
 
 function readFeishuCredentials(): { appId: string; appSecret: string } | null {
   const appId = process.env.FEISHU_APP_ID?.trim();
@@ -39,6 +46,7 @@ async function handleFeishuMessage(event: FeishuReceiveMessageEvent): Promise<vo
 export function startFeishuEventListener(): void {
   const credentials = readFeishuCredentials();
   if (!credentials) {
+    linkStatus = 'skipped';
     Logger.info('FEISHU', '未配置 FEISHU_APP_ID/FEISHU_APP_SECRET，跳过飞书长连接');
     return;
   }
@@ -58,13 +66,18 @@ export function startFeishuEventListener(): void {
     domain
   });
 
-  wsClient.start({
-    eventDispatcher: new Lark.EventDispatcher({}).register({
-      'im.message.receive_v1': (data: FeishuReceiveMessageEvent) => {
-        void handleFeishuMessage(data);
-      }
-    })
-  });
-
-  Logger.info('FEISHU', '飞书长连接已启动（im.message.receive_v1）');
+  try {
+    wsClient.start({
+      eventDispatcher: new Lark.EventDispatcher({}).register({
+        'im.message.receive_v1': (data: FeishuReceiveMessageEvent) => {
+          void handleFeishuMessage(data);
+        }
+      })
+    });
+    linkStatus = 'connected';
+    Logger.info('FEISHU', '飞书长连接已启动（im.message.receive_v1）');
+  } catch (error: unknown) {
+    linkStatus = 'disconnected';
+    Logger.error('FEISHU', '飞书长连接启动失败:', error);
+  }
 }

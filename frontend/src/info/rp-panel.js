@@ -2,6 +2,7 @@
  * Info 页 MCP Resources / Prompts 只读列表与预览（不进聊天）
  */
 
+import { escapeHtml } from '../shared/escape-html.js';
 import { showToast } from '../shared/ui/toast.js';
 
 /** @typedef {{ uri: string; name?: string; description?: string; mimeType?: string }} McpResourceInfo */
@@ -63,18 +64,6 @@ function showPreviewModal(container, title, output) {
     }
   });
   container.appendChild(overlay);
-}
-
-/**
- * @param {string} value
- * @returns {string}
- */
-function escapeHtml(value) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 /**

@@ -32,7 +32,8 @@ import {
   resolveSummarizeMaxTokens,
   ToolsConfig
 } from '../config/feature-config.js';
-import { mcpClient } from '../core/mcp/index.js';
+import { getMcpClientForUser } from '../core/mcp/index.js';
+import { resolveMcpPoolKey } from '../services/mcp-context.service.js';
 import { ChatStore } from '../services/chat-store.service.js';
 import { ConfigService } from '../services/config.service.js';
 import { ToolPolicyService } from '../services/tool-policy.service.js';
@@ -116,10 +117,15 @@ export class AiProvider {
    */
   private async convertMcpToolsToChatFunctions(
     enabledServerIds?: string[],
-    enabledToolCodeNames?: string[]
+    enabledToolCodeNames?: string[],
+    configUserId?: string | null
   ): Promise<ChatTool[]> {
     try {
-      const serverInfo = await mcpClient.getServerInfo();
+      const client = getMcpClientForUser(configUserId ?? null);
+      if (enabledServerIds && enabledServerIds.length > 0) {
+        await client.ensureServersReachable(enabledServerIds);
+      }
+      const serverInfo = await client.getServerInfo();
       const mcpTools = serverInfo.tools;
 
       if (!mcpTools || mcpTools.length === 0) {
@@ -128,7 +134,7 @@ export class AiProvider {
 
       const filterIds =
         enabledServerIds ??
-        (await ConfigService.getMCPConfig()).enabledToolServerIds ??
+        (await ConfigService.getMCPConfig(configUserId ?? undefined)).enabledToolServerIds ??
         [];
 
       if (filterIds.length === 0) {
@@ -136,7 +142,7 @@ export class AiProvider {
       }
 
       const enabledSet =
-        enabledToolCodeNames !== undefined
+        enabledToolCodeNames !== undefined && enabledToolCodeNames.length > 0
           ? new Set(enabledToolCodeNames)
           : undefined;
 
@@ -303,9 +309,11 @@ export class AiProvider {
         return [...systemTools, ...cached.tools];
       }
 
+      const poolKey = resolveMcpPoolKey(resolvedProfile);
       const mcpTools = await this.convertMcpToolsToChatFunctions(
         serverIds.length > 0 ? serverIds : undefined,
-        enabledCodeNames
+        enabledCodeNames,
+        poolKey
       );
       this.chatToolsCache.set(cacheKey, { tools: mcpTools, createdAt: Date.now() });
       if (systemTools.length > 0) {
@@ -814,7 +822,10 @@ export class AiProvider {
         provider: this.getAgentLoopProvider(),
         permission: permissionCtx,
         memoryContext,
-        ...(persistContext ? { persistContext } : {})
+        ...(persistContext ? { persistContext } : {}),
+        ...(resolvedProfile !== undefined
+          ? { configUserId: resolveMcpPoolKey(resolvedProfile) }
+          : {})
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

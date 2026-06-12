@@ -33,7 +33,7 @@ import {
   isMcpConnected,
   McpConnectionStatus,
 } from "../../types/mcp-connection.types.js";
-import { ConfigService } from "../../services/config.service.js";
+import { McpConfigStore } from "../../services/mcp-config.store.js";
 import { MCPConfigType, MCPServer } from "../../types/config.types.js";
 import { ToolNameCodec } from "../../utils/tool-name-codec.js";
 
@@ -62,12 +62,15 @@ export class ServerConnection {
   private reconnectPromise: Promise<boolean> | null = null;
   // 工具列表变更回调，由 MCPClientManager 注入
   onToolsChanged?: (serverId: string) => void;
+  /** MCP 配置桶 userId；null = 全局 seed */
+  private readonly configUserId: string | null;
 
   /**
    * 构造函数
    * @param serverConfig 服务器配置
    */
-  constructor(serverConfig: MCPServer) {
+  constructor(serverConfig: MCPServer, configUserId: string | null = null) {
+    this.configUserId = configUserId;
     this.id = serverConfig.serverId;
     this.name = serverConfig.name;
     this.connectionType = serverConfig.connectionType;
@@ -110,7 +113,7 @@ export class ServerConnection {
    */
   private async initConfig(): Promise<void> {
     try {
-      this.mcpConfig = await ConfigService.getMCPConfig();
+      this.mcpConfig = await McpConfigStore.get(this.configUserId ?? undefined);
     } catch (error) {
       Logger.error('SERVER CONNECTION', '获取MCP配置失败:', error);
     }
@@ -143,7 +146,9 @@ export class ServerConnection {
       try {
         const url = new URL(serverConfig.mcpUrl);
         this.usesOAuthTransport = shouldUseMcpOAuth(connectionType, serverConfig.headers);
-        this.oauthProvider = this.usesOAuthTransport ? new McpOAuthProvider(this.id) : null;
+        this.oauthProvider = this.usesOAuthTransport
+          ? new McpOAuthProvider(this.id, this.configUserId)
+          : null;
 
         if (this.usesOAuthTransport) {
           return new StreamableHTTPClientTransport(url, {
@@ -195,7 +200,7 @@ export class ServerConnection {
   private async rebuildTransportStack(): Promise<void> {
     await this.resetSession();
     if (!this.mcpConfig) {
-      this.mcpConfig = await ConfigService.getMCPConfig();
+      this.mcpConfig = await McpConfigStore.get(this.configUserId ?? undefined);
     }
     const serverConfig = this.mcpConfig.servers.find((s) => s.serverId === this.id);
     if (!serverConfig) {
@@ -235,7 +240,7 @@ export class ServerConnection {
 
     try {
       if (!this.mcpConfig) {
-        this.mcpConfig = await ConfigService.getMCPConfig();
+        this.mcpConfig = await McpConfigStore.get(this.configUserId ?? undefined);
       }
 
       await this.rebuildTransportStack();
@@ -360,7 +365,7 @@ export class ServerConnection {
   async getServerInfo(): Promise<ServerInfo> {
     // 确保有最新配置
     if (!this.mcpConfig) {
-      this.mcpConfig = await ConfigService.getMCPConfig();
+      this.mcpConfig = await McpConfigStore.get(this.configUserId ?? undefined);
     }
     
     const serverConfig = this.mcpConfig.servers.find(s => s.serverId === this.id);
@@ -368,7 +373,7 @@ export class ServerConnection {
 
     const authorizationUrl =
       this.connectionStatus === McpConnectionStatus.NeedsAuth
-        ? getPendingAuthorizationUrl(this.id)
+        ? getPendingAuthorizationUrl(this.id, this.configUserId)
         : undefined;
 
     return {

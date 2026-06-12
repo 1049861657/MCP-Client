@@ -33,7 +33,10 @@ export const ROUTE_MATCH_ALL = '*';
 /** Setting 键：渠道连接占位（T2 ChannelBinding，凭证仍走 .env） */
 export const SETTING_CHANNEL_BINDINGS = 'channelBindings';
 
-/** DB `AgentProfile` 行（与 Prisma 模型对齐） */
+/** T4-07：guest / 未绑定 IM 默认配置归属（仅存 userId=null 行，超管在用户管理页写入） */
+export const SETTING_SEED_FOLLOW_USER_ID = 'seedFollowUserId';
+
+/** DB `AgentProfile` 行（渠道级全局配置） */
 export interface AgentProfileRecord {
   profileId: string;
   displayName: string;
@@ -53,9 +56,10 @@ export interface AgentProfileRecord {
   updatedAt: Date;
 }
 
-/** DB `RouteRule` 行（与 Prisma 模型对齐） */
+/** DB `RouteRule` 行（渠道级全局路由） */
 export interface RouteRuleRecord {
   id: string;
+  boundUserId: string | null;
   channel: ChannelId;
   matchKey: string;
   profileId: string;
@@ -96,6 +100,11 @@ export interface ResolvedChatProfile extends Required<
   documentSessionId?: string;
   /** T4-03：已登录用户 ID（仅 Web authed；驱动轮末落库 + 压缩基线回写 + per-user 配置） */
   userId?: string;
+  /**
+   * T4-07：MCP/Provider 配置池键（guest/IM 跟随 seedFollow 或 boundUserId；不等于登录 userId）。
+   * resolveProfile 始终写入；null = seed 全局池。
+   */
+  configUserId?: string | null;
   /** T4-03：服务端 ChatSession.id（仅 Web authed；落库/基线回写目标会话） */
   chatSessionId?: string;
   /** T4-05：外接记忆按身份分段作用域；Web 匿名为 `{channel:'web'}`（无 userId → 关闭记忆） */

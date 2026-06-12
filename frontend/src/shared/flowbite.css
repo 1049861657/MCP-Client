@@ -1,0 +1,5 @@
+/**
+ * Flowbite（Tailwind v4）— 须在 tailwindcss 之后经 post-tailwind.css 引入
+ */
+@plugin 'flowbite/plugin';
+@source '../../../node_modules/flowbite';

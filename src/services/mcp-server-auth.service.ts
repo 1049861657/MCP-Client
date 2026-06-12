@@ -44,8 +44,10 @@ function mergeAuth(serverId: string, current: StoredMcpServerAuth | undefined, p
 }
 
 export class McpServerAuthService {
-  static async load(serverId: string): Promise<StoredMcpServerAuth | undefined> {
-    const row = await prisma.mCPServerAuth.findUnique({ where: { serverId } });
+  // T4-06-01: MCPServerAuth PK 改为 id，通过 @@unique([userId, serverId]) 查找
+  static async load(serverId: string, userId?: string): Promise<StoredMcpServerAuth | undefined> {
+    const resolvedUserId = userId ?? null;
+    const row = await prisma.mCPServerAuth.findFirst({ where: { userId: resolvedUserId, serverId } });
     if (!row) {
       return undefined;
     }
@@ -60,36 +62,46 @@ export class McpServerAuthService {
     };
   }
 
-  static async patch(serverId: string, fields: AuthPatch): Promise<void> {
-    const current = await this.load(serverId);
+  static async patch(serverId: string, fields: AuthPatch, userId?: string): Promise<void> {
+    const resolvedUserId = userId ?? null;
+    const current = await this.load(serverId, userId);
     const data = mergeAuth(serverId, current, fields);
-    await prisma.mCPServerAuth.upsert({
-      where: { serverId },
-      create: data as never,
-      update: data as never,
-    });
+    // Prisma compound unique input 不接受 null，用 findFirst + create/update
+    const existing = await prisma.mCPServerAuth.findFirst({ where: { userId: resolvedUserId, serverId } });
+    if (existing) {
+      await prisma.mCPServerAuth.update({ where: { id: existing.id }, data: data as never });
+    } else {
+      await prisma.mCPServerAuth.create({ data: { ...data, userId: resolvedUserId } as never });
+    }
   }
 
-  static async saveTokens(serverId: string, tokens: OAuthTokens): Promise<void> {
-    await this.patch(serverId, { tokens, expiresAt: computeExpiresAt(tokens) });
+  static async saveTokens(serverId: string, tokens: OAuthTokens, userId?: string): Promise<void> {
+    await this.patch(serverId, { tokens, expiresAt: computeExpiresAt(tokens) }, userId);
   }
 
-  static async delete(serverId: string): Promise<void> {
-    await prisma.mCPServerAuth.deleteMany({ where: { serverId } });
+  static async delete(serverId: string, userId?: string): Promise<void> {
+    const resolvedUserId = userId ?? null;
+    await prisma.mCPServerAuth.deleteMany({ where: { userId: resolvedUserId, serverId } });
   }
 
-  static async deleteExcept(serverIds: string[]): Promise<void> {
+  static async deleteExcept(serverIds: string[], userId?: string): Promise<void> {
+    const resolvedUserId = userId ?? null;
     await prisma.mCPServerAuth.deleteMany({
-      where: { serverId: { notIn: serverIds } },
+      where: { userId: resolvedUserId, serverId: { notIn: serverIds } },
     });
   }
 
-  static async findServerIdByOAuthState(oauthState: string): Promise<string | undefined> {
-    return (
-      await prisma.mCPServerAuth.findFirst({
-        where: { oauthState },
-        select: { serverId: true },
-      })
-    )?.serverId;
+  /** OAuth 回调无会话：按 state 反查配置桶与 serverId */
+  static async findOAuthContextByState(
+    oauthState: string
+  ): Promise<{ serverId: string; userId: string | null } | undefined> {
+    const row = await prisma.mCPServerAuth.findFirst({
+      where: { oauthState },
+      select: { serverId: true, userId: true },
+    });
+    if (!row) {
+      return undefined;
+    }
+    return { serverId: row.serverId, userId: row.userId };
   }
 }

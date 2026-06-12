@@ -5,8 +5,6 @@
  *   @import '../shared/theme.css';
  *   @import 'tailwindcss';
  */
-@import './ui/confirm-modal.css';
-
 @theme {
   --color-brand: #1976d2;
   --color-brand-dark: #115293;

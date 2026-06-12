@@ -1,13 +1,22 @@
 import './navbar-shell.css';
+import { initAuthShell } from '../auth/auth-shell.js';
 import { fetchJson } from './fetch-json.js';
+import { getSession } from '../auth/session.js';
 import { mountNavAuth } from '../auth/nav-auth.js';
+
+const SUPERADMIN_ROLE = 'SUPERADMIN';
 
 const NAV_LINKS = [
   { href: '/', label: '首页', match: (path) => path === '/' || path === '/index.html' },
   { href: '/ai.html', label: 'AI聊天', match: (path) => path === '/ai.html' },
   { href: '/info.html', label: 'MCP服务', match: (path) => path === '/info.html' },
   { href: '/settings.html', label: '配置管理', match: (path) => path === '/settings.html' },
-  { href: '/admin.html', label: '渠道管理', match: (path) => path === '/admin.html' || path.startsWith('/admin/') },
+  {
+    href: '/admin.html',
+    label: '高级配置',
+    match: (path) => path === '/admin.html' || path.startsWith('/admin/'),
+    superAdminOnly: true,
+  },
 ];
 
 /**
@@ -32,6 +41,10 @@ export function mountNavbar(doc = document) {
     anchor.href = link.href;
     anchor.textContent = link.label;
     anchor.className = link.match(currentPath) ? 'navbar__link is-active' : 'navbar__link';
+    if (link.superAdminOnly) {
+      anchor.dataset.superAdminOnly = 'true';
+      anchor.hidden = true;
+    }
     links.appendChild(anchor);
   }
 
@@ -69,8 +82,23 @@ export function mountNavbar(doc = document) {
 
   body.classList.add('has-navbar');
 
+  void initAuthShell();
   void loadClientInfo(doc);
+  void applySuperAdminNav(doc);
   void mountNavAuth(authArea);
+}
+
+/** 高级配置仅 SUPERADMIN 可见；游客与普通用户隐藏顶栏入口 */
+async function applySuperAdminNav(doc) {
+  try {
+    const user = await getSession();
+    const show = user?.role === SUPERADMIN_ROLE;
+    doc.querySelectorAll('[data-super-admin-only]').forEach((el) => {
+      el.hidden = !show;
+    });
+  } catch {
+    // 未登录或会话失效：保持隐藏
+  }
 }
 
 /**

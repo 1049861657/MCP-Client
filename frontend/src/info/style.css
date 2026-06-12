@@ -1,5 +1,6 @@
 @import '../shared/theme.css';
 @import 'tailwindcss';
+@import '../shared/post-tailwind.css';
 
 @source '../../shared/**/*.js';
 @source './**/*.{js,html}';
@@ -55,21 +56,6 @@
   gap: 12px;
   min-height: calc(100vh - var(--spacing-navbar));
   color: var(--text-2);
-}
-
-.info-spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--border);
-  border-top-color: var(--brand);
-  border-radius: 50%;
-  animation: info-spin 0.8s linear infinite;
-}
-
-@keyframes info-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .shell {
@@ -185,21 +171,6 @@
   pointer-events: none;
 }
 
-.dot {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.dot.on {
-  background: var(--ok);
-}
-
-.dot.off {
-  background: #d1d5db;
-}
-
 .server-item-name {
   flex: 1;
   overflow: hidden;
@@ -305,20 +276,6 @@
   pointer-events: auto;
 }
 
-.empty-state {
-  display: grid;
-  flex: 1;
-  place-content: center;
-  color: var(--text-2);
-  text-align: center;
-}
-
-.empty-state h3 {
-  margin: 12px 0 4px;
-  font-size: 16px;
-  color: var(--text);
-}
-
 .detail-bar {
   display: flex;
   align-items: center;
@@ -344,81 +301,6 @@
   letter-spacing: -0.02em;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.status-chip {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.status-chip.on {
-  color: var(--ok);
-  background: var(--ok-bg);
-  border-color: var(--ok-border);
-}
-
-.status-chip.off {
-  color: var(--text-2);
-  background: var(--bg);
-  border-color: var(--border);
-}
-
-.status-chip .dot {
-  width: 6px;
-  height: 6px;
-}
-
-.status-chip.pending {
-  color: var(--brand);
-  background: var(--brand-bg);
-  border-color: #bfdbfe;
-}
-
-.status-chip.pending .dot,
-.dot.pending {
-  background: var(--brand);
-  animation: pulse-dot 1s ease-in-out infinite;
-}
-
-.status-chip.warn {
-  color: #b45309;
-  background: #fffbeb;
-  border-color: #fcd34d;
-}
-
-.status-chip.warn .dot,
-.dot.warn {
-  background: #f59e0b;
-}
-
-.status-chip.err {
-  color: #b91c1c;
-  background: #fef2f2;
-  border-color: #fecaca;
-}
-
-.status-chip.err .dot,
-.dot.err {
-  background: #ef4444;
-}
-
-@keyframes pulse-dot {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.35;
-  }
 }
 
 .action-group {
@@ -464,22 +346,6 @@
 .btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-}
-
-.btn.is-loading {
-  cursor: wait;
-  pointer-events: none;
-}
-
-.btn.is-loading::before {
-  content: '';
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: info-spin 0.8s linear infinite;
 }
 
 .btn-primary {

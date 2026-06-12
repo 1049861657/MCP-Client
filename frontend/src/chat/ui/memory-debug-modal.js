@@ -33,7 +33,7 @@ function formatDuration(ms) {
 function setResultsState(el, state, msg = '') {
   const map = {
     loading:
-      '<div class="md-results-loading"><span class="md-spinner" aria-hidden="true"></span>正在请求…</div>',
+      '<div class="md-results-loading"><span class="ui-spinner ui-spinner--md" aria-hidden="true"></span>正在请求…</div>',
     error: `<div class="md-results-error">${esc(msg || '请求失败')}</div>`,
     empty: `<div class="md-results-empty">${esc(msg || '暂无结果')}</div>`,
   };

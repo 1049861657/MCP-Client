@@ -1,6 +1,6 @@
 import { prismaAdapter } from '@better-auth/prisma-adapter';
 import { betterAuth } from 'better-auth';
-import { admin, username } from 'better-auth/plugins';
+import { admin, multiSession, username } from 'better-auth/plugins';
 import { adminAc, userAc } from 'better-auth/plugins/admin/access';
 
 import { hashPassword, verifyPassword } from './password-hasher.js';
@@ -42,5 +42,7 @@ export const auth = betterAuth({
       defaultRole: USER_ROLE,
       adminRoles: [SUPERADMIN_ROLE],
     }),
+    // 同浏览器多账号并存，点击切换无需重新输入密码（最多保留 3 个设备会话）
+    multiSession({ maximumSessions: 3 }),
   ],
 });

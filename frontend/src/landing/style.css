@@ -1,5 +1,6 @@
 @import '../shared/theme.css';
 @import 'tailwindcss';
+@import '../shared/post-tailwind.css';
 
 @source '../../shared/**/*.js';
 @source './**/*.{js,html}';

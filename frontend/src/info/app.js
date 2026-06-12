@@ -1,4 +1,7 @@
+import { isUnauthorizedError } from '../auth/auth-shell.js';
 import { confirmModal } from '../shared/ui/modal.js';
+import { renderStatusDotHtml } from '../shared/ui/status-dot.js';
+import { setStatusChipElement } from '../shared/ui/status-chip.js';
 import { showToast } from '../shared/ui/toast.js';
 import { closeToolTestDrawer } from './tool-test-drawer.js';
 import {
@@ -692,13 +695,15 @@ function paintServerList(servers, currentServerId) {
 
     const main = document.createElement('div');
     main.className = 'server-item-main';
-    main.innerHTML = `<span class="dot ${isConnected ? 'on' : needsAuth ? 'warn' : 'off'}"></span><span class="server-item-name">${server.name}</span>`;
+    const dotVariant = isConnected ? 'on' : needsAuth ? 'warn' : 'off';
+    main.innerHTML = `${renderStatusDotHtml(dotVariant)}<span class="server-item-name">${server.name}</span>`;
 
     const quick = document.createElement('button');
     quick.type = 'button';
     quick.className = `server-quick${isConnected ? ' on' : ''}`;
     quick.title = isConnected ? '断开' : needsAuth ? '授权' : '连接';
     quick.innerHTML = ICON_POWER;
+    quick.setAttribute('data-requires-auth', '');
     quick.addEventListener('click', (event) => {
       event.stopPropagation();
       if (connectionPending) {
@@ -938,33 +943,14 @@ function updateDetailBar(data) {
   }
 
   if (els.hStatus) {
-    const dot = els.hStatus.querySelector('.dot');
+    let chipVariant = pendingAction ? 'pending' : serverStatusChipClass(data.server.status);
+    let chipLabel = serverStatusLabel(data.server.status);
     if (pendingAction === 'connect') {
-      els.hStatus.className = 'status-chip pending';
-      if (dot) {
-        dot.className = 'dot pending';
-      }
+      chipLabel = '连接中';
     } else if (pendingAction === 'disconnect') {
-      els.hStatus.className = 'status-chip pending';
-      if (dot) {
-        dot.className = 'dot pending';
-      }
-    } else {
-      const chipClass = pendingAction ? 'pending' : serverStatusChipClass(data.server.status);
-      els.hStatus.className = `status-chip ${chipClass}`;
-      if (dot) {
-        dot.className = `dot ${chipClass}`;
-      }
+      chipLabel = '断开中';
     }
-  }
-  if (els.hStatusText) {
-    if (pendingAction === 'connect') {
-      els.hStatusText.textContent = '连接中';
-    } else if (pendingAction === 'disconnect') {
-      els.hStatusText.textContent = '断开中';
-    } else {
-      els.hStatusText.textContent = serverStatusLabel(data.server.status);
-    }
+    setStatusChipElement(els.hStatus, chipLabel, chipVariant);
   }
 
   if (els.hAuthBtn) {
@@ -1044,6 +1030,27 @@ function updatePageInfo(data) {
 }
 
 /**
+ * 未登录只读：仅切换前端展示，不调用写接口。
+ * @param {string} serverId
+ */
+function selectServerViewLocally(serverId) {
+  if (!currentData?.availableServers) {
+    return;
+  }
+
+  const server = currentData.availableServers.find((item) => item.id === serverId);
+  if (!server) {
+    return;
+  }
+
+  updatePageInfo({
+    ...currentData,
+    currentServerId: serverId,
+    server,
+  });
+}
+
+/**
  * @param {string} serverId
  */
 async function switchServer(serverId) {
@@ -1057,6 +1064,11 @@ async function switchServer(serverId) {
     const data = await requestJson(`/api/server/switch/${serverId}`, { method: 'POST' });
     updatePageInfo(data);
   } catch (error) {
+    if (isUnauthorizedError(error)) {
+      selectServerViewLocally(serverId);
+      setVisible(els.loading, false);
+      return;
+    }
     console.error('切换服务器失败:', error);
     showLoadingError(error instanceof Error ? error.message : '切换服务器失败');
   }
@@ -1085,8 +1097,7 @@ async function connectServer(serverId) {
       throw new Error('服务器连接未成功建立');
     }
 
-    await updateServerActiveStatus(serverId, true);
-    await fetchServerInfo({ silent: true });
+    updatePageInfo(data);
   } catch (error) {
     console.error('连接服务器失败:', error);
     showErrorToast(error, '连接服务器失败');
@@ -1106,34 +1117,18 @@ async function disconnectServer(serverId) {
   setConnectionPending({ serverId, action: 'disconnect' });
 
   try {
-    await requestJson(`/api/server/disconnect/${serverId}`, {
+    /** @type {InfoData} */
+    const data = await requestJson(`/api/server/disconnect/${serverId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
 
-    await updateServerActiveStatus(serverId, false);
-    await fetchServerInfo({ silent: true });
+    updatePageInfo(data);
   } catch (error) {
     console.error('断开服务器连接失败:', error);
     showErrorToast(error, '断开服务器连接失败');
   } finally {
     clearConnectionPending();
-  }
-}
-
-/**
- * @param {string} serverId
- * @param {boolean} isActive
- */
-async function updateServerActiveStatus(serverId, isActive) {
-  try {
-    await requestJson(`/api/server/update/${serverId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isActive }),
-    });
-  } catch {
-    /* non-fatal */
   }
 }
 

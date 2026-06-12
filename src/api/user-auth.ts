@@ -1,15 +1,10 @@
-import { fromNodeHeaders } from 'better-auth/node';
 import type { NextFunction, Request, Response } from 'express';
 
-import { auth, SUPERADMIN_ROLE } from '../lib/auth.js';
+import { SUPERADMIN_ROLE } from '../lib/auth.js';
+import { resolveSessionUser, type SessionUser } from '../lib/request-session.js';
 
-// 登录态用户（注入 req.user 供下游控制器读取，T4-06 配置 per-user 化据此分流）
-export interface AuthedUser {
-  id: string;
-  email: string;
-  username: string | null;
-  role: string | null;
-}
+/** @deprecated 使用 SessionUser；保留别名供存量 import */
+export type AuthedUser = SessionUser;
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -20,26 +15,17 @@ declare global {
   }
 }
 
-async function resolveUser(req: Request): Promise<AuthedUser | undefined> {
-  const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
-  if (!session?.user) {
-    return undefined;
-  }
-  const u = session.user;
-  return { id: u.id, email: u.email, username: u.username ?? null, role: u.role ?? null };
-}
-
 /**
  * 可选鉴权：解析到有效会话则返回用户，否则 undefined（不拦截）。
- * 用于 /api/chat/* 等匿名可用、但已登录时需服务端分流（组上下文 + 落库）的路径。
+ * 通常已由 optionalAuth 中间件注入 req.user；此处走快速路径。
  */
-export async function resolveOptionalUser(req: Request): Promise<AuthedUser | undefined> {
-  return resolveUser(req);
+export async function resolveOptionalUser(req: Request): Promise<SessionUser | undefined> {
+  return resolveSessionUser(req);
 }
 
 /** 需登录：未携带有效会话 Cookie 返回 401，否则注入 req.user */
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const user = await resolveUser(req);
+  const user = await resolveSessionUser(req);
   if (!user) {
     res.status(401).json({ error: '未登录', details: '请先登录' });
     return;
@@ -54,7 +40,7 @@ export async function requireSuperAdmin(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const user = await resolveUser(req);
+  const user = await resolveSessionUser(req);
   if (!user) {
     res.status(401).json({ error: '未登录', details: '请先登录' });
     return;

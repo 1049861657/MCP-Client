@@ -1,0 +1,32 @@
+/**
+ * 通用加载旋转指示器
+ */
+
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@layer components {
+  .ui-spinner {
+    @apply inline-block shrink-0 rounded-full border-2 border-[rgb(15_23_42/0.12)] border-t-[var(--color-brand)];
+    animation: ui-spin 0.8s linear infinite;
+  }
+
+  .ui-spinner--sm {
+    @apply size-3.5;
+  }
+
+  .ui-spinner--md {
+    @apply size-[18px];
+  }
+
+  .ui-spinner--lg {
+    @apply size-9 border-[3px];
+  }
+
+  .ui-spinner-block {
+    @apply flex items-center justify-center gap-2.5 text-sm text-[var(--color-text-muted)];
+  }
+}

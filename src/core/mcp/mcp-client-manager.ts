@@ -1,4 +1,6 @@
-import { ConfigService } from "../../services/config.service.js";
+import { LRUCache } from 'lru-cache';
+import { McpPoolConfig } from "../../config/feature-config.js";
+import { McpConfigStore, type ReloadMcpScope } from "../../services/mcp-config.store.js";
 import { Logger } from "../../utils/logger.js";
 import {
   CallToolOptions,
@@ -23,6 +25,48 @@ import {
   refreshMcpOAuthTokens,
   shouldUseMcpOAuth,
 } from "./mcp-oauth.js";
+
+const userMcpClientPool = new LRUCache<string, MCPClientManager>({
+  max: McpPoolConfig.maxClients,
+  ttl: McpPoolConfig.clientTtlMs,
+  dispose: (client) => {
+    // LRU 驱逐时异步断连（不阻塞）
+    client.disconnectAll().catch((err: unknown) => {
+      Logger.error('MCP CLIENT', 'Pool eviction disconnectAll failed:', err);
+    });
+    client.stopAutoReconnect();
+  }
+});
+
+/**
+ * 获取指定用户的 MCPClientManager（懒加载，LRU 池管理）。
+ * - userId=null → 全局 seed 实例（guest / IM 共享）
+ * - userId 非 null → per-user 隔离实例（首次访问时创建并连接）
+ */
+export function getMcpClientForUser(userId: string | null): MCPClientManager {
+  if (userId === null) return mcpClient;
+  let client = userMcpClientPool.get(userId);
+  if (!client) {
+    client = new MCPClientManager(userId);
+    userMcpClientPool.set(userId, client);
+    Logger.info('MCP CLIENT', `Per-user MCP client created userId=${userId}`);
+  }
+  return client;
+}
+
+/**
+ * 失效指定用户的 MCP 连接池缓存（配置变更后调用）。
+ * 不传 userId 时失效全部 per-user 实例（不影响全局 seed mcpClient）。
+ */
+export function invalidateMcpClientForUser(userId?: string): void {
+  if (userId !== undefined) {
+    userMcpClientPool.delete(userId); // dispose 回调会断连
+  } else {
+    userMcpClientPool.clear();
+  }
+  Logger.info('MCP CLIENT', `MCP client pool invalidated userId=${userId ?? 'all'}`);
+}
+
 /**
  * MCP客户端管理器类
  * 负责管理多个MCP服务器连接
@@ -32,20 +76,29 @@ export class MCPClientManager {
   private toolServerMap: Map<string, string> = new Map(); // 工具编码名称到服务器ID的映射
   private toolsCache: Map<string, ToolInfo[]> = new Map(); // 服务器ID到工具列表的缓存，连接/重连时更新
   private toolsCacheTimestamps: Map<string, number> = new Map(); // 缓存写入时间戳，用于 TTL 检查
-  private static readonly TOOLS_CACHE_TTL = 5 * 60 * 1000; // 工具缓存 TTL：5分钟
+  private static readonly TOOLS_CACHE_TTL = McpPoolConfig.toolsCacheTtlMs;
   private currentServerId?: string; // 当前选中的服务器ID
   private mcpConfig: MCPConfigType | null = null;
   private reconnectTimer?: NodeJS.Timeout; // 存储定时重连的计时器ID
-  private static readonly RECONNECT_INTERVAL = 8 * 60 * 60 * 1000; // 8小时，毫秒单位
+  private static readonly RECONNECT_INTERVAL = McpPoolConfig.reconnectIntervalMs;
 
-  constructor() {
-    // 在构造函数中调用异步方法，但不等待
-    this.initializeConnections().catch(error => {
+  /** per-user 隔离键；null = seed/guest 全局实例 */
+  private readonly userId: string | null;
+  private initPromise: Promise<void>;
+
+  constructor(userId: string | null = null) {
+    this.userId = userId;
+    this.initPromise = this.initializeConnections().catch((error) => {
       Logger.error('MCP CLIENT', '初始化连接失败:', error);
     });
-    
+
     // 启动定时重连功能
     this.startAutoReconnect();
+  }
+
+  /** 等待首次（或最近一次 restartAll）连接初始化完成 */
+  async ensureReady(): Promise<void> {
+    await this.initPromise;
   }
 
   /**
@@ -61,11 +114,11 @@ export class MCPClientManager {
 
   private async runScheduledConnectionMaintenance(): Promise<void> {
     if (!this.mcpConfig) {
-      this.mcpConfig = await ConfigService.getMCPConfig();
+      this.mcpConfig = await McpConfigStore.get(this.userId ?? undefined);
     }
 
     for (const serverConfig of this.mcpConfig.servers) {
-      if (!serverConfig.isActive) {
+      if (!serverConfig.enabled) {
         continue;
       }
 
@@ -73,7 +126,11 @@ export class MCPClientManager {
         if (!serverConfig.mcpUrl) {
           continue;
         }
-        const refreshed = await refreshMcpOAuthTokens(serverConfig.serverId, serverConfig.mcpUrl);
+        const refreshed = await refreshMcpOAuthTokens(
+          serverConfig.serverId,
+          serverConfig.mcpUrl,
+          this.userId
+        );
         if (!refreshed) {
           this.connections.get(serverConfig.serverId)?.markNeedsAuth();
         }
@@ -89,9 +146,9 @@ export class MCPClientManager {
   }
   
   /**
-   * 停止定时重连功能
+   * 停止定时重连功能（供内部调用及 pool dispose）
    */
-  private stopAutoReconnect(): void {
+  stopAutoReconnect(): void {
     if (this.reconnectTimer) {
       clearInterval(this.reconnectTimer);
       this.reconnectTimer = undefined;
@@ -99,56 +156,58 @@ export class MCPClientManager {
   }
 
   /**
-   * 初始化所有服务器连接并自动连接激活的服务器
+   * 初始化连接对象；默认按需 connect，仅 restartAll 等全量重建时自动连接 enabled 服。
    */
-  private async initializeConnections(): Promise<void> {
+  private async initializeConnections(options?: { connectEnabled?: boolean }): Promise<void> {
+    const connectEnabled = options?.connectEnabled ?? false;
     this.connections.clear();
     this.toolServerMap.clear();
     this.toolsCache.clear();
     this.toolsCacheTimestamps.clear();
     
     try {
-      // 从ConfigService获取最新MCP配置
-      this.mcpConfig = await ConfigService.getMCPConfig();
+      // 从 McpConfigStore 获取最新 MCP 配置
+      this.mcpConfig = await McpConfigStore.get(this.userId ?? undefined);
 
       // 首先初始化所有服务器的连接对象
       this.mcpConfig.servers.forEach((serverConfig: MCPServer) => {
         try {
-          const connection = new ServerConnection(serverConfig);
+          const connection = new ServerConnection(serverConfig, this.userId);
           this.connections.set(serverConfig.serverId, connection);
         } catch (error) {
           Logger.error('MCP CLIENT', `为服务器 ${serverConfig.name} (${serverConfig.serverId}) 创建连接对象失败:`, error);
         }
       });
       
-      // 尝试连接所有激活的服务器
-      let isFirstConnected = true;
       for (const serverConfig of this.mcpConfig.servers) {
-        if (serverConfig.isActive) {
-          const connection = this.connections.get(serverConfig.serverId);
-          if (!connection) continue;
-          
-          try {
-            const connected = await connection.connect();
+        const connection = this.connections.get(serverConfig.serverId);
+        if (!connection) continue;
 
-            // 注入工具列表变更回调：服务端通过 ToolListChangedNotification 通知时自动刷新
-            connection.onToolsChanged = async (serverId: string) => {
-              await this.updateToolServerMap(serverId);
-            };
-            
-            // 连接成功后获取工具列表并更新工具服务器映射
-            await this.updateToolServerMap(serverConfig.serverId);
-            
-            // 将首个成功连接的服务器设为当前服务器
-            if (connected && isFirstConnected && !this.currentServerId) {
-              this.currentServerId = serverConfig.serverId;
-              isFirstConnected = false;
-            }
-          } catch (error) {
-            Logger.error('MCP CLIENT', `连接服务器 ${serverConfig.name} (${serverConfig.serverId}) 失败:`, error);
+        connection.onToolsChanged = async (serverId: string) => {
+          await this.updateToolServerMap(serverId);
+        };
+
+        if (!connectEnabled) {
+          continue;
+        }
+
+        if (!serverConfig.enabled) {
+          Logger.debug(
+            'MCP CLIENT',
+            `服务器 ${serverConfig.name} (${serverConfig.serverId}) 未激活，跳过连接`,
+          );
+          continue;
+        }
+
+        try {
+          const connected = await connection.connect();
+          await this.updateToolServerMap(serverConfig.serverId);
+
+          if (connected && !this.currentServerId) {
+            this.currentServerId = serverConfig.serverId;
           }
-        } else {
-          Logger.info('MCP CLIENT', `服务器 ${serverConfig.name} (${serverConfig.serverId}) 未激活，跳过连接`);
+        } catch (error) {
+          Logger.error('MCP CLIENT', `连接服务器 ${serverConfig.name} (${serverConfig.serverId}) 失败:`, error);
         }
       }
       
@@ -203,8 +262,69 @@ export class MCPClientManager {
     if (!connection || !connection.isConnected()) {
       return false;
     }
-    
+
     return await connection.ping();
+  }
+
+  /**
+   * 确保指定服务器可达：已连接则 ping，未连接则 connect。
+   * 与 MCP 服务页 connect、渠道保存门禁共用同一路径。
+   */
+  async ensureServerReachable(serverId: string): Promise<boolean> {
+    const connection = this.connections.get(serverId);
+    if (!connection) {
+      return false;
+    }
+
+    try {
+      if (connection.isConnected()) {
+        return await connection.ping();
+      }
+      return await this.connect(serverId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.debug('MCP CLIENT', `ensureServerReachable ${serverId} 失败: ${message}`);
+      return false;
+    }
+  }
+
+  /**
+   * 批量按连通性拆分 ID（串行探测，复用运行时连接池）。
+   */
+  /**
+   * 按需连接指定服务器（聊天/运行时入口，串行避免 stdio 竞态）。
+   */
+  async ensureServersReachable(serverIds: string[]): Promise<void> {
+    await this.ensureReady();
+    for (const serverId of [...new Set(serverIds)]) {
+      await this.ensureServerReachable(serverId);
+    }
+  }
+
+  async partitionServerIdsByReachability(
+    serverIds: string[],
+  ): Promise<{ reachableIds: string[]; unreachableIds: string[] }> {
+    await this.ensureReady();
+
+    const reachableIds: string[] = [];
+    const unreachableIds: string[] = [];
+
+    for (const serverId of [...new Set(serverIds)]) {
+      if (!this.connections.has(serverId)) {
+        unreachableIds.push(serverId);
+        continue;
+      }
+
+      const ok = await this.ensureServerReachable(serverId);
+      if (ok) {
+        reachableIds.push(serverId);
+      } else {
+        unreachableIds.push(serverId);
+      }
+    }
+
+    reachableIds.sort();
+    return { reachableIds, unreachableIds };
   }
 
   /**
@@ -503,7 +623,7 @@ export class MCPClientManager {
 
     const clearAuth = options?.clearAuth ?? connection?.usesOAuth() ?? false;
     if (clearAuth) {
-      await clearMcpServerAuth(serverId);
+      await clearMcpServerAuth(serverId, this.userId);
     }
   }
 
@@ -512,18 +632,18 @@ export class MCPClientManager {
    */
   async finishOAuthAndConnect(serverId: string, authorizationCode: string): Promise<boolean> {
     if (!this.mcpConfig) {
-      this.mcpConfig = await ConfigService.getMCPConfig();
+      this.mcpConfig = await McpConfigStore.get(this.userId ?? undefined);
     }
     const serverConfig = this.mcpConfig.servers.find((s) => s.serverId === serverId);
     if (!serverConfig?.mcpUrl) {
       throw new Error(`未找到服务器: ${serverId}`);
     }
-    await exchangeMcpOAuthCode(serverId, serverConfig.mcpUrl, authorizationCode);
+    await exchangeMcpOAuthCode(serverId, serverConfig.mcpUrl, authorizationCode, this.userId);
     return this.connect(serverId);
   }
 
   getOAuthAuthorizationUrl(serverId: string): string | undefined {
-    return getPendingAuthorizationUrl(serverId);
+    return getPendingAuthorizationUrl(serverId, this.userId);
   }
 
   /**
@@ -535,11 +655,12 @@ export class MCPClientManager {
     
     // 先获取最新配置
     try {
-      this.mcpConfig = await ConfigService.getMCPConfig();
+      this.mcpConfig = await McpConfigStore.get(this.userId ?? undefined);
       
       // 断开现有的所有连接并重新初始化
       await this.disconnectAll();
-      await this.initializeConnections();
+      this.initPromise = this.initializeConnections({ connectEnabled: true });
+      await this.initPromise;
       
       // 如果之前存在定时器，重新启动定时重连功能
       if (hasTimer) {
@@ -551,8 +672,54 @@ export class MCPClientManager {
     }
   }
 
+  /** 同步内存配置中的 enabled（DB 已由 McpConfigStore 更新） */
+  syncServerEnabled(serverId: string, enabled: boolean): void {
+    if (!this.mcpConfig) {
+      return;
+    }
+    const server = this.mcpConfig.servers.find((s) => s.serverId === serverId);
+    if (server) {
+      server.enabled = enabled;
+    }
+  }
+
   /**
-   * 重启指定服务器连接
+   * 按最新配置重建单服连接对象（结构变更 / 增删服，不影响其它服）
+   */
+  async reloadServerFromConfig(serverId: string): Promise<void> {
+    this.mcpConfig = await McpConfigStore.get(this.userId ?? undefined);
+    const serverConfig = this.mcpConfig.servers.find((s) => s.serverId === serverId);
+
+    const existing = this.connections.get(serverId);
+    if (existing) {
+      await existing.disconnect();
+      this.connections.delete(serverId);
+      this.toolsCache.delete(serverId);
+      this.toolsCacheTimestamps.delete(serverId);
+    }
+
+    if (!serverConfig) {
+      return;
+    }
+
+    const connection = new ServerConnection(serverConfig, this.userId);
+    connection.onToolsChanged = async (sid: string) => {
+      await this.updateToolServerMap(sid);
+    };
+    this.connections.set(serverId, connection);
+
+    if (serverConfig.enabled) {
+      try {
+        await connection.connect();
+        await this.updateToolServerMap(serverId);
+      } catch (error) {
+        Logger.error('MCP CLIENT', `重载服务器 ${serverId} 连接失败:`, error);
+      }
+    }
+  }
+
+  /**
+   * 重启指定服务器连接（传输层重连，配置未变）
    */
   async restart(serverId: string): Promise<boolean> {
     const connection = this.connections.get(serverId);
@@ -619,11 +786,29 @@ export class MCPClientManager {
 }
 
 /**
- * 重新加载MCP配置并重建连接
+ * 应用配置变更到运行时连接。
+ * - scope='all'：全量重建（手动 reload / reset）
+ * - scope={ serverId }：仅重建单服（结构变更 / 增删）
  */
-export async function reloadMCPConfig(): Promise<boolean> {
+export async function reloadMCPConfig(
+  configUserId?: string,
+  scope: ReloadMcpScope = 'all'
+): Promise<boolean> {
   try {
-    await mcpClient.restartAll();
+    if (configUserId !== undefined) {
+      const client = userMcpClientPool.get(configUserId);
+      if (!client) {
+        return true;
+      }
+      if (scope === 'all') {
+        await client.restartAll();
+      } else {
+        await client.reloadServerFromConfig(scope.serverId);
+      }
+    } else {
+      await mcpClient.restartAll();
+      invalidateMcpClientForUser();
+    }
     return true;
   } catch (error) {
     Logger.error('MCP CLIENT', '重新加载MCP配置失败:', error);
@@ -631,8 +816,10 @@ export async function reloadMCPConfig(): Promise<boolean> {
   }
 }
 
+export type { ReloadMcpScope };
+
 /**
- * 全局MCP客户端实例
+ * 全局MCP客户端实例（seed/null userId，guest 与 IM 共享）
  */
-export const mcpClient = new MCPClientManager();
+export const mcpClient = new MCPClientManager(null);
 

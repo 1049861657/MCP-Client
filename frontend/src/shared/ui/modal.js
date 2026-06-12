@@ -1,3 +1,6 @@
+import { Modal } from 'flowbite';
+import { escapeHtml } from '../escape-html.js';
+
 /**
  * 通用确认模态；返回用户是否确认。
  *
@@ -22,74 +25,62 @@ export function confirmModal(options) {
   } = options;
 
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'app-confirm-overlay';
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-labelledby', 'shared-modal-title');
-
-    const panel = document.createElement('div');
-    panel.className = 'app-confirm-panel';
-
-    const titleEl = document.createElement('h2');
-    titleEl.id = 'shared-modal-title';
-    titleEl.className = 'app-confirm-title';
-    titleEl.textContent = title;
-    panel.appendChild(titleEl);
-
-    if (message) {
-      const body = document.createElement('p');
-      body.className = 'app-confirm-message';
-      body.textContent = message;
-      panel.appendChild(body);
-    }
-
-    const actions = document.createElement('div');
-    actions.className = `app-confirm-actions${showCancel ? '' : ' app-confirm-actions--single'}`;
-
-    const confirmBtn = document.createElement('button');
-    confirmBtn.type = 'button';
-    confirmBtn.className = `app-confirm-btn app-confirm-btn--${variant === 'danger' ? 'danger' : 'primary'}`;
-    confirmBtn.textContent = confirmLabel;
+    const modalId = `shared-confirm-${Math.random().toString(36).slice(2, 9)}`;
+    let settled = false;
 
     /** @param {boolean} value */
-    const close = (value) => {
-      overlay.remove();
-      document.removeEventListener('keydown', onKeyDown);
+    const settle = (value) => {
+      if (settled) return;
+      settled = true;
       resolve(value);
     };
 
-    /** @param {KeyboardEvent} event */
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape' && showCancel) {
-        close(false);
-      }
-    };
+    const shell = document.createElement('div');
+    shell.id = modalId;
+    shell.tabIndex = -1;
+    shell.setAttribute('aria-hidden', 'true');
+    shell.className =
+      'fb-confirm-shell fixed top-0 right-0 left-0 z-[120] hidden h-[calc(100%-1rem)] max-h-full w-full overflow-x-hidden overflow-y-auto p-4 md:inset-0';
 
-    confirmBtn.addEventListener('click', () => close(true));
-    overlay.addEventListener('click', (event) => {
-      if (event.target === overlay && showCancel) {
-        close(false);
-      }
+    shell.innerHTML =
+      '<div class="relative mx-auto w-full max-w-md p-4">' +
+      '<div class="fb-confirm-card relative">' +
+      '<div class="border-b border-[rgb(15_23_42/0.06)] px-5 pt-5 pb-4">' +
+      `<h2 id="${modalId}-title" class="fb-confirm-title m-0">${escapeHtml(title)}</h2>` +
+      (message ? `<p class="fb-confirm-message m-0 mt-2">${escapeHtml(message)}</p>` : '') +
+      '</div>' +
+      `<div class="flex px-5 py-4 ${showCancel ? 'fb-confirm-actions' : 'fb-confirm-actions fb-confirm-actions--single'}">` +
+      (showCancel
+        ? `<button type="button" class="fb-confirm-btn fb-confirm-btn--ghost" data-role="cancel">${escapeHtml(cancelLabel)}</button>`
+        : '') +
+      `<button type="button" class="fb-confirm-btn ${variant === 'danger' ? 'fb-confirm-btn--danger' : 'fb-confirm-btn--primary'}" data-role="confirm">${escapeHtml(confirmLabel)}</button>` +
+      '</div></div></div>';
+
+    document.body.appendChild(shell);
+
+    const modal = new Modal(shell, {
+      placement: 'center',
+      backdrop: 'dynamic',
+      backdropClasses: 'fixed inset-0 z-[119] bg-slate-900/42 backdrop-blur-[3px]',
+      closable: showCancel,
+      onHide: () => {
+        settle(false);
+        modal.destroyAndRemoveInstance();
+        shell.remove();
+      },
     });
 
-    document.addEventListener('keydown', onKeyDown);
+    shell.querySelector('[data-role="confirm"]')?.addEventListener('click', () => {
+      settle(true);
+      modal.hide();
+    });
+    shell.querySelector('[data-role="cancel"]')?.addEventListener('click', () => {
+      settle(false);
+      modal.hide();
+    });
 
-    if (showCancel) {
-      const cancelBtn = document.createElement('button');
-      cancelBtn.type = 'button';
-      cancelBtn.className = 'app-confirm-btn app-confirm-btn--ghost';
-      cancelBtn.textContent = cancelLabel;
-      cancelBtn.addEventListener('click', () => close(false));
-      actions.appendChild(cancelBtn);
-    }
-
-    actions.appendChild(confirmBtn);
-    panel.appendChild(actions);
-    overlay.appendChild(panel);
-    document.body.appendChild(overlay);
-
-    (showCancel ? actions.querySelector('.app-confirm-btn--ghost') : confirmBtn)?.focus();
+    modal.show();
+    (showCancel ? shell.querySelector('[data-role="cancel"]') : shell.querySelector('[data-role="confirm"]'))?.focus();
   });
 }
 

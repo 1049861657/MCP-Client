@@ -4,34 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI配置管理 - MCP演示</title>
-  <script type="module" crossorigin src="/assets/settings-C1wdZC0P.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/navbar-CJLcVzEG.js">
-  <link rel="modulepreload" crossorigin href="/assets/modal-CV_JZY2O.js">
-  <link rel="modulepreload" crossorigin href="/assets/toast-CPsGmdIz.js">
-  <link rel="stylesheet" crossorigin href="/assets/navbar-hlp8QdeC.css">
-  <link rel="stylesheet" crossorigin href="/assets/settings-DQJw0Smb.css">
+  <script type="module" crossorigin src="/assets/settings-CiksQF-Y.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/navbar-CotlZ6UT.js">
+  <link rel="modulepreload" crossorigin href="/assets/escape-html-CDFX0WEg.js">
+  <link rel="modulepreload" crossorigin href="/assets/dropdown-select-BlZtU9Fp.js">
+  <link rel="modulepreload" crossorigin href="/assets/empty-state-DXUAnD0v.js">
+  <link rel="modulepreload" crossorigin href="/assets/modal-B3cyR4aX.js">
+  <link rel="stylesheet" crossorigin href="/assets/navbar-Bdr1sdEw.css">
+  <link rel="stylesheet" crossorigin href="/assets/settings-DIIF4_V6.css">
 </head>
 <body class="settings-page">
     <aside class="settings-sidebar" aria-label="提供商列表">
         <div class="settings-sidebar-inner">
-            <p class="settings-sidebar-label">提供商</p>
+            <div class="settings-sidebar-label-row">
+                <p class="settings-sidebar-label">提供商</p>
+                <button type="button" id="import-provider" class="btn-ghost btn-xs" title="从剪贴板导入提供商配置" data-requires-auth>导入</button>
+            </div>
             <nav id="sidebar-providers-list" class="settings-sidebar-list" role="tablist"></nav>
-            <button type="button" id="add-provider" class="settings-add-btn">
+            <button type="button" id="add-provider" class="settings-add-btn" data-requires-auth>
                 <span class="settings-add-icon" aria-hidden="true">+</span>
                 添加提供商
             </button>
-            <footer class="settings-sidebar-foot">
+            <footer class="settings-sidebar-foot" data-auth-readonly>
                 <label class="settings-default-label" for="default-provider">默认提供商</label>
-                <select id="default-provider" class="settings-default-select"></select>
+                <select id="default-provider" class="field-select settings-default-select"></select>
             </footer>
         </div>
     </aside>
 
     <main class="settings-main">
-        <div id="providers-container" class="settings-cards"></div>
+        <div id="providers-container" class="settings-cards" data-auth-readonly></div>
 
         <footer class="settings-action-bar">
-            <button type="button" id="save-providers" class="btn-primary">保存配置</button>
+            <button type="button" id="save-providers" class="btn-primary" data-requires-auth>保存配置</button>
         </footer>
     </main>
 

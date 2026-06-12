@@ -1,3 +1,9 @@
+import {
+  bindOverlayModalClose,
+  closeOverlayModal,
+  openOverlayModal,
+} from '../../shared/ui/overlay-modal.js';
+
 /**
  * 注入 Chat 页模态 DOM（04-07～11）；须在 createChatApp().init() 之前调用
  */
@@ -121,11 +127,11 @@ const MODALS_HTML = `
               <div class="settings-field-grid">
                 <div class="settings-field-row">
                   <span class="settings-field-label">供应商</span>
-                  <select id="provider" class="settings-select"></select>
+                  <select id="provider" class="field-select settings-select"></select>
                 </div>
                 <div class="settings-field-row">
                   <span class="settings-field-label">模型</span>
-                  <select id="model" class="settings-select"></select>
+                  <select id="model" class="field-select settings-select"></select>
                 </div>
               </div>
             </div>
@@ -144,15 +150,15 @@ const MODALS_HTML = `
                   <div class="settings-item-title">启用历史消息</div>
                   <div class="settings-item-hint">关闭后每次仅发送当前输入</div>
                 </div>
-                <button type="button" class="settings-toggle on" id="settings-toggle-history" aria-pressed="true" aria-controls="settings-history-nested"></button>
+                <button type="button" class="ui-toggle on" id="ui-toggle-history" aria-pressed="true" aria-controls="settings-history-nested"></button>
               </div>
               <div id="settings-history-nested" class="settings-nested">
                 <div class="settings-inline-field">
                   <span class="settings-field-label">保留最近条数</span>
-                  <div class="settings-stepper">
-                    <button type="button" class="settings-stepper-btn" id="settings-hist-minus" aria-label="减少">−</button>
+                  <div class="ui-stepper settings-stepper">
+                    <button type="button" class="ui-stepper-btn settings-stepper-btn" id="settings-hist-minus" aria-label="减少">−</button>
                     <span id="settings-hist-val">20</span>
-                    <button type="button" class="settings-stepper-btn" id="settings-hist-plus" aria-label="增加">+</button>
+                    <button type="button" class="ui-stepper-btn settings-stepper-btn" id="settings-hist-plus" aria-label="增加">+</button>
                   </div>
                 </div>
               </div>
@@ -187,7 +193,7 @@ const MODALS_HTML = `
                   <div class="settings-item-title">忽略记忆</div>
                   <div class="settings-item-hint">开启后不注入历史偏好，且本轮结束不写入 Hindsight</div>
                 </div>
-                <button type="button" class="settings-toggle" id="settings-toggle-skip-memory" aria-pressed="false"></button>
+                <button type="button" class="ui-toggle" id="ui-toggle-skip-memory" aria-pressed="false"></button>
               </div>
             </div>
           </div>
@@ -203,12 +209,12 @@ const MODALS_HTML = `
                   <div class="settings-item-title">发送前自动摘要</div>
                   <div class="settings-item-hint">超过阈值时在后台压缩历史</div>
                 </div>
-                <button type="button" class="settings-toggle" id="settings-toggle-compact" aria-pressed="false" aria-controls="settings-compact-nested"></button>
+                <button type="button" class="ui-toggle" id="ui-toggle-compact" aria-pressed="false" aria-controls="settings-compact-nested"></button>
               </div>
               <div id="settings-compact-nested" class="settings-nested hidden">
                 <div class="settings-field-row">
                   <span class="settings-field-label">压缩模型</span>
-                  <select id="compact-model" class="settings-select"></select>
+                  <select id="compact-model" class="field-select settings-select"></select>
                 </div>
               </div>
             </div>
@@ -230,7 +236,7 @@ const MODALS_HTML = `
                   <div class="settings-item-title">启用 MCP 工具</div>
                   <div class="settings-item-hint">仅控制 MCP 服务器工具</div>
                 </div>
-                <button type="button" class="settings-toggle on" id="settings-toggle-mcp" aria-pressed="true"></button>
+                <button type="button" class="ui-toggle on" id="ui-toggle-mcp" aria-pressed="true"></button>
               </div>
 
               <div class="settings-item">
@@ -238,19 +244,19 @@ const MODALS_HTML = `
                   <div class="settings-item-title">工具调用轮次上限</div>
                   <div class="settings-item-hint">防止无限 tool loop（1–100）</div>
                 </div>
-                <div class="settings-stepper">
-                  <button type="button" class="settings-stepper-btn" id="settings-tool-minus" aria-label="减少">−</button>
+                <div class="ui-stepper settings-stepper">
+                  <button type="button" class="ui-stepper-btn settings-stepper-btn" id="settings-tool-minus" aria-label="减少">−</button>
                   <span id="settings-tool-val">25</span>
-                  <button type="button" class="settings-stepper-btn" id="settings-tool-plus" aria-label="增加">+</button>
+                  <button type="button" class="ui-stepper-btn settings-stepper-btn" id="settings-tool-plus" aria-label="增加">+</button>
                 </div>
               </div>
 
               <div class="settings-field-row settings-field-row--permission">
                 <span class="settings-field-label">工具执行方式</span>
-                <div class="settings-segmented" id="settings-permission-mode">
-                  <button type="button" class="settings-seg-btn active" data-permission-mode="open">自动</button>
-                  <button type="button" class="settings-seg-btn" data-permission-mode="interactive">确认</button>
-                  <button type="button" class="settings-seg-btn" data-permission-mode="locked">只读</button>
+                <div class="ui-segmented settings-segmented" id="settings-permission-mode">
+                  <button type="button" class="ui-seg-btn settings-seg-btn active" data-permission-mode="open">自动</button>
+                  <button type="button" class="ui-seg-btn settings-seg-btn" data-permission-mode="interactive">确认</button>
+                  <button type="button" class="ui-seg-btn settings-seg-btn" data-permission-mode="locked">只读</button>
                 </div>
                 <p class="settings-permission-footnote" id="settings-permission-footnote" role="status"></p>
               </div>
@@ -260,7 +266,7 @@ const MODALS_HTML = `
                   <div class="settings-item-title">用户提示词</div>
                   <div class="settings-item-hint">开启后才会把本页编辑的提示词发给模型</div>
                 </div>
-                <button type="button" class="settings-toggle on" id="settings-toggle-prompts" aria-pressed="true"></button>
+                <button type="button" class="ui-toggle on" id="ui-toggle-prompts" aria-pressed="true"></button>
               </div>
 
               <div class="settings-link-item">
@@ -283,10 +289,10 @@ const MODALS_HTML = `
                   <span class="settings-slider-value" id="settings-temp-val">0.7</span>
                 </div>
                 <input type="range" id="settings-temp-slider" min="0" max="10" step="1" value="7">
-                <div class="settings-chips" id="settings-temp-chips">
-                  <button type="button" class="settings-chip" data-temp="0.2">精确 0.2</button>
-                  <button type="button" class="settings-chip active" data-temp="0.7">平衡 0.7</button>
-                  <button type="button" class="settings-chip" data-temp="1.0">创意 1.0</button>
+                <div class="ui-chip-group settings-chips" id="settings-temp-chips">
+                  <button type="button" class="ui-chip settings-chip" data-temp="0.2">精确 0.2</button>
+                  <button type="button" class="ui-chip settings-chip active" data-temp="0.7">平衡 0.7</button>
+                  <button type="button" class="ui-chip settings-chip" data-temp="1.0">创意 1.0</button>
                 </div>
               </div>
 
@@ -300,19 +306,19 @@ const MODALS_HTML = `
                   <span>512</span>
                   <span>8192</span>
                 </div>
-                <div class="settings-chips" id="settings-tokens-chips">
-                  <button type="button" class="settings-chip" data-tokens="1024">1K</button>
-                  <button type="button" class="settings-chip active" data-tokens="2048">2K</button>
-                  <button type="button" class="settings-chip" data-tokens="4096">4K</button>
-                  <button type="button" class="settings-chip" data-tokens="8192">8K</button>
+                <div class="ui-chip-group settings-chips" id="settings-tokens-chips">
+                  <button type="button" class="ui-chip settings-chip" data-tokens="1024">1K</button>
+                  <button type="button" class="ui-chip settings-chip active" data-tokens="2048">2K</button>
+                  <button type="button" class="ui-chip settings-chip" data-tokens="4096">4K</button>
+                  <button type="button" class="ui-chip settings-chip" data-tokens="8192">8K</button>
                 </div>
               </div>
 
               <div class="settings-field-row settings-field-row--divider">
                 <span class="settings-field-label">响应方式</span>
-                <div class="settings-segmented" id="settings-response-mode">
-                  <button type="button" class="settings-seg-btn active" data-mode="stream">流式输出</button>
-                  <button type="button" class="settings-seg-btn is-disabled" disabled title="暂未维护">一次性返回</button>
+                <div class="ui-segmented settings-segmented" id="settings-response-mode">
+                  <button type="button" class="ui-seg-btn settings-seg-btn active" data-mode="stream">流式输出</button>
+                  <button type="button" class="ui-seg-btn settings-seg-btn is-disabled" disabled title="暂未维护">一次性返回</button>
                 </div>
                 <p class="settings-item-hint settings-item-hint--flush">默认流式；非流式暂未开放。</p>
               </div>
@@ -528,7 +534,7 @@ const MODALS_HTML = `
         </div>
         <div class="qm-edit-field">
           <label for="edit-message-category">所属分类</label>
-          <select id="edit-message-category"></select>
+          <select id="edit-message-category" class="field-select"></select>
         </div>
       </div>
       <div class="qm-edit-field">
@@ -537,9 +543,9 @@ const MODALS_HTML = `
       </div>
       <div class="qm-edit-field">
         <span class="qm-edit-field-label">预期结果</span>
-        <div class="qm-result-seg" id="edit-result-seg">
-          <button type="button" class="qm-result-seg-btn active pass" data-result="√">通过</button>
-          <button type="button" class="qm-result-seg-btn" data-result="×">失败</button>
+        <div class="ui-segmented qm-result-seg" id="edit-result-seg">
+          <button type="button" class="ui-seg-btn qm-result-seg-btn active pass" data-result="√">通过</button>
+          <button type="button" class="ui-seg-btn qm-result-seg-btn" data-result="×">失败</button>
         </div>
         <input type="hidden" id="edit-message-result" value="√">
       </div>
@@ -683,52 +689,14 @@ const MODALS_HTML = `
 </div>
 `;
 
-/**
- * @param {string} modalId
- */
-export function openChatModal(modalId) {
-  const modal = document.getElementById(modalId);
-  if (!modal) {
-    return;
-  }
-  modal.classList.remove('hidden');
-  modal.setAttribute('aria-hidden', 'false');
-}
+/** @param {string} modalId */
+export const openChatModal = openOverlayModal;
 
-/**
- * @param {string} modalId
- */
-export function closeChatModal(modalId) {
-  const modal = document.getElementById(modalId);
-  if (!modal) {
-    return;
-  }
-  modal.classList.add('hidden');
-  modal.setAttribute('aria-hidden', 'true');
-}
+/** @param {string} modalId */
+export const closeChatModal = closeOverlayModal;
 
 /**
  * @param {string} modalId
  * @param {() => void} [onClose]
  */
-export function bindChatModalClose(modalId, onClose) {
-  const modal = document.getElementById(modalId);
-  if (!modal || modal.dataset.closeBound === '1') {
-    return;
-  }
-  modal.dataset.closeBound = '1';
-
-  modal.querySelectorAll(`[data-close-modal="${modalId}"], .context-modal-close, .md-close`).forEach((btn) => {
-    btn.addEventListener('click', () => {
-      closeChatModal(modalId);
-      onClose?.();
-    });
-  });
-
-  modal.addEventListener('click', (event) => {
-    if (event.target === modal) {
-      closeChatModal(modalId);
-      onClose?.();
-    }
-  });
-}
+export const bindChatModalClose = bindOverlayModalClose;

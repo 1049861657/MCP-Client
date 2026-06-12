@@ -1,0 +1,86 @@
+/**
+ * 跨页主按钮体系（admin / settings / chat 模态共用）
+ */
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-[var(--color-brand)] px-5 py-2.5 text-sm font-medium text-white shadow-[0_2px_8px_rgb(25_118_210/0.22)] transition-all duration-150;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    @apply bg-[var(--color-brand-dark)] shadow-[0_3px_12px_rgb(25_118_210/0.3)];
+  }
+
+  .btn-primary:active:not(:disabled) {
+    @apply scale-[0.98];
+  }
+
+  .btn-primary:disabled {
+    @apply cursor-not-allowed opacity-50 shadow-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-full border border-[var(--color-border)] bg-[#f8fafc] px-5 py-2.5 text-sm font-medium text-[var(--color-text-muted)] transition-all duration-150;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    @apply border-[rgb(25_118_210/0.28)] bg-white text-[var(--color-brand)];
+  }
+
+  .btn-secondary:active:not(:disabled) {
+    @apply scale-[0.98];
+  }
+
+  .btn-secondary:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  .btn-danger {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-red-600 px-5 py-2.5 text-sm font-medium text-white shadow-[0_2px_8px_rgb(220_38_38/0.22)] transition-all duration-150;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    @apply bg-red-700;
+  }
+
+  .btn-danger:active:not(:disabled) {
+    @apply scale-[0.98];
+  }
+
+  .btn-danger:disabled {
+    @apply cursor-not-allowed opacity-50 shadow-none;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .btn-text {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent px-2 py-1.5 text-[13px] leading-tight text-[var(--color-text-muted)] transition-colors;
+  }
+
+  .btn-text:hover:not(:disabled) {
+    @apply bg-[rgb(25_118_210/0.06)] text-[var(--color-brand)];
+  }
+
+  .btn-text--sm {
+    @apply px-1.5 py-1 text-xs;
+  }
+
+  .btn-block {
+    @apply w-full;
+  }
+
+  .btn.is-loading {
+    @apply pointer-events-none cursor-wait;
+  }
+
+  .btn.is-loading::before,
+  .btn-primary.is-loading::before,
+  .btn-secondary.is-loading::before,
+  .btn-danger.is-loading::before {
+    content: '';
+    @apply mr-2 inline-block size-3.5 shrink-0 rounded-full border-2 border-current border-t-transparent;
+    animation: ui-spin 0.8s linear infinite;
+  }
+}

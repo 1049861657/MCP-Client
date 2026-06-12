@@ -4,7 +4,7 @@ import { createAuthPanel } from './login-form.js';
 // 默认 onSuccess 整页刷新，让各页按新会话态重新初始化。样式走 Tailwind utility 内联。
 
 /**
- * @param {{ onSuccess?: () => void, lead?: string }} [options]
+ * @param {{ onSuccess?: () => void, lead?: string, initialUsername?: string }} [options]
  */
 export function openAuthModal(options = {}) {
   const onSuccess = options.onSuccess ?? (() => window.location.reload());
@@ -36,7 +36,16 @@ export function openAuthModal(options = {}) {
 
   close.addEventListener('click', dispose);
   card.appendChild(close);
-  card.appendChild(createAuthPanel({ onSuccess: () => { dispose(); onSuccess(); }, lead: options.lead }));
+  card.appendChild(
+    createAuthPanel({
+      onSuccess: () => {
+        dispose();
+        onSuccess();
+      },
+      lead: options.lead,
+      initialUsername: options.initialUsername,
+    }),
+  );
 
   overlay.appendChild(card);
   overlay.addEventListener('click', (e) => {

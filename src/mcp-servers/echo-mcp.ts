@@ -69,4 +69,3 @@ server.registerPrompt(
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.log('[MCP SERVER] echo-MCP 已启动（含 R/P 探针，供 info 自测）');

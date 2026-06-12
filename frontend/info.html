@@ -7,7 +7,7 @@
 </head>
 <body class="info-page">
     <div id="loading" class="info-loading">
-        <div class="info-spinner" aria-hidden="true"></div>
+        <div class="ui-spinner ui-spinner--lg" aria-hidden="true"></div>
         <p>正在加载服务信息…</p>
     </div>
 
@@ -24,7 +24,7 @@
                 <input type="search" id="server-search" placeholder="搜索服务器">
             </div>
             <div class="server-list" id="server-list"></div>
-            <button type="button" id="add-server-btn" class="add-btn">+ 新增服务器</button>
+            <button type="button" id="add-server-btn" class="add-btn" data-requires-auth>+ 新增服务器</button>
         </aside>
 
         <div class="main">
@@ -40,12 +40,12 @@
                 <div class="detail-bar">
                     <div class="detail-bar-left">
                         <h1 id="h-name"></h1>
-                        <span class="status-chip off" id="h-status">
-                            <span class="dot off"></span>
-                            <span id="h-status-text">未连接</span>
+                        <span class="ui-status-chip ui-status-chip--off" id="h-status" role="status">
+                            <span class="ui-status-chip__dot" aria-hidden="true"></span>
+                            <span class="ui-status-chip__label" id="h-status-text">未连接</span>
                         </span>
                     </div>
-                    <div class="action-group">
+                    <div class="action-group" data-requires-auth>
                         <button type="button" class="btn btn-primary" id="h-conn-btn">连接</button>
                         <button type="button" class="btn btn-primary hidden" id="h-auth-btn">授权</button>
                         <span class="divider"></span>
@@ -97,7 +97,7 @@
                         <div class="tools-pane">
                             <div class="tools-toolbar">
                                 <p class="tools-toolbar-hint" id="tools-toolbar-hint">已启用 <strong>0/0</strong></p>
-                                <div class="bulk-actions">
+                                <div class="bulk-actions" data-requires-auth>
                                     <button type="button" class="bulk-btn" id="tools-all-on">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
                                         全部启用
@@ -121,12 +121,12 @@
                 </div>
             </div>
 
-            <div class="view" id="v-form">
+            <div class="view" id="v-form" data-requires-auth>
                 <div class="content">
                     <div class="form-view">
                         <button type="button" class="form-back" id="form-back">← 返回</button>
                         <h1 id="form-h">新增服务器</h1>
-                        <form id="server-form" class="form-card">
+                        <form id="server-form" class="form-card" data-requires-auth>
                             <input type="hidden" id="form-mode" value="add">
                             <input type="hidden" id="server-id" value="">
 

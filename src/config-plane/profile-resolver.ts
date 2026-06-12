@@ -29,8 +29,9 @@ import {
   CHANNEL_DEFAULT_PROFILE_BY_CHANNEL,
   ROUTE_MATCH_ALL
 } from '../types/config-plane.types.js';
+import { resolveConfigUserId } from '../services/seed-follow.service.js';
 import type { ConfigPlaneSnapshot } from './config-snapshot.js';
-import { getConfigPlaneSnapshot } from './config-snapshot.js';
+import { resolveChannelSnapshot } from './config-snapshot.js';
 
 export function extractRouteMatchKey(
   envelope: AgentMessageEnvelopeSerialized
@@ -285,10 +286,23 @@ export function resolveProfileFromContext(
   return resolveProfileFromProfileRecord(ctx, profile);
 }
 
-export function resolveProfile(
+export async function resolveProfile(
   envelope: AgentMessageEnvelopeSerialized
-): ResolvedChatProfile {
+): Promise<ResolvedChatProfile> {
   const ctx = buildProfileResolveContext(envelope);
-  const snapshot = getConfigPlaneSnapshot();
-  return resolveProfileFromContext(ctx, snapshot);
+
+  const channelSnapshot = await resolveChannelSnapshot();
+
+  if (ctx.channel !== 'web') {
+    const routes = channelSnapshot.routesByChannel.get(ctx.channel) ?? [];
+    const route = selectRouteRule(ctx.channel, ctx.routeMatchKey, routes);
+    const configUserId = await resolveConfigUserId({ boundUserId: route?.boundUserId ?? null });
+    const profile = resolveProfileFromContext(ctx, channelSnapshot);
+    return { ...profile, configUserId: configUserId ?? null };
+  }
+
+  // Web：渠道方案全局；Provider/MCP 池由 requestUserId / seedFollow 决定
+  const configUserId = await resolveConfigUserId({ requestUserId: ctx.userId });
+  const profile = resolveProfileFromContext(ctx, channelSnapshot);
+  return { ...profile, configUserId: configUserId ?? null };
 }

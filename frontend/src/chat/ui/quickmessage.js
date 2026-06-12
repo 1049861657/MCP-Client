@@ -1,3 +1,7 @@
+import {
+  mountDropdownSelect,
+  refreshDropdownSelect,
+} from '../../shared/ui/dropdown-select.js';
 import { confirmModal } from '../../shared/ui/modal.js';
 import { CHAT_QUICK_MESSAGES_KEY } from '../storage-contract.js';
 import { bindChatModalClose, closeChatModal, openChatModal } from './modal-host.js';
@@ -125,6 +129,9 @@ export function createQuickMessageUi(getApp, getUi) {
       select.value = prev;
     } else if (categoryNames.includes(currentCategory)) {
       select.value = currentCategory;
+    }
+    if (select.dataset.fbSelectMounted === '1') {
+      refreshDropdownSelect(select);
     }
   }
 
@@ -579,6 +586,10 @@ export function createQuickMessageUi(getApp, getUi) {
     }
     resetBatchMode();
     openChatModal('edit-message-modal');
+    const categorySelectEl = document.getElementById('edit-message-category');
+    if (categorySelectEl instanceof HTMLSelectElement) {
+      mountDropdownSelect(categorySelectEl, { placeholder: '选择分类' });
+    }
   }
 
   /**
@@ -625,6 +636,7 @@ export function createQuickMessageUi(getApp, getUi) {
       batchGroup.classList.add('hidden');
     }
     openChatModal('edit-message-modal');
+    mountDropdownSelect(categorySelect, { placeholder: '选择分类' });
   }
 
   /**

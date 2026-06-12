@@ -1,4 +1,5 @@
-import { mcpClient } from '../core/mcp/index.js';
+import { getMcpClientForUser } from '../core/mcp/index.js';
+import type { MCPClientManager } from '../core/mcp/mcp-client-manager.js';
 import { ConfigService } from './config.service.js';
 import { Logger } from '../utils/logger.js';
 
@@ -9,77 +10,91 @@ export type McpReachabilityResult = {
   unreachable: McpReachabilityEntry[];
 };
 
+/** 保存门禁输出：仅 persistIds 写入 Profile，skipped 返回给 UI 提示 */
+export type McpPersistencePartition = {
+  persistIds: string[];
+  skipped: McpReachabilityEntry[];
+};
+
 /**
- * 渠道 Profile 保存时的 MCP 可达性校验。
- * 与 Web 聊天/服务信息页的连接意图解耦：仅探测能否连通，不持久化 isActive，不调用 MCPClientManager.connect。
+ * MCP 连通性探测与保存门禁（编排层）。
+ * 运行时探测委托 MCPClientManager.ensureServerReachable / partitionServerIdsByReachability，
+ * 与 MCP 服务页 connect、ping 共用同一连接池与 connect 路径。
  */
 export class McpReachabilityService {
   /**
-   * 过滤出可连通的 MCP ID；未配置或探测失败的 ID 归入 unreachable。
+   * 保存前拆分：仅 persistIds 可写入 Profile。
    */
-  static async filterReachableServerIds(serverIds: string[]): Promise<McpReachabilityResult> {
-    const configured = await ConfigService.listConfiguredMcpServers();
+  static async partitionForPersistence(
+    requestedIds: string[],
+    configUserId: string | null,
+    enableTools: boolean,
+  ): Promise<McpPersistencePartition> {
+    if (!enableTools) {
+      return { persistIds: [], skipped: [] };
+    }
+
+    const uniqueIds = [...new Set(requestedIds)];
+    if (uniqueIds.length === 0) {
+      return { persistIds: [], skipped: [] };
+    }
+
+    const { reachableIds, unreachable } = await McpReachabilityService.filterReachableServerIds(
+      uniqueIds,
+      configUserId,
+    );
+    if (unreachable.length > 0) {
+      Logger.warn(
+        'MCP REACHABILITY',
+        `渠道保存未写入以下 MCP（探测不可达）: ${unreachable.map((s) => s.name).join('、')}`,
+      );
+    }
+    return { persistIds: reachableIds, skipped: unreachable };
+  }
+
+  /**
+   * 按连通性拆分 ID 列表（配置校验 + 运行时探测）。
+   */
+  static async filterReachableServerIds(
+    serverIds: string[],
+    configUserId: string | null = null,
+  ): Promise<McpReachabilityResult> {
+    const configured = await ConfigService.listConfiguredMcpServers(configUserId ?? undefined);
     const nameById = new Map(configured.map((row) => [row.serverId, row.name]));
 
-    const reachableIds: string[] = [];
-    const unreachable: McpReachabilityEntry[] = [];
-
     const uniqueIds = [...new Set(serverIds)];
+    const unknownIds: string[] = [];
+    const probeIds: string[] = [];
 
-    await Promise.all(
-      uniqueIds.map(async (serverId) => {
-        const name = nameById.get(serverId);
-        if (name === undefined) {
-          unreachable.push({ id: serverId, name: serverId });
-          return;
-        }
+    for (const serverId of uniqueIds) {
+      if (nameById.has(serverId)) {
+        probeIds.push(serverId);
+      } else {
+        unknownIds.push(serverId);
+      }
+    }
 
-        const ok = await McpReachabilityService.probeServerConnection(serverId);
-        if (ok) {
-          reachableIds.push(serverId);
-        } else {
-          unreachable.push({ id: serverId, name });
-        }
-      })
-    );
+    const client = getMcpClientForUser(configUserId);
+    const { reachableIds, unreachableIds } = await client.partitionServerIdsByReachability(probeIds);
 
-    reachableIds.sort();
+    const unreachable: McpReachabilityEntry[] = [
+      ...unknownIds.map((id) => ({ id, name: id })),
+      ...unreachableIds.map((id) => ({ id, name: nameById.get(id) ?? id })),
+    ];
+
     return { reachableIds, unreachable };
   }
 
   /**
-   * 探测已配置 MCP 是否可达。
-   * - 已处于 Web 运行时连接：仅 ping，不断开
-   * - 未连接：临时 connect，探测后 disconnect（不更新工具缓存）
+   * 探测单服是否可达（委托 MCPClientManager，与 info 页 connect 同路径）。
    */
-  static async probeServerConnection(serverId: string): Promise<boolean> {
-    const connection = mcpClient.getConnection(serverId);
-    if (!connection) {
-      return false;
-    }
-
-    const wasConnected = connection.isConnected();
-
-    try {
-      if (wasConnected) {
-        return await connection.ping();
-      }
-
-      return await connection.connect();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      Logger.debug('MCP REACHABILITY', `探测 ${serverId} 失败: ${message}`);
-      return false;
-    } finally {
-      if (!wasConnected && connection.isConnected()) {
-        try {
-          await connection.disconnect();
-        } catch (cleanupError) {
-          const message =
-            cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
-          Logger.debug('MCP REACHABILITY', `探测后清理 ${serverId} 连接失败: ${message}`);
-        }
-      }
-    }
+  static async probeServerConnection(
+    serverId: string,
+    configUserId: string | null = null,
+    clientOverride?: MCPClientManager,
+  ): Promise<boolean> {
+    const client = clientOverride ?? getMcpClientForUser(configUserId);
+    await client.ensureReady();
+    return client.ensureServerReachable(serverId);
   }
 }

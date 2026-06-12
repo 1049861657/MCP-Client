@@ -1,0 +1,51 @@
+/**
+ * 表单字段标签与输入框（admin / settings 卡片共用）
+ */
+
+@layer components {
+  .field-label,
+  .field-label > span:first-child,
+  .ui-field-label {
+    @apply mb-0 block text-[13px] font-semibold text-[var(--color-text)];
+  }
+
+  .field-label > span:first-child,
+  .ui-field-label--spaced {
+    @apply mb-1.5;
+  }
+
+  .field-input,
+  .ui-field-input {
+    @apply w-full rounded-sm border border-[var(--color-border)] bg-white px-2.5 py-2 text-sm text-[var(--color-text)] transition-[border-color,box-shadow];
+  }
+
+  .field-input:focus,
+  .ui-field-input:focus {
+    @apply border-[var(--color-brand)] outline-none;
+    box-shadow: 0 0 0 2px rgb(25 118 210 / 0.18);
+  }
+
+  .field-input--textarea,
+  .ui-field-input--textarea {
+    @apply min-h-[72px] resize-y leading-normal;
+  }
+
+  .field-input--secret {
+    -webkit-text-security: disc;
+  }
+
+  .field-row,
+  .ui-field-row {
+    @apply grid gap-3.5;
+  }
+
+  .field-row--2,
+  .ui-field-row--2 {
+    @apply grid-cols-1 min-[560px]:grid-cols-2;
+  }
+
+  .field-error,
+  .ui-field-error {
+    @apply text-[13px] text-[#d32f2f];
+  }
+}

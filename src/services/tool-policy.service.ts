@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 
 import type { ChatTool } from '../core/agent-harness/types.js';
-import { mcpClient } from '../core/mcp/index.js';
+import { getMcpClientForUser } from '../core/mcp/index.js';
+import { resolveMcpPoolKey } from './mcp-context.service.js';
 import type { ResolvedChatProfile } from '../types/config-plane.types.js';
 import type { ToolInfo } from '../types/mcp.types.js';
 import type { McpToolPreferencesStore } from '../types/tool-preferences.types.js';
@@ -78,7 +79,11 @@ export class ToolPolicyService {
 
   /** 按 Profile + toolPreferences 解析启用工具 codeName */
   static async resolveEnabledCodeNamesForProfile(
-    resolvedProfile?: Pick<ResolvedChatProfile, 'mcpServerIds' | 'enabledToolNames'>
+    resolvedProfile?: Pick<
+      ResolvedChatProfile,
+      'mcpServerIds' | 'enabledToolNames' | 'configUserId'
+    >,
+    configUserId: string | null = null
   ): Promise<string[] | undefined> {
     if (resolvedProfile?.enabledToolNames !== undefined) {
       return [...resolvedProfile.enabledToolNames];
@@ -87,8 +92,9 @@ export class ToolPolicyService {
     if (!serverIds?.length) {
       return undefined;
     }
+    const poolKey = resolveMcpPoolKey(resolvedProfile) ?? configUserId;
     const [serverInfo, store] = await Promise.all([
-      mcpClient.getServerInfo(),
+      getMcpClientForUser(poolKey).getServerInfo(),
       ToolPreferencesService.getAll()
     ]);
     return this.resolveEnabledCodeNames(
@@ -101,12 +107,16 @@ export class ToolPolicyService {
   /** Web 入站 enabledToolNames：仅保留指定服务器上已启用的 MCP 工具 */
   static async sanitizeWebEnabledToolNames(
     names: string[],
-    mcpServerIds: string[]
+    mcpServerIds: string[],
+    configUserId: string | null = null
   ): Promise<string[]> {
     if (!mcpServerIds.length) {
       return [];
     }
-    const enabled = await this.resolveEnabledCodeNamesForProfile({ mcpServerIds });
+    const enabled = await this.resolveEnabledCodeNamesForProfile(
+      { mcpServerIds, configUserId: configUserId ?? undefined },
+      configUserId
+    );
     if (!enabled?.length) {
       return [];
     }
@@ -145,9 +155,12 @@ export class ToolPolicyService {
     return { enabled, total: tools.length };
   }
 
-  static async collectEnabledToolsForServerIds(serverIds: string[]): Promise<ToolInfo[]> {
+  static async collectEnabledToolsForServerIds(
+    serverIds: string[],
+    configUserId: string | null = null
+  ): Promise<ToolInfo[]> {
     const [serverInfo, store] = await Promise.all([
-      mcpClient.getServerInfo(),
+      getMcpClientForUser(configUserId).getServerInfo(),
       ToolPreferencesService.getAll()
     ]);
     return this.collectEnabledTools(serverIds, serverInfo.serverTools ?? {}, store);

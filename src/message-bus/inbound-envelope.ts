@@ -9,10 +9,13 @@ import type {
 import { parseAgentMessageEnvelopeSerialized } from '../types/channel.schema.js';
 
 function serializeWebInbound(envelope: WebAgentMessageEnvelope): AgentMessageEnvelopeSerialized {
-  const { requestId, vendor, webChatSessionId } = envelope.channelMeta;
+  const { requestId, vendor, webChatSessionId, userId } = envelope.channelMeta;
   const channelMeta: WebChannelMetaSerialized = { requestId, webChatSessionId };
   if (vendor !== undefined) {
     channelMeta.vendor = vendor;
+  }
+  if (userId !== undefined) {
+    channelMeta.userId = userId;
   }
   return {
     id: envelope.id,

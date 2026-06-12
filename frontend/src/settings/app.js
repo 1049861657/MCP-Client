@@ -1,6 +1,19 @@
+import { escapeAttr, escapeHtml } from '../shared/escape-html.js';
 import { fetchJson } from '../shared/fetch-json.js';
+import {
+  mountDropdownSelectsIn,
+  refreshDropdownSelect,
+  syncDropdownSelectState,
+} from '../shared/ui/dropdown-select.js';
+import { renderEmptyStateHtml } from '../shared/ui/empty-state.js';
 import { confirmModal } from '../shared/ui/modal.js';
 import { showToast } from '../shared/ui/toast.js';
+import {
+  cloneProviderForImport,
+  parseProviderFromClipboard,
+  resolveUniqueProviderName,
+  serializeProviderForClipboard,
+} from './provider-clipboard.js';
 
 /** @typedef {{ value: string; label: string }} ProviderType */
 /** @typedef {{ value: string; label: string }} ModelEntry */
@@ -13,6 +26,7 @@ const els = {
   defaultProviderSelect: document.getElementById('default-provider'),
   saveProvidersButton: document.getElementById('save-providers'),
   addProviderButton: document.getElementById('add-provider'),
+  importProviderButton: document.getElementById('import-provider'),
 };
 
 /** @type {ProvidersData | null} */
@@ -33,7 +47,11 @@ const EYE_SLASH_ICON = `<svg class="toggle-password-icon" xmlns="http://www.w3.o
  * @returns {Promise<unknown>}
  */
 async function requestJson(url, init) {
-  const response = await fetch(url, init);
+  const response = await fetch(url, {
+    credentials: 'include',
+    cache: 'no-store',
+    ...init,
+  });
 
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
@@ -118,6 +136,20 @@ function syncDefaultProviderFromSelectedProvider() {
 }
 
 /**
+ * @param {ParentNode} [scope]
+ */
+function syncSettingsDropdowns(scope = document) {
+  mountDropdownSelectsIn(scope, 'select.field-select');
+  scope.querySelectorAll('select.field-select').forEach((node) => {
+    if (!(node instanceof HTMLSelectElement) || node.dataset.fbSelectMounted !== '1') {
+      return;
+    }
+    refreshDropdownSelect(node);
+    syncDropdownSelectState(node);
+  });
+}
+
+/**
  * @returns {void}
  */
 function renderProvidersUI() {
@@ -151,6 +183,7 @@ function renderProvidersUI() {
   syncDefaultProviderFromSelectedProvider();
   updateSaveButtonState();
   renderEmptyStateIfNeeded();
+  syncSettingsDropdowns(document);
 }
 
 /**
@@ -236,17 +269,20 @@ function createProviderCard(provider, index) {
             <label class="model-field-label" for="model-label-${index}-${modelIndex}">显示名称</label>
             <input type="text" id="model-label-${index}-${modelIndex}" placeholder="如 Claude Opus（可选）" value="${escapeAttr(model.label || '')}" class="model-label-input">
           </div>
-          <button type="button" class="delete-model" title="删除模型" aria-label="删除模型">&times;</button>
+          <button type="button" class="delete-model" title="删除模型" aria-label="删除模型" data-requires-auth>&times;</button>
         </div>`;
             },
           )
           .join('')
-      : `<p class="models-empty">暂无模型，点击下方按钮添加</p>`;
+      : renderEmptyStateHtml({ message: '暂无模型，点击下方按钮添加', variant: 'compact' });
 
   card.innerHTML = `
     <header class="provider-card-header">
-      <h3>${escapeHtml(provider.name || '新提供商')}</h3>
-      <button type="button" class="btn-danger btn-sm delete-provider">删除</button>
+      <div class="provider-card-title-row">
+        <h3>${escapeHtml(provider.name || '新提供商')}</h3>
+        <button type="button" class="btn-ghost btn-sm copy-provider" title="复制到剪贴板" aria-label="复制提供商配置">复制</button>
+      </div>
+      <button type="button" class="btn-danger btn-sm delete-provider" data-requires-auth>删除</button>
     </header>
     <div class="provider-card-content">
       <section class="form-section">
@@ -258,7 +294,7 @@ function createProviderCard(provider, index) {
           </div>
           <div class="form-row">
             <label for="provider-type-${index}">提供商类型</label>
-            <select id="provider-type-${index}">${typeOptions}</select>
+            <select id="provider-type-${index}" class="field-select">${typeOptions}</select>
           </div>
         </div>
       </section>
@@ -290,32 +326,12 @@ function createProviderCard(provider, index) {
           </div>
           <div class="models-container">${modelsHtml}</div>
         </div>
-        <button type="button" class="add-model" data-provider-index="${index}">+ 添加模型</button>
+        <button type="button" class="add-model" data-provider-index="${index}" data-requires-auth>+ 添加模型</button>
       </section>
     </div>
   `;
 
   return card;
-}
-
-/**
- * @param {string} value
- * @returns {string}
- */
-function escapeHtml(value) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-/**
- * @param {string} value
- * @returns {string}
- */
-function escapeAttr(value) {
-  return escapeHtml(value);
 }
 
 /**
@@ -326,13 +342,14 @@ function renderEmptyStateIfNeeded() {
     return;
   }
 
-  const empty = document.createElement('div');
-  empty.className = 'empty-message';
-  empty.innerHTML = `
-    <h3>暂无提供商</h3>
-    <p>请使用侧边栏的「添加新提供商」按钮添加您的第一个 AI 提供商</p>
-  `;
-  els.providersContainer.appendChild(empty);
+  els.providersContainer.insertAdjacentHTML(
+    'beforeend',
+    renderEmptyStateHtml({
+      title: '暂无提供商',
+      message: '请使用侧边栏的「添加新提供商」按钮添加您的第一个 AI 提供商',
+      variant: 'default',
+    }),
+  );
 }
 
 /**
@@ -360,6 +377,9 @@ function setupEventListeners() {
   });
 
   els.addProviderButton?.addEventListener('click', addNewProvider);
+  els.importProviderButton?.addEventListener('click', () => {
+    void importProviderFromClipboard();
+  });
 
   els.providersContainer?.addEventListener('click', (event) => {
     const target = event.target;
@@ -371,6 +391,11 @@ function setupEventListeners() {
     if (toggleBtn instanceof HTMLButtonElement) {
       event.preventDefault();
       togglePasswordVisibility(toggleBtn);
+      return;
+    }
+
+    if (target.closest('.copy-provider')) {
+      void copyProviderToClipboard(event);
       return;
     }
 
@@ -523,6 +548,74 @@ async function saveProvidersConfig() {
   } catch (error) {
     console.error('保存配置失败:', error);
     showToast(error instanceof Error ? error.message : '保存配置失败', 'error');
+  }
+}
+
+/**
+ * @param {Event} event
+ * @returns {Promise<void>}
+ */
+async function copyProviderToClipboard(event) {
+  if (!providersData) {
+    return;
+  }
+
+  // 复制到剪贴板为只读导出，未登录也允许
+
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  const card = target.closest('.provider-card');
+  if (!(card instanceof HTMLElement) || card.dataset.index === undefined) {
+    return;
+  }
+
+  collectFormData();
+
+  const index = Number(card.dataset.index);
+  const provider = providersData.providers[index];
+  if (!provider) {
+    showToast('复制失败：未找到提供商', 'error');
+    return;
+  }
+
+  try {
+    const text = serializeProviderForClipboard(provider);
+    await navigator.clipboard.writeText(text);
+    showToast('提供商配置已复制到剪贴板', 'success');
+  } catch (error) {
+    console.error('复制提供商配置失败:', error);
+    showToast('复制失败，请检查浏览器剪贴板权限', 'error');
+  }
+}
+
+/**
+ * @returns {Promise<void>}
+ */
+async function importProviderFromClipboard() {
+  if (!providersData) {
+    providersData = { providers: [], defaultProvider: '' };
+  }
+
+  try {
+    const text = await navigator.clipboard.readText();
+    const imported = parseProviderFromClipboard(text);
+    collectFormData();
+
+    const existingNames = providersData.providers.map((provider) => provider.name);
+    const uniqueName = resolveUniqueProviderName(imported.name, existingNames);
+    const provider = cloneProviderForImport(imported);
+    provider.name = uniqueName;
+
+    providersData.providers.push(provider);
+    activeProviderIndex = providersData.providers.length - 1;
+    renderProvidersUI();
+    showToast('已导入提供商，请确认后点击「保存配置」', 'success');
+  } catch (error) {
+    console.error('导入提供商配置失败:', error);
+    showToast(error instanceof Error ? error.message : '导入失败', 'error');
   }
 }
 

@@ -1,0 +1,107 @@
+/**
+ * 带状态点的连接徽章（info 详情栏等）
+ */
+
+@keyframes ui-status-chip-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@layer components {
+  .ui-status-chip,
+  .status-chip {
+    @apply inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium;
+  }
+
+  .ui-status-chip__dot,
+  .status-chip .dot {
+    @apply size-1.5 shrink-0 rounded-full;
+  }
+
+  .ui-status-chip--ok,
+  .status-chip.on {
+    @apply border-[var(--color-brand-soft)] bg-[var(--color-brand-softer)] text-[#15803d];
+  }
+
+  .ui-status-chip--ok .ui-status-chip__dot,
+  .status-chip.on .dot {
+    @apply bg-[#22c55e];
+  }
+
+  .ui-status-chip--off,
+  .status-chip.off {
+    @apply border-[var(--color-border)] bg-[#f8fafc] text-[var(--color-text-muted)];
+  }
+
+  .ui-status-chip--off .ui-status-chip__dot,
+  .status-chip.off .dot {
+    @apply bg-[var(--color-text-light)];
+  }
+
+  .ui-status-chip--pending,
+  .status-chip.pending {
+    @apply border-[#bfdbfe] bg-[var(--color-brand-softer)] text-[var(--color-brand)];
+  }
+
+  .ui-status-chip--pending .ui-status-chip__dot,
+  .status-chip.pending .dot {
+    @apply bg-[var(--color-brand)];
+    animation: ui-status-chip-pulse 1s ease-in-out infinite;
+  }
+
+  .ui-status-chip--warn,
+  .status-chip.warn {
+    @apply border-[#fcd34d] bg-[#fffbeb] text-[#b45309];
+  }
+
+  .ui-status-chip--warn .ui-status-chip__dot,
+  .status-chip.warn .dot {
+    @apply bg-[#f59e0b];
+  }
+
+  .ui-status-chip--danger,
+  .status-chip.err {
+    @apply border-[#fecaca] bg-[#fef2f2] text-[#b91c1c];
+  }
+
+  .ui-status-chip--danger .ui-status-chip__dot,
+  .status-chip.err .dot {
+    @apply bg-[#ef4444];
+  }
+
+  .ui-status-dot,
+  .dot {
+    @apply size-2 shrink-0 rounded-full;
+  }
+
+  .ui-status-dot--ok,
+  .dot.on {
+    @apply bg-[#22c55e];
+  }
+
+  .ui-status-dot--off,
+  .dot.off {
+    @apply bg-[#d1d5db];
+  }
+
+  .ui-status-dot--pending,
+  .dot.pending {
+    @apply bg-[var(--color-brand)];
+    animation: ui-status-chip-pulse 1s ease-in-out infinite;
+  }
+
+  .ui-status-dot--warn,
+  .dot.warn {
+    @apply bg-[#f59e0b];
+  }
+
+  .ui-status-dot--danger,
+  .dot.err {
+    @apply bg-[#ef4444];
+  }
+}

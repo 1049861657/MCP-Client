@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { ServerConfig } from './config/app.config.js';
 import { auth } from './lib/auth.js';
+import { bootstrapUsers } from './lib/bootstrap-users.js';
 import apiRoutes from './api/routes.js';
 import { Logger } from './utils/logger.js';
 import { ConfigService } from './services/config.service.js';
@@ -21,6 +22,9 @@ const __dirname = path.dirname(__filename);
 
 // 创建Express应用
 const app = express();
+
+// 动态 JSON 禁用 Express 默认 ETag（仅按 body 哈希，不含会话，易致跨用户 304）
+app.set('etag', false);
 
 // 配置中间件
 app.use(cors());
@@ -52,10 +56,11 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 async function startServer() {
   try {
     // 获取服务器配置
-    const serverConfig = await ConfigService.getSetting('serverConfig') || ServerConfig;
+    const serverConfig = (await ConfigService.getSetting('serverConfig') || ServerConfig) as typeof ServerConfig;
 
     await cleanupExpiredAgentOutputs();
 
+    await bootstrapUsers();
     await initializeProviders();
     await initConfigPlane();
 

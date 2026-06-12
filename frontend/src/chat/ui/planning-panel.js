@@ -1,3 +1,5 @@
+import { escapeHtml } from '../../shared/escape-html.js';
+
 /**
  * P3-01-04：计划浮层（SSE planning_update 驱动，锚定 #chat-messages 右上外侧）
  */
@@ -296,14 +298,4 @@ export function mountPlanningPanel(getApp) {
   requestAnimationFrame(syncPlanAnchor);
 
   return { updatePlanningItems, clearPlanning, openPlanningSnapshot };
-}
-
-/**
- * @param {string} text
- */
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }

@@ -1,0 +1,52 @@
+/**
+ * 遮罩模态基础壳（chat-modal 等别名）
+ */
+
+@layer components {
+  .ui-modal,
+  .chat-modal {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4;
+  }
+
+  .ui-modal-panel,
+  .chat-modal-panel {
+    @apply max-h-[min(90vh,720px)] w-full max-w-[520px] overflow-auto rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-white shadow-[0_12px_40px_rgb(0_0_0/0.12)];
+  }
+
+  .ui-modal-panel--wide,
+  .chat-modal-panel-wide {
+    @apply max-w-[920px];
+  }
+
+  .ui-modal-header,
+  .chat-modal-header {
+    @apply flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-3.5;
+  }
+
+  .ui-modal-title,
+  .chat-modal-title {
+    @apply m-0 flex-1 text-base font-semibold;
+  }
+
+  .ui-modal-close,
+  .chat-modal-close {
+    @apply cursor-pointer border-0 bg-transparent text-2xl leading-none text-[var(--color-text-muted)];
+  }
+
+  .ui-modal-body,
+  .chat-modal-body {
+    @apply p-4;
+  }
+
+  .ui-modal-footer,
+  .chat-modal-footer {
+    @apply mt-4 flex justify-end gap-3;
+  }
+
+  .ui-modal-footer .btn-primary,
+  .ui-modal-footer .btn-secondary,
+  .chat-modal-footer .btn-primary,
+  .chat-modal-footer .btn-secondary {
+    @apply min-w-[92px];
+  }
+}

@@ -1,3 +1,5 @@
+import { escapeHtml } from '../../shared/escape-html.js';
+import { renderEmptyStateHtml } from '../../shared/ui/empty-state.js';
 import { confirmModal } from '../../shared/ui/modal.js';
 import { enhanceCodeBlocks } from '../code-blocks.js';
 import { marked } from '../renderers.js';
@@ -49,13 +51,13 @@ export function createHistoryModalApi(getApp, ui) {
 
     resetDetailPanel();
     updateBatchDeleteButton();
-    container.innerHTML = '<p class="history-empty">正在加载…</p>';
+    container.innerHTML = renderEmptyStateHtml({ message: '正在加载…', variant: 'inline' });
 
     app.sessionStore
       .listSessions(provider || null)
       .then((sessions) => {
         if (!sessions.length) {
-          container.innerHTML = '<p class="history-empty">暂无聊天会话</p>';
+          container.innerHTML = renderEmptyStateHtml({ message: '暂无聊天会话', variant: 'inline' });
           updateBatchDeleteButton();
           return;
         }
@@ -65,7 +67,10 @@ export function createHistoryModalApi(getApp, ui) {
         updateBatchDeleteButton();
       })
       .catch((error) => {
-        container.innerHTML = `<p class="history-empty history-empty--error">加载失败: ${escapeHtml(error.message)}</p>`;
+        container.innerHTML = renderEmptyStateHtml({
+          message: `加载失败: ${error.message}`,
+          variant: 'error',
+        });
         updateBatchDeleteButton();
       });
   }
@@ -140,7 +145,7 @@ export function createHistoryModalApi(getApp, ui) {
     }
 
     if (!container.childElementCount) {
-      container.innerHTML = '<p class="history-empty">暂无有效会话</p>';
+      container.innerHTML = renderEmptyStateHtml({ message: '暂无有效会话', variant: 'inline' });
     }
   }
 
@@ -273,7 +278,10 @@ export function createHistoryModalApi(getApp, ui) {
       metaEl.textContent = '请从左侧选择会话';
     }
     if (messagesEl) {
-      messagesEl.innerHTML = '<p class="history-empty history-empty--detail">请从左侧选择会话</p>';
+      messagesEl.innerHTML = renderEmptyStateHtml({
+        message: '请从左侧选择会话',
+        variant: 'dashed',
+      });
     }
     if (loadBtn instanceof HTMLButtonElement) {
       loadBtn.disabled = true;
@@ -316,14 +324,18 @@ export function createHistoryModalApi(getApp, ui) {
     const displayId = app.sessionStore.displayId(sessionId);
     titleEl.textContent = `会话 ${displayId}`;
     metaEl.textContent = '正在加载…';
-    messagesEl.innerHTML = '<p class="history-empty history-empty--detail">正在加载…</p>';
+    messagesEl.innerHTML = renderEmptyStateHtml({ message: '正在加载…', variant: 'dashed' });
 
     app.sessionStore
       .getSessionMessages(sessionId)
       .then((messages) => renderSessionMessages(messages, sessionId))
       .catch((error) => {
         metaEl.textContent = '加载失败';
-        messagesEl.innerHTML = `<p class="history-empty history-empty--error">加载失败: ${escapeHtml(error.message)}</p>`;
+        messagesEl.innerHTML = renderEmptyStateHtml({
+          message: `加载失败: ${error.message}`,
+          variant: 'dashed',
+          className: 'ui-empty-state--error',
+        });
       });
   }
 
@@ -344,7 +356,10 @@ export function createHistoryModalApi(getApp, ui) {
     metaEl.textContent = visibleCount > 0 ? `共 ${visibleCount} 条消息` : '暂无消息';
 
     if (!messages.length) {
-      messagesEl.innerHTML = '<p class="history-empty history-empty--detail">此会话暂无消息</p>';
+      messagesEl.innerHTML = renderEmptyStateHtml({
+        message: '此会话暂无消息',
+        variant: 'dashed',
+      });
       setupSessionActions(sessionId);
       return;
     }
@@ -507,14 +522,4 @@ function renderHistoryMarkdown(text) {
  */
 function processHistoryCodeBlocks(container) {
   enhanceCodeBlocks(container);
-}
-
-/**
- * @param {string} text
- */
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }

@@ -1,0 +1,52 @@
+/**
+ * 分段单选控件
+ */
+
+@layer components {
+  .ui-segmented,
+  .settings-segmented,
+  .qm-result-seg {
+    @apply flex rounded-[11px] bg-[#eef2f7] p-[3px] shadow-[inset_0_1px_2px_rgb(15_23_42/0.05)];
+  }
+
+  .qm-result-seg {
+    @apply rounded-[10px] shadow-none;
+  }
+
+  .ui-seg-btn,
+  .settings-seg-btn,
+  .qm-result-seg-btn {
+    @apply flex-1 cursor-pointer rounded-lg border-0 bg-transparent px-2.5 py-2 text-[13px] font-semibold text-[var(--color-text-muted)];
+  }
+
+  .qm-result-seg-btn {
+    @apply rounded-[7px] font-[inherit];
+  }
+
+  .ui-seg-btn.active,
+  .settings-seg-btn.active {
+    @apply bg-white text-[var(--color-brand-dark)] shadow-[0_1px_6px_rgb(15_23_42/0.07)];
+  }
+
+  .ui-seg-btn:disabled,
+  .ui-seg-btn.is-disabled,
+  .settings-seg-btn:disabled,
+  .settings-seg-btn.is-disabled {
+    @apply cursor-not-allowed text-[var(--color-text-light)] opacity-[0.42];
+  }
+
+  .ui-seg-btn:disabled.active,
+  .ui-seg-btn.is-disabled.active,
+  .settings-seg-btn:disabled.active,
+  .settings-seg-btn.is-disabled.active {
+    @apply bg-transparent shadow-none;
+  }
+
+  .qm-result-seg-btn.active.pass {
+    @apply bg-[#f0fdf4] text-[#15803d] shadow-[0_1px_4px_rgb(15_23_42/0.06)];
+  }
+
+  .qm-result-seg-btn.active.fail {
+    @apply bg-[#fef2f2] text-[#b91c1c] shadow-[0_1px_4px_rgb(15_23_42/0.06)];
+  }
+}

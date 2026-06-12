@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import { Logger } from '../utils/logger.js';
 import { generateRequestId } from '../utils/request-id.js';
-import { aiService, providerServices, reloadAiProviders } from '../providers/ai-providers.js';
-import { mcpClient } from '../core/mcp/index.js';
+import { getProviderForUser } from '../providers/ai-providers.js';
+import { getMcpClientForUser } from '../core/mcp/index.js';
+import { resolvePrincipal } from '../services/runtime-context.service.js';
+import type { SessionUser } from '../lib/request-session.js';
 import { InternalMessage } from '../core/agent-harness/types.js';
 import {
   resolveEnableAutoCompact,
@@ -17,7 +19,6 @@ import { getWebChannelAdapter } from '../channels/web/web-channel.adapter.js';
 import { normalizeWebInbound } from '../channels/web/normalize-web-inbound.js';
 import { SSE_KEEP_ALIVE_INTERVAL_MS } from '../channels/web/sse-config.js';
 import { publishInbound } from '../message-bus/inbound-queue.js';
-import { resolveOptionalUser } from './user-auth.js';
 import { ChatStore } from '../services/chat-store.service.js';
 import { resolvePermissionPending } from '../core/agent-harness/permission-pending.js';
 import {
@@ -30,25 +31,13 @@ import {
  */
 export class AiController {
   /**
-   * 获取服务实例
-   * @param vendorId 供应商ID
-   * @returns OpenAI服务实例
+   * 获取服务实例（per-user 路径；userId=null 使用 seed bucket）
    */
-  private static getServiceForVendor(vendorId?: string) {
-    if (!vendorId) {
-      // 使用默认服务
-      return aiService;
-    }
-    
-    // 查找供应商服务
-    const service = providerServices[vendorId];
-    if (service) {
-      return service;
-    }
-    
-    // 如果找不到，返回默认服务
-    Logger.warn('API', `找不到供应商服务: ${vendorId}，使用默认服务`);
-    return aiService;
+  private static async getServiceForVendorAndUser(
+    vendorId: string | undefined,
+    userId: string | null
+  ) {
+    return getProviderForUser(userId, vendorId);
   }
 
   /**
@@ -84,8 +73,8 @@ export class AiController {
         return;
       }
       
-      // 获取对应供应商的服务
-      const service = AiController.getServiceForVendor(vendor);
+      // 获取对应供应商的服务（per-user；chat 是非流式调试路径，无 session 信息故 userId=null）
+      const service = await AiController.getServiceForVendorAndUser(vendor, null);
       
       // 检查服务是否有效
       if (!service) { return;}
@@ -166,13 +155,16 @@ export class AiController {
       });
 
       let envelope;
+      let user: SessionUser | undefined;
+      let configUserId: string | null = null;
       try {
         const body = req.body as Record<string, unknown>;
-        await AiController.sanitizeWebMcpServerIds(body);
-        await AiController.sanitizeWebEnabledToolNames(body);
+        const principal = await resolvePrincipal(req);
+        user = principal.user;
+        configUserId = principal.configUserId;
+        await AiController.sanitizeWebMcpServerIds(body, configUserId);
+        await AiController.sanitizeWebEnabledToolNames(body, configUserId);
         AiController.sanitizeWebEnabledSystemToolNames(body);
-        // 可选鉴权：已登录则服务端组上下文 + 轮末落库；guest 维持现网 body messages[] 路径
-        const user = await resolveOptionalUser(req);
         envelope = await normalizeWebInbound({
           body,
           requestId,
@@ -187,9 +179,14 @@ export class AiController {
         return;
       }
 
-      const vendor = envelope.channelMeta.vendor;
-      const service = AiController.getServiceForVendor(vendor);
+      const vendor = typeof envelope.channelMeta.vendor === 'string'
+        ? envelope.channelMeta.vendor
+        : undefined;
+      const service = await AiController.getServiceForVendorAndUser(vendor, configUserId);
       if (!service) {
+        res.write(`event: error\n`);
+        res.write(`data: ${JSON.stringify({ requestId, error: '无可用 AI 服务，请先配置提供商' })}\n\n`);
+        res.end();
         return;
       }
 
@@ -255,15 +252,16 @@ export class AiController {
         contextOverride?: InternalMessage[] | null;
       };
 
-      // authed：上下文来源同 chatStream（服务端取历史 + 基线），不依赖 body 全量上行
+      const { configUserId } = await resolvePrincipal(req);
       const messages = await AiController.resolveContextMessages(req, bodyMessages);
       if (!Array.isArray(messages)) {
         res.status(400).json({ error: 'messages 必须为数组' });
         return;
       }
 
-      const service = AiController.getServiceForVendor(
-        (req.body as { vendor?: string }).vendor
+      const service = await AiController.getServiceForVendorAndUser(
+        (req.body as { vendor?: string }).vendor,
+        configUserId
       );
       if (!service) {
         res.status(500).json({ error: '无法获取 AI 服务' });
@@ -299,14 +297,14 @@ export class AiController {
         compactModel?: string;
       };
 
-      // authed：上下文来源同 chatStream（服务端取历史 + 基线）
+      const { configUserId } = await resolvePrincipal(req);
       const messages = await AiController.resolveContextMessages(req, bodyMessages);
       if (!Array.isArray(messages) || messages.length === 0) {
         res.status(400).json({ error: '缺少 messages 参数或消息为空' });
         return;
       }
 
-      const service = AiController.getServiceForVendor(vendor);
+      const service = await AiController.getServiceForVendorAndUser(vendor, configUserId);
       if (!service) {
         res.status(500).json({ error: '无法获取 AI 服务' });
         return;
@@ -347,8 +345,8 @@ export class AiController {
    */
   static async getAvailableTools(req: Request, res: Response): Promise<void> {
     try {
-      // 获取服务器信息，包含工具列表
-      const serverInfo = await mcpClient.getServerInfo();
+      const { configUserId } = await resolvePrincipal(req);
+      const serverInfo = await getMcpClientForUser(configUserId).getServerInfo();
       
       res.json({
         success: true,
@@ -375,10 +373,12 @@ export class AiController {
    */
   static async getMCPServers(req: Request, res: Response): Promise<void> {
     try {
+      const { configUserId } = await resolvePrincipal(req);
+      const client = getMcpClientForUser(configUserId);
       const scopeRaw = req.query.scope;
       const scope = typeof scopeRaw === 'string' ? scopeRaw : 'connected';
       const [serverInfo, store] = await Promise.all([
-        mcpClient.getServerInfo(),
+        client.getServerInfo(),
         ToolPreferencesService.getAll()
       ]);
       const connectedIds = new Set(
@@ -398,7 +398,7 @@ export class AiController {
       };
 
       if (scope === 'configured') {
-        const rows = await ConfigService.listConfiguredMcpServers();
+        const rows = await ConfigService.listConfiguredMcpServers(configUserId ?? undefined);
         const servers = rows.map((row) =>
           toRow(row.serverId, row.name, connectedIds.has(row.serverId))
         );
@@ -475,7 +475,7 @@ export class AiController {
     req: Request,
     bodyMessages: InternalMessage[]
   ): Promise<InternalMessage[]> {
-    const user = await resolveOptionalUser(req);
+    const user = req.user;
     const sessionId =
       typeof (req.body as { sessionId?: unknown }).sessionId === 'string'
         ? (req.body as { sessionId: string }).sessionId.trim()
@@ -493,11 +493,14 @@ export class AiController {
   }
 
   /** Web 请求体 mcpServerIds 仅保留当前已连接的 MCP 服务器 */
-  static async sanitizeWebMcpServerIds(body: Record<string, unknown>): Promise<void> {
+  static async sanitizeWebMcpServerIds(
+    body: Record<string, unknown>,
+    configUserId: string | null
+  ): Promise<void> {
     if (!Array.isArray(body.mcpServerIds)) {
       return;
     }
-    const serverInfo = await mcpClient.getServerInfo();
+    const serverInfo = await getMcpClientForUser(configUserId).getServerInfo();
     const connectedIds = new Set(
       (serverInfo.connectedServers ?? []).map((server) => server.id)
     );
@@ -517,7 +520,10 @@ export class AiController {
   }
 
   /** Web 请求体 enabledToolNames 仅保留当前已连接服务器上已启用的 MCP 工具 codeName */
-  static async sanitizeWebEnabledToolNames(body: Record<string, unknown>): Promise<void> {
+  static async sanitizeWebEnabledToolNames(
+    body: Record<string, unknown>,
+    configUserId: string | null
+  ): Promise<void> {
     if (!Array.isArray(body.enabledToolNames)) {
       return;
     }
@@ -526,7 +532,8 @@ export class AiController {
       : [];
     body.enabledToolNames = await ToolPolicyService.sanitizeWebEnabledToolNames(
       body.enabledToolNames.filter((name): name is string => typeof name === 'string'),
-      mcpServerIds
+      mcpServerIds,
+      configUserId
     );
   }
 } 

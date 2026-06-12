@@ -1,0 +1,15 @@
+/**
+ * 须在 `@import 'tailwindcss'` 之后引入（Flowbite plugin + 项目覆盖）
+ */
+@import './flowbite.css';
+@import './ui/buttons.css';
+@import './ui/spinner.css';
+@import './ui/form-field.css';
+@import './ui/empty-state.css';
+@import './ui/segmented.css';
+@import './ui/status-chip.css';
+@import './ui/modal-shell.css';
+@import './ui/stepper.css';
+@import './ui/chip-group.css';
+@import './ui/tooltip.css';
+@import './ui/flowbite-overrides.css';

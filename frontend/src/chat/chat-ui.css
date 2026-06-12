@@ -4,7 +4,7 @@
   @apply m-0 min-h-screen bg-[var(--color-page-bg)] font-sans text-[var(--color-text)] antialiased;
 }
 
-.chat-page button:not(.navbar *):not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.mcp-action-chip):not(.mcp-footer-btn):not(.history-action-btn):not(.history-link-btn):not(.app-confirm-btn):not(.context-footer-btn):not(.settings-nav-item):not(.settings-toggle):not(.settings-chip):not(.settings-btn-ghost):not(.settings-text-link):not(.settings-modal-close):not(.settings-seg-btn):not(.settings-stepper-btn):not(.qm-btn-add):not(.qm-cat-add-btn):not(.qm-cat-item):not(.qm-cat-menu-btn):not(.qm-icon-btn):not(.qm-status-pill):not(.qm-result-seg-btn):not(.qm-btn-ghost):not(.qm-btn-primary):not(.qm-modal-close):not(.qm-ctx-btn):not(.md-mode-tab):not(.md-btn-primary):not(.md-close) {
+.chat-page button:not(.navbar *):not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.mcp-action-chip):not(.mcp-footer-btn):not(.history-action-btn):not(.history-link-btn):not(.app-confirm-btn):not(.context-footer-btn):not(.settings-nav-item):not(.ui-toggle):not(.settings-chip):not(.settings-btn-ghost):not(.settings-text-link):not(.settings-modal-close):not(.settings-seg-btn):not(.ui-seg-btn):not(.settings-stepper-btn):not(.ui-stepper-btn):not(.fb-select__trigger):not(.fb-select__option):not(.ui-chip):not(.qm-btn-add):not(.qm-cat-add-btn):not(.qm-cat-item):not(.qm-cat-menu-btn):not(.qm-icon-btn):not(.qm-status-pill):not(.qm-result-seg-btn):not(.qm-btn-ghost):not(.qm-btn-primary):not(.qm-modal-close):not(.qm-ctx-btn):not(.md-mode-tab):not(.md-btn-primary):not(.md-close) {
   @apply m-0 cursor-pointer border-0 p-0 font-[inherit];
 }
 
@@ -159,19 +159,6 @@
 
   .response-time {
     @apply mb-2 flex items-center justify-end text-sm text-[var(--color-text-muted)];
-  }
-
-  /* ── 底部 tooltip ── */
-  .tooltip-container {
-    @apply pointer-events-none fixed bottom-5 left-1/2 z-[9999] -translate-x-1/2;
-  }
-
-  .tooltip {
-    @apply max-w-[90vw] translate-y-2.5 overflow-hidden text-ellipsis whitespace-nowrap rounded-lg border border-white/10 bg-black/85 px-5 py-2.5 text-center text-sm font-medium text-white opacity-0 shadow-lg transition-[opacity,transform] duration-300;
-  }
-
-  .tooltip.show {
-    @apply translate-y-0 opacity-100;
   }
 
   /* ── 消息气泡（MCP-Client 双角色体系） ── */

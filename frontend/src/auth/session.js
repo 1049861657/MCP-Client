@@ -131,3 +131,28 @@ export async function signUp(email, username, password) {
 export async function signOut() {
   return postAuth('/sign-out', {});
 }
+
+/**
+ * @typedef {{ session: { token: string }, user: { id: string, email: string, name: string, username?: string | null, role?: string | null } }} DeviceSession
+ */
+
+/**
+ * 当前浏览器内已登录的多账号会话（需启用 multiSession 插件）。
+ * @returns {Promise<DeviceSession[]>}
+ */
+export async function listDeviceSessions() {
+  const res = await fetch(AUTH_BASE + '/multi-session/list-device-sessions', { credentials: 'include' });
+  if (!res.ok) {
+    return [];
+  }
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data) ? data : [];
+}
+
+/**
+ * 切换当前活跃会话（无需重新输入密码）。
+ * @param {string} sessionToken
+ */
+export async function setActiveSession(sessionToken) {
+  return postAuth('/multi-session/set-active', { sessionToken });
+}

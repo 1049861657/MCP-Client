@@ -1,3 +1,5 @@
+import { escapeHtml } from '../../shared/escape-html.js';
+import { showFloatingTooltip } from '../../shared/ui/tooltip.js';
 import { CHAT_TOOLBAR_ICONS } from '../icons.js';
 import { enhanceCodeBlocks } from '../code-blocks.js';
 import { createRenderers, marked } from '../renderers.js';
@@ -53,15 +55,7 @@ export function createMinimalChatUi(getApp) {
     },
 
     showTooltip(message, duration = 2000) {
-      const tooltip = getApp().elements.tooltip;
-      if (!tooltip) {
-        return;
-      }
-      tooltip.textContent = message;
-      tooltip.classList.add('show');
-      setTimeout(() => {
-        tooltip.classList.remove('show');
-      }, duration);
+      showFloatingTooltip(getApp().elements.tooltip, message, duration);
     },
 
     updateUIForMode() {
@@ -397,15 +391,4 @@ function getAiBubbleInner(chatBubble) {
  */
 function chatMessagesClearWelcome(chatMessages) {
   chatMessages?.querySelector('.chat-welcome')?.remove();
-}
-
-/**
- * @param {string} text
- */
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

@@ -16,22 +16,12 @@ import { resolveProfile } from '../config-plane/profile-resolver.js';
 import { getDingtalkChannelAdapter } from '../channels/dingtalk/dingtalk-channel.adapter.js';
 import { getFeishuChannelAdapter } from '../channels/feishu/feishu-channel.adapter.js';
 import { getWebChannelAdapter } from '../channels/web/web-channel.adapter.js';
-import { aiService, providerServices } from '../providers/ai-providers.js';
+import { getProviderForUser } from '../providers/ai-providers.js';
 import { AiProvider } from '../providers/ai-provider.js';
 import { logInboundDequeue } from './inbound-log.js';
 import { Logger } from '../utils/logger.js';
 import { getOutboundSink } from './outbound-sink-registry.js';
 import { outboundRouter } from './outbound-router.js';
-
-function resolveServiceForVendor(vendor?: string): AiProvider | undefined {
-  if (vendor && providerServices[vendor]) {
-    return providerServices[vendor];
-  }
-  if (vendor) {
-    Logger.warn('BUS', `找不到供应商服务: ${vendor}，使用默认服务`);
-  }
-  return aiService;
-}
 
 function isAbortError(error: unknown): boolean {
   if (!(error instanceof Error)) {
@@ -79,7 +69,10 @@ async function runHarnessForEnvelope(
     mcpCount: resolved.mcpServerIds.length,
     permissionMode: resolved.permissionMode
   });
-  const service = resolveServiceForVendor(vendor);
+
+  // T4-06-04/T4-07: per-user Provider 实例；guest 跟随 seedFollowUserId
+  const configUserId = resolved.configUserId ?? null;
+  const service = await getProviderForUser(configUserId, vendor ?? undefined);
   if (!service) {
     Logger.warn('BUS', `Inbound Worker 跳过：无可用 AI 服务 requestId=${requestId}`);
     return;

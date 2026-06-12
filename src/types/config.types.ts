@@ -30,13 +30,13 @@ export interface AIProvider {
 // 提供商配置接口
 export interface AIProvidersConfigType {
   providers: AIProvider[];
-  defaultProvider: string;
+  defaultProvider: string | null;
 }
 
 export interface MCPServer {
   serverId: string;
   name: string;
-  isActive: boolean;
+  enabled: boolean;
   connectionType: ConnectionType;
   command?: string;
   args?: string[];

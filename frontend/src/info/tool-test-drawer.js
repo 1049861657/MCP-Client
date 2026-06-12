@@ -2,6 +2,8 @@
  * MCP 工具试运行右侧抽屉
  */
 
+import { escapeHtml } from '../shared/escape-html.js';
+
 /** @typedef {{ name: string; codeName?: string; description: string; parameters?: ToolParameter[] }} ToolInfo */
 /** @typedef {{ name: string; type: string; description: string; required: boolean }} ToolParameter */
 
@@ -188,16 +190,6 @@ function renderPanel(tool, values, runState) {
     </div>
     ${resultHtml}
   </div>`;
-}
-
-/**
- * @param {string} text
- */
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }
 
 /**

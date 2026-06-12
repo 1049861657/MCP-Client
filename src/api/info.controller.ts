@@ -1,8 +1,16 @@
 import { Request, Response } from 'express';
-import { mcpClient, reloadMCPConfig } from '../core/mcp/index.js';
+import { reloadMCPConfig } from '../core/mcp/index.js';
+import type { MCPClientManager } from '../core/mcp/mcp-client-manager.js';
 import { ErrorResponse } from '../types/api.types.js';
 import { ConfigService } from '../services/config.service.js';
+import { McpConfigStore } from '../services/mcp-config.store.js';
 import { McpInfoAssembler } from '../services/mcp-info-assembler.service.js';
+import {
+  mcpClientForConfigUser,
+  requireMcpConfigUserId,
+  resolveMcpClientFromRequest,
+  resolveMcpConfigUserIdFromRequest,
+} from '../services/mcp-context.service.js';
 import { ToolPreferencesService } from '../services/tool-preferences.service.js';
 import { normalizeToolResult } from '../core/agent-harness/tool-executor.js';
 import type {
@@ -65,12 +73,17 @@ export class InfoController {
     return Array.isArray(value) ? value[0] : value;
   }
 
+  private static clientForAuth(req: Request): MCPClientManager {
+    return mcpClientForConfigUser(requireMcpConfigUserId(req));
+  }
+
   /**
    * 获取MCP服务信息
    */
   static async getInfo(req: Request, res: Response): Promise<void> {
     try {
-      const info = await McpInfoAssembler.assembleForInfoPage();
+      const configUserId = await resolveMcpConfigUserIdFromRequest(req);
+      const info = await McpInfoAssembler.assembleForInfoPage(configUserId);
       res.json(info);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -84,7 +97,8 @@ export class InfoController {
    */
    static async getClientInfo(req: Request, res: Response): Promise<void> {
     try {
-      const info = await mcpClient.getClientInfo();
+      const client = await resolveMcpClientFromRequest(req);
+      const info = await client.getClientInfo();
       res.json(info);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -105,8 +119,14 @@ export class InfoController {
         return;
       }
       
-      const success = await mcpClient.connect(serverId);
-      const info = await McpInfoAssembler.assembleForInfoPage();
+      const configUserId = requireMcpConfigUserId(req);
+      const client = InfoController.clientForAuth(req);
+      const success = await client.connect(serverId);
+      if (success) {
+        await McpConfigStore.setServerEnabled(configUserId, serverId, true);
+        client.syncServerEnabled(serverId, true);
+      }
+      const info = await McpInfoAssembler.assembleForInfoPage(configUserId);
       const server = info.availableServers?.find((s) => s.id === serverId) ?? info.server;
 
       if (success) {
@@ -143,9 +163,13 @@ export class InfoController {
         return;
       }
       
-      await mcpClient.disconnect(serverId, { clearAuth: true });
-      
-      const info = await McpInfoAssembler.assembleForInfoPage();
+      const configUserId = requireMcpConfigUserId(req);
+      const client = InfoController.clientForAuth(req);
+      await client.disconnect(serverId, { clearAuth: true });
+      await McpConfigStore.setServerEnabled(configUserId, serverId, false);
+      client.syncServerEnabled(serverId, false);
+
+      const info = await McpInfoAssembler.assembleForInfoPage(configUserId);
       res.json(info);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -159,10 +183,11 @@ export class InfoController {
    */
   static async reloadConfig(req: Request, res: Response): Promise<void> {
     try {
-      const success = await reloadMCPConfig();
+      const configUserId = requireMcpConfigUserId(req);
+      const success = await reloadMCPConfig(configUserId, 'all');
       
       if (success) {
-        const info = await McpInfoAssembler.assembleForInfoPage();
+        const info = await McpInfoAssembler.assembleForInfoPage(configUserId);
         res.json(info);
       } else {
         InfoController.sendErrorResponse(
@@ -213,8 +238,8 @@ export class InfoController {
         return;
       }
       
-      // 获取当前配置
-      const config = await ConfigService.getMCPConfig();
+      const configUserId = requireMcpConfigUserId(req);
+      const config = await ConfigService.getMCPConfig(configUserId);
       
       // 检查是否已存在相同ID的服务器
       if (config.servers.some(server => server.serverId === serverData.serverId)) {
@@ -224,16 +249,13 @@ export class InfoController {
         return;
       }
       
-      // 添加新服务器
       config.servers.push(serverData);
+      const newServerId = serverData.serverId;
+
+      await ConfigService.saveMCPConfig(config, configUserId);
+      await reloadMCPConfig(configUserId, { serverId: newServerId });
       
-      // 保存配置
-      await ConfigService.saveMCPConfig(config);
-      
-      // 强制重新加载配置
-      await reloadMCPConfig();
-      
-      const info = await McpInfoAssembler.assembleForInfoPage();
+      const info = await McpInfoAssembler.assembleForInfoPage(configUserId);
       res.json(info);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -248,15 +270,21 @@ export class InfoController {
   static async updateServer(req: Request, res: Response): Promise<void> {
     try {
       const serverId = InfoController.routeParamToString(req.params.serverId);
-      const serverData: Partial<MCPServer> = req.body;
-      
+      const serverData = req.body as Partial<MCPServer>;
+
       if (!serverId) {
         InfoController.sendErrorResponse(res, 400, "更新服务器失败", "服务器ID不能为空");
         return;
       }
-      
-      // 获取当前配置
-      const config = await ConfigService.getMCPConfig();
+      if ('enabled' in serverData) {
+        InfoController.sendErrorResponse(
+          res, 400, "更新服务器失败", "enabled 请通过 connect/disconnect 切换"
+        );
+        return;
+      }
+
+      const configUserId = requireMcpConfigUserId(req);
+      const config = await ConfigService.getMCPConfig(configUserId);
       
       // 查找并更新服务器
       const serverIndex = config.servers.findIndex(server => server.serverId === serverId);
@@ -283,13 +311,10 @@ export class InfoController {
       // 替换数组中的对象
       config.servers[serverIndex] = updatedServer;
       
-      // 保存配置
-      await ConfigService.saveMCPConfig(config);
-      
-      // 强制重新加载配置
-      await reloadMCPConfig();
-      
-      const info = await McpInfoAssembler.assembleForInfoPage();
+      await ConfigService.saveMCPConfig(config, configUserId);
+      await reloadMCPConfig(configUserId, { serverId });
+
+      const info = await McpInfoAssembler.assembleForInfoPage(configUserId);
       res.json(info);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -310,8 +335,9 @@ export class InfoController {
         return;
       }
       
-      // 获取当前配置
-      const config = await ConfigService.getMCPConfig();
+      const configUserId = requireMcpConfigUserId(req);
+      const client = InfoController.clientForAuth(req);
+      const config = await ConfigService.getMCPConfig(configUserId);
       
       // 查找要删除的服务器
       const serverIndex = config.servers.findIndex(server => server.serverId === serverId);
@@ -331,7 +357,7 @@ export class InfoController {
       }
       
       // 检查是否正在连接
-      const serverInfo = await mcpClient.getServerInfo();
+      const serverInfo = await client.getServerInfo();
       const isConnected = serverInfo.connectedServers?.some(server => 
         server.id === serverId && server.status === McpConnectionStatus.Connected
       );
@@ -346,15 +372,12 @@ export class InfoController {
       // 删除服务器
       config.servers.splice(serverIndex, 1);
 
-      await clearMcpServerAuth(serverId);
+      await clearMcpServerAuth(serverId, configUserId);
       
-      // 保存配置
-      await ConfigService.saveMCPConfig(config);
-      
-      // 强制重新加载配置
-      await reloadMCPConfig();
-      
-      const updateInfo = await McpInfoAssembler.assembleForInfoPage();
+      await ConfigService.saveMCPConfig(config, configUserId);
+      await reloadMCPConfig(configUserId, { serverId });
+
+      const updateInfo = await McpInfoAssembler.assembleForInfoPage(configUserId);
       res.json(updateInfo);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -374,8 +397,10 @@ export class InfoController {
         InfoController.sendErrorResponse(res, 400, "查看服务器失败", "服务器ID不能为空");
         return;
       }
-      mcpClient.switchCurrentServer(serverId);
-      const serverInfo = await McpInfoAssembler.assembleForInfoPage();
+      const configUserId = requireMcpConfigUserId(req);
+      const client = InfoController.clientForAuth(req);
+      client.switchCurrentServer(serverId);
+      const serverInfo = await McpInfoAssembler.assembleForInfoPage(configUserId);
       res.json(serverInfo);
     } catch (error) {
       InfoController.sendErrorResponse(
@@ -467,7 +492,8 @@ export class InfoController {
           : {};
 
       const toolName = body.toolName.trim();
-      const result = await mcpClient.callToolOnServer(
+      const client = InfoController.clientForAuth(req);
+      const result = await client.callToolOnServer(
         serverId,
         toolName,
         args,
@@ -478,7 +504,7 @@ export class InfoController {
         source: 'mcp',
         tool: toolName,
         serverId,
-        serverName: mcpClient.getServerName(serverId),
+        serverName: client.getServerName(serverId),
         raw: result
       });
 
@@ -532,7 +558,8 @@ export class InfoController {
         return;
       }
 
-      const result = await mcpClient.readResourceOnServer(serverId, uri);
+      const client = await resolveMcpClientFromRequest(req);
+      const result = await client.readResourceOnServer(serverId, uri);
       const response: CallServerToolResponse = {
         ok: true,
         ms: Date.now() - started,
@@ -580,7 +607,8 @@ export class InfoController {
         }
       }
 
-      const result = await mcpClient.getPromptOnServer(serverId, body.name.trim(), args);
+      const client = await resolveMcpClientFromRequest(req);
+      const result = await client.getPromptOnServer(serverId, body.name.trim(), args);
       const response: CallServerToolResponse = {
         ok: true,
         ms: Date.now() - started,
@@ -609,10 +637,11 @@ export class InfoController {
         return;
       }
 
-      let authorizationUrl = mcpClient.getOAuthAuthorizationUrl(serverId);
+      const client = await resolveMcpClientFromRequest(req);
+      let authorizationUrl = client.getOAuthAuthorizationUrl(serverId);
       if (!authorizationUrl) {
-        await mcpClient.connect(serverId);
-        authorizationUrl = mcpClient.getOAuthAuthorizationUrl(serverId);
+        await client.connect(serverId);
+        authorizationUrl = client.getOAuthAuthorizationUrl(serverId);
       }
 
       if (!authorizationUrl) {
@@ -649,23 +678,24 @@ export class InfoController {
         return;
       }
 
-      const serverIdFromState = state.split(':')[0];
-      const serverId =
-        (await McpServerAuthService.findServerIdByOAuthState(state)) ?? serverIdFromState;
+      const oauthCtx = await McpServerAuthService.findOAuthContextByState(state);
+      const serverId = oauthCtx?.serverId ?? state.split(':')[0];
 
       if (!serverId) {
         InfoController.sendErrorResponse(res, 400, 'OAuth 回调无效', '无法解析 serverId');
         return;
       }
 
-      const config = await ConfigService.getMCPConfig();
+      const configUserId = oauthCtx?.userId ?? null;
+      const config = await ConfigService.getMCPConfig(configUserId ?? undefined);
       const serverConfig = config.servers.find((s) => s.serverId === serverId);
       if (!serverConfig?.mcpUrl) {
         InfoController.sendErrorResponse(res, 404, '服务器不存在', `ID 为 ${serverId} 的服务器无 mcpUrl`);
         return;
       }
 
-      await mcpClient.finishOAuthAndConnect(serverId, code);
+      const client = mcpClientForConfigUser(configUserId);
+      await client.finishOAuthAndConnect(serverId, code);
 
       res.redirect(`/info.html?serverId=${encodeURIComponent(serverId)}&oauth=ok`);
     } catch (error) {

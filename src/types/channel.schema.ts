@@ -31,7 +31,8 @@ const agentInboundPayloadSchema = z.object({
 const webChannelMetaSerializedSchema = z.object({
   requestId: z.string().min(1),
   webChatSessionId: z.string().min(1),
-  vendor: z.string().optional()
+  vendor: z.string().optional(),
+  userId: z.string().optional() // T4-06-02: 已登录用户 ID，Bus 链路透传
 });
 
 const feishuChannelMetaSerializedSchema = z.object({

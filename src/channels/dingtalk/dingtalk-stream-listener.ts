@@ -7,7 +7,14 @@ import {
 } from './normalize-dingtalk-inbound.js';
 import type { DingtalkBotMessageDownstream } from './dingtalk-event.types.js';
 
+type ChannelLinkStatus = 'connected' | 'connecting' | 'disconnected' | 'skipped';
+
 let streamClient: DWClient | null = null;
+let linkStatus: ChannelLinkStatus = 'skipped';
+
+export function getDingtalkLinkStatus(): ChannelLinkStatus {
+  return linkStatus;
+}
 
 function readDingtalkCredentials(): { clientId: string; clientSecret: string } | null {
   const clientId = process.env.DINGTALK_CLIENT_ID?.trim();
@@ -47,6 +54,7 @@ async function handleDingtalkMessage(
 export function startDingtalkStreamListener(): void {
   const credentials = readDingtalkCredentials();
   if (!credentials) {
+    linkStatus = 'skipped';
     Logger.info('DINGTALK', '未配置 DINGTALK_CLIENT_ID/DINGTALK_CLIENT_SECRET，跳过钉钉 Stream');
     return;
   }
@@ -65,9 +73,17 @@ export function startDingtalkStreamListener(): void {
     void handleDingtalkMessage(streamClient as DWClient, downstream);
   });
 
-  void streamClient.connect().catch((error: unknown) => {
-    Logger.error('DINGTALK', '钉钉 Stream 连接失败:', error);
-  });
+  linkStatus = 'connecting';
+
+  void streamClient.connect()
+    .then(() => {
+      linkStatus = 'connected';
+      Logger.info('DINGTALK', '钉钉 Stream 已连接');
+    })
+    .catch((error: unknown) => {
+      linkStatus = 'disconnected';
+      Logger.error('DINGTALK', '钉钉 Stream 连接失败:', error);
+    });
 
   Logger.info('DINGTALK', '钉钉 Stream 已启动（/v1.0/im/bot/messages/get）');
 }

@@ -27,10 +27,17 @@ function oauthRedirectUrl(): string {
   );
 }
 
+function pendingAuthKey(configUserId: string | null, serverId: string): string {
+  return `${configUserId ?? 'seed'}:${serverId}`;
+}
+
 export class McpOAuthProvider implements OAuthClientProvider {
   private readonly redirectUrlValue = oauthRedirectUrl();
 
-  constructor(private readonly serverId: string) {}
+  constructor(
+    private readonly serverId: string,
+    private readonly configUserId: string | null = null
+  ) {}
 
   get redirectUrl(): string {
     return this.redirectUrlValue;
@@ -47,33 +54,36 @@ export class McpOAuthProvider implements OAuthClientProvider {
   }
 
   async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
-    return (await McpServerAuthService.load(this.serverId))?.clientInfo;
+    return (await McpServerAuthService.load(this.serverId, this.configUserId ?? undefined))?.clientInfo;
   }
 
   async saveClientInformation(clientInformation: OAuthClientInformationMixed): Promise<void> {
-    await McpServerAuthService.patch(this.serverId, { clientInfo: clientInformation });
+    await McpServerAuthService.patch(this.serverId, { clientInfo: clientInformation }, this.configUserId ?? undefined);
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
-    return (await McpServerAuthService.load(this.serverId))?.tokens;
+    return (await McpServerAuthService.load(this.serverId, this.configUserId ?? undefined))?.tokens;
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
-    await McpServerAuthService.saveTokens(this.serverId, tokens);
-    pendingAuthorizationUrls.delete(this.serverId);
+    await McpServerAuthService.saveTokens(this.serverId, tokens, this.configUserId ?? undefined);
+    pendingAuthorizationUrls.delete(pendingAuthKey(this.configUserId, this.serverId));
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
-    pendingAuthorizationUrls.set(this.serverId, authorizationUrl.toString());
+    pendingAuthorizationUrls.set(
+      pendingAuthKey(this.configUserId, this.serverId),
+      authorizationUrl.toString()
+    );
     Logger.info('MCP OAUTH', `[${this.serverId}] 等待浏览器授权: ${authorizationUrl}`);
   }
 
   async saveCodeVerifier(codeVerifier: string): Promise<void> {
-    await McpServerAuthService.patch(this.serverId, { codeVerifier });
+    await McpServerAuthService.patch(this.serverId, { codeVerifier }, this.configUserId ?? undefined);
   }
 
   async codeVerifier(): Promise<string> {
-    const verifier = (await McpServerAuthService.load(this.serverId))?.codeVerifier;
+    const verifier = (await McpServerAuthService.load(this.serverId, this.configUserId ?? undefined))?.codeVerifier;
     if (!verifier) {
       throw new Error(`缺少 PKCE code_verifier: ${this.serverId}`);
     }
@@ -82,28 +92,31 @@ export class McpOAuthProvider implements OAuthClientProvider {
 
   async state(): Promise<string> {
     const value = `${this.serverId}:${randomBytes(16).toString('hex')}`;
-    await McpServerAuthService.patch(this.serverId, { oauthState: value });
+    await McpServerAuthService.patch(this.serverId, { oauthState: value }, this.configUserId ?? undefined);
     return value;
   }
 
   async saveDiscoveryState(state: OAuthDiscoveryState): Promise<void> {
-    await McpServerAuthService.patch(this.serverId, { discoveryState: state });
+    await McpServerAuthService.patch(this.serverId, { discoveryState: state }, this.configUserId ?? undefined);
   }
 
   async discoveryState(): Promise<OAuthDiscoveryState | undefined> {
-    return (await McpServerAuthService.load(this.serverId))?.discoveryState;
+    return (await McpServerAuthService.load(this.serverId, this.configUserId ?? undefined))?.discoveryState;
   }
 
   async invalidateCredentials(
     _scope?: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'
   ): Promise<void> {
-    pendingAuthorizationUrls.delete(this.serverId);
-    await McpServerAuthService.delete(this.serverId);
+    pendingAuthorizationUrls.delete(pendingAuthKey(this.configUserId, this.serverId));
+    await McpServerAuthService.delete(this.serverId, this.configUserId ?? undefined);
   }
 }
 
-export function getPendingAuthorizationUrl(serverId: string): string | undefined {
-  return pendingAuthorizationUrls.get(serverId);
+export function getPendingAuthorizationUrl(
+  serverId: string,
+  configUserId: string | null = null
+): string | undefined {
+  return pendingAuthorizationUrls.get(pendingAuthKey(configUserId, serverId));
 }
 
 export function shouldUseMcpOAuth(
@@ -116,9 +129,10 @@ export function shouldUseMcpOAuth(
 export async function exchangeMcpOAuthCode(
   serverId: string,
   mcpUrl: string,
-  authorizationCode: string
+  authorizationCode: string,
+  configUserId: string | null = null
 ): Promise<void> {
-  const provider = new McpOAuthProvider(serverId);
+  const provider = new McpOAuthProvider(serverId, configUserId);
   const result = await auth(provider, {
     serverUrl: mcpUrl,
     authorizationCode,
@@ -128,8 +142,12 @@ export async function exchangeMcpOAuthCode(
   }
 }
 
-export async function refreshMcpOAuthTokens(serverId: string, mcpUrl: string): Promise<boolean> {
-  const stored = await McpServerAuthService.load(serverId);
+export async function refreshMcpOAuthTokens(
+  serverId: string,
+  mcpUrl: string,
+  configUserId: string | null = null
+): Promise<boolean> {
+  const stored = await McpServerAuthService.load(serverId, configUserId ?? undefined);
   if (!stored?.tokens?.refresh_token || !stored.clientInfo) {
     return false;
   }
@@ -141,7 +159,7 @@ export async function refreshMcpOAuthTokens(serverId: string, mcpUrl: string): P
       clientInformation: stored.clientInfo,
       refreshToken: stored.tokens.refresh_token,
     });
-    await McpServerAuthService.saveTokens(serverId, newTokens);
+    await McpServerAuthService.saveTokens(serverId, newTokens, configUserId ?? undefined);
     Logger.info('MCP OAUTH', `[${serverId}] refresh token 成功`);
     return true;
   } catch (error) {
@@ -153,7 +171,10 @@ export async function refreshMcpOAuthTokens(serverId: string, mcpUrl: string): P
   }
 }
 
-export async function clearMcpServerAuth(serverId: string): Promise<void> {
-  pendingAuthorizationUrls.delete(serverId);
-  await McpServerAuthService.delete(serverId);
+export async function clearMcpServerAuth(
+  serverId: string,
+  configUserId: string | null = null
+): Promise<void> {
+  pendingAuthorizationUrls.delete(pendingAuthKey(configUserId, serverId));
+  await McpServerAuthService.delete(serverId, configUserId ?? undefined);
 }

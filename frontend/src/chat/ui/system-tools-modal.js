@@ -65,7 +65,7 @@ export function createSystemToolsModalApi(getApp) {
 
       const toggle = document.createElement('button');
       toggle.type = 'button';
-      toggle.className = 'settings-toggle';
+      toggle.className = 'ui-toggle';
       const on = enabled.has(tool.codeName);
       toggle.classList.toggle('on', on);
       toggle.setAttribute('aria-pressed', on ? 'true' : 'false');

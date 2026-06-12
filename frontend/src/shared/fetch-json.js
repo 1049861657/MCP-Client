@@ -9,7 +9,11 @@ export async function fetchJson(url, init) {
   let response;
 
   try {
-    response = await fetch(url, init);
+    response = await fetch(url, {
+      credentials: 'include',
+      cache: 'no-store',
+      ...init,
+    });
   } catch (cause) {
     const error = new Error(`请求失败: ${url}`);
     error.cause = cause;

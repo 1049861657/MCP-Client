@@ -49,6 +49,26 @@ export const ToolsConfig = {
   maxToolCallRoundsLimit: 100
 };
 
+/** MCP / Provider 运行时池与配置缓存（T4-06-04/05） */
+export const McpPoolConfig = {
+  /** per-user MCPClientManager LRU 上限 */
+  maxClients: 20,
+  /** per-user 连接池空闲 TTL（毫秒） */
+  clientTtlMs: 30 * 60 * 1000,
+  /** 账号级 MCP 配置解析缓存 TTL（对齐 config-snapshot 60s） */
+  configCacheTtlMs: 60_000,
+  /** 配置缓存最大条目（userId + null seed） */
+  configCacheMaxEntries: 128,
+  /** 单服工具列表内存缓存 TTL */
+  toolsCacheTtlMs: 5 * 60 * 1000,
+  /** 非 OAuth 服定时维护间隔 */
+  reconnectIntervalMs: 8 * 60 * 60 * 1000,
+  /** per-user Provider bucket LRU 上限 */
+  providerBucketMax: 50,
+  /** per-user Provider bucket 空闲 TTL（毫秒） */
+  providerBucketTtlMs: 30 * 60 * 1000,
+};
+
 /** 会话内 Todo 规划（P3-01） */
 export const PlanningConfig = {
   maxTodoItems: 20,

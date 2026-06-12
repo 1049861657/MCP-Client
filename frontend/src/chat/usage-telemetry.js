@@ -3,6 +3,8 @@
  * step_usage: per-round cumulative; usage event: final total.
  */
 
+import { escapeAttr } from '../shared/escape-html.js';
+
 /**
  * @param {number} n
  * @returns {string}
@@ -107,14 +109,4 @@ export function applyFinalUsageToMessage(messageEl, usageData) {
     </span>
   `;
   setTokenInfoPhase(tokenInfo, 'done');
-}
-
-/**
- * @param {string} text
- */
-function escapeAttr(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;');
 }

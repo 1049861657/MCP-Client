@@ -64,4 +64,3 @@ server.registerTool(
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-console.log('[MCP SERVER] large-json-MCP 服务器已启动');

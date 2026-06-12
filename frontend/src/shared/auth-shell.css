@@ -1,0 +1,15 @@
+/* 配置页未登录只读：由 <html data-auth="guest"> 驱动；仅作用于标了 data-requires-auth 的控件（info/settings），不含 AI 聊天 */
+
+[data-auth='guest'] [data-requires-auth] {
+  display: none !important;
+}
+
+[data-auth='guest'] [data-auth-readonly] :is(input, select, textarea) {
+  pointer-events: none;
+  cursor: default;
+}
+
+[data-auth='guest'] [data-auth-readonly] :is(input, select, textarea):not([type='hidden']) {
+  background: #f8fafc;
+  opacity: 0.92;
+}

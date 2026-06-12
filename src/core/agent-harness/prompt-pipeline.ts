@@ -1,4 +1,5 @@
-import { mcpClient } from '../mcp/index.js';
+import { getMcpClientForUser } from '../mcp/index.js';
+import { resolveMcpPoolKey } from '../../services/mcp-context.service.js';
 import { ConfigService } from '../../services/config.service.js';
 import { ToolPolicyService } from '../../services/tool-policy.service.js';
 import type { ResolvedChatProfile } from '../../types/config-plane.types.js';
@@ -201,7 +202,11 @@ export class SystemPromptBuilder {
     if (!serverIds?.length) {
       return '';
     }
-    const enabledTools = await ToolPolicyService.collectEnabledToolsForServerIds(serverIds);
+    const poolKey = resolveMcpPoolKey(this.options.resolvedProfile);
+    const enabledTools = await ToolPolicyService.collectEnabledToolsForServerIds(
+      serverIds,
+      poolKey
+    );
     return buildEnabledToolsSchemaSummary(enabledTools);
   }
 
@@ -242,7 +247,7 @@ export class SystemPromptBuilder {
     if (!this.options.enableTools) {
       return '';
     }
-    return mcpClient
+    return getMcpClientForUser(resolveMcpPoolKey(this.options.resolvedProfile))
       .getInstructions(this.options.resolvedProfile?.mcpServerIds)
       .trim();
   }

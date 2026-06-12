@@ -3,6 +3,7 @@
  */
 
 import { getSession } from '../auth/session.js';
+import { refreshDropdownSelect } from '../shared/ui/dropdown-select.js';
 import { createChatApi } from './api.js';
 import { createChatData } from './data.js';
 import { buildApiMessagesFromHistory } from './message-history-builder.js';
@@ -561,7 +562,10 @@ function createAppMethods() {
     async fetchProviderConfig() {
       try {
         console.log('开始获取供应商配置');
-        const response = await fetch('/api/settings/providers');
+        const response = await fetch('/api/settings/providers', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
 
         if (!response.ok) {
           throw new Error(`HTTP错误: ${response.status}`);
@@ -672,6 +676,7 @@ function createAppMethods() {
       if (defaultProviderName && this.state.providers[defaultProviderName]) {
         this.elements.provider.value = defaultProviderName;
       }
+      refreshDropdownSelect(this.elements.provider);
     },
 
     updateModelOptions() {
@@ -699,6 +704,7 @@ function createAppMethods() {
         this.elements.model.appendChild(option);
       });
 
+      refreshDropdownSelect(this.elements.model);
       this.updateCompactModelOptions();
     },
 
@@ -733,6 +739,7 @@ function createAppMethods() {
       }
 
       this.state.compactModel = this.elements.compactModel.value;
+      refreshDropdownSelect(this.elements.compactModel);
     },
 
     setMode(mode) {
@@ -923,7 +930,10 @@ function createAppMethods() {
 
         openChatModal('prompts-modal');
 
-        const response = await fetch('/api/settings/tool-prompt');
+        const response = await fetch('/api/settings/tool-prompt', {
+          credentials: 'include',
+          cache: 'no-store',
+        });
 
         if (!response.ok) {
           throw new Error(`HTTP错误: ${response.status}`);

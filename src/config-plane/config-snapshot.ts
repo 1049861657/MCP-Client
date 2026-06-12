@@ -1,10 +1,12 @@
+/**
+ * 渠道配置平面：全局 AgentProfile + RouteRule 快照。
+ * 单例 LRU 缓存（热路径一次查库、全进程共享）；账号级 Provider/MCP 由 configUserId 另行解析。
+ */
+import { LRUCache } from 'lru-cache';
 import type { ConfigChannelId } from '../generated/prisma/client.js';
 import { prisma } from '../lib/prisma.js';
 import { ConfigService } from '../services/config.service.js';
-import {
-  ChatConfig,
-  ToolsConfig
-} from '../config/feature-config.js';
+import { ChatConfig, ToolsConfig } from '../config/feature-config.js';
 import { Logger } from '../utils/logger.js';
 import { parsePermissionMode } from '../config/permission.types.js';
 import type { ChannelId } from '../types/channel.types.js';
@@ -21,19 +23,24 @@ export interface ConfigPlaneSnapshot {
   routesByChannel: Map<ChannelId, RouteRuleRecord[]>;
 }
 
-let currentSnapshot: ConfigPlaneSnapshot = {
-  profiles: new Map(),
-  routesByChannel: new Map()
-};
+const SNAPSHOT_CACHE_TTL_MS = 60_000;
+const CHANNEL_SNAPSHOT_CACHE_KEY = 'global';
+
+/** 渠道快照单槽缓存：避免 per-user merge 与重复查库 */
+const channelSnapshotCache = new LRUCache<string, ConfigPlaneSnapshot>({
+  max: 1,
+  ttl: SNAPSHOT_CACHE_TTL_MS
+});
+
+/** DB 瞬时故障时回退最近一次成功快照（高可用） */
+let lastGoodChannelSnapshot: ConfigPlaneSnapshot | null = null;
 
 function parseMcpServerIds(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
+  if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === 'string');
 }
 
-function mapProfileRow(row: {
+type ProfileRow = {
   profileId: string;
   displayName: string;
   vendor: string | null;
@@ -50,7 +57,20 @@ function mapProfileRow(row: {
   toolPrompt: string | null;
   tenantId: string | null;
   updatedAt: Date;
-}): AgentProfileRecord {
+};
+
+type RouteRow = {
+  id: string;
+  boundUserId: string | null;
+  channel: ConfigChannelId;
+  matchKey: string;
+  profileId: string;
+  priority: number;
+  enabled: boolean;
+  tenantId: string | null;
+};
+
+function mapProfileRow(row: ProfileRow): AgentProfileRecord {
   return {
     profileId: row.profileId,
     displayName: row.displayName,
@@ -71,17 +91,10 @@ function mapProfileRow(row: {
   };
 }
 
-function mapRouteRow(row: {
-  id: string;
-  channel: ConfigChannelId;
-  matchKey: string;
-  profileId: string;
-  priority: number;
-  enabled: boolean;
-  tenantId: string | null;
-}): RouteRuleRecord {
+function mapRouteRow(row: RouteRow): RouteRuleRecord {
   return {
     id: row.id,
+    boundUserId: row.boundUserId,
     channel: row.channel as ChannelId,
     matchKey: row.matchKey,
     profileId: row.profileId,
@@ -91,12 +104,10 @@ function mapRouteRow(row: {
   };
 }
 
-async function loadSnapshotFromDb(): Promise<ConfigPlaneSnapshot> {
-  const [profileRows, routeRows] = await Promise.all([
-    prisma.agentProfile.findMany(),
-    prisma.routeRule.findMany()
-  ]);
-
+function buildSnapshotFromRows(
+  profileRows: ProfileRow[],
+  routeRows: RouteRow[]
+): ConfigPlaneSnapshot {
   const profiles = new Map<string, AgentProfileRecord>();
   for (const row of profileRows) {
     profiles.set(row.profileId, mapProfileRow(row));
@@ -109,12 +120,57 @@ async function loadSnapshotFromDb(): Promise<ConfigPlaneSnapshot> {
     list.push(mapRouteRow(row));
     routesByChannel.set(channel, list);
   }
-
   for (const list of routesByChannel.values()) {
     list.sort((a, b) => a.priority - b.priority);
   }
 
   return { profiles, routesByChannel };
+}
+
+async function loadChannelSnapshotFromDb(): Promise<ConfigPlaneSnapshot> {
+  const [profileRows, routeRows] = await Promise.all([
+    prisma.agentProfile.findMany({ orderBy: { profileId: 'asc' } }),
+    prisma.routeRule.findMany({ orderBy: [{ channel: 'asc' }, { priority: 'asc' }] })
+  ]);
+  return buildSnapshotFromRows(profileRows, routeRows);
+}
+
+/**
+ * 解析全局渠道配置快照（TTL 缓存）。
+ * DB 故障时回退已缓存快照并告警；启动期缺失仍 throw。
+ */
+export async function resolveChannelSnapshot(): Promise<ConfigPlaneSnapshot> {
+  const cached = channelSnapshotCache.get(CHANNEL_SNAPSHOT_CACHE_KEY);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  try {
+    const snapshot = await loadChannelSnapshotFromDb();
+    channelSnapshotCache.set(CHANNEL_SNAPSHOT_CACHE_KEY, snapshot);
+    lastGoodChannelSnapshot = snapshot;
+    return snapshot;
+  } catch (error) {
+    if (lastGoodChannelSnapshot !== null) {
+      console.error('[CONFIG] channel snapshot DB error, falling back to last good:', error);
+      return lastGoodChannelSnapshot;
+    }
+    throw error;
+  }
+}
+
+/** @deprecated 渠道表已全局化；保留别名供渐进迁移 */
+export async function resolveUserSnapshot(_userId: string | null): Promise<ConfigPlaneSnapshot> {
+  return resolveChannelSnapshot();
+}
+
+export function invalidateChannelSnapshot(): void {
+  channelSnapshotCache.delete(CHANNEL_SNAPSHOT_CACHE_KEY);
+}
+
+/** @deprecated 使用 invalidateChannelSnapshot */
+export function invalidateConfigCache(_userId?: string): void {
+  invalidateChannelSnapshot();
 }
 
 async function resolveSeedDefaultModel(): Promise<{ vendor: string | null; defaultModel: string }> {
@@ -123,19 +179,14 @@ async function resolveSeedDefaultModel(): Promise<{ vendor: string | null; defau
   if (providers.length === 0) {
     return { vendor: null, defaultModel: 'default' };
   }
-
   const preferredName =
     providersConfig.defaultProvider?.trim() || providers[0].name;
   const provider =
-    providers.find((item) => item.name === preferredName) ?? providers[0];
-
-  return {
-    vendor: provider.name,
-    defaultModel: provider.defaultModel
-  };
+    providers.find(item => item.name === preferredName) ?? providers[0];
+  return { vendor: provider.name, defaultModel: provider.defaultModel };
 }
 
-async function buildSeedProfileData(
+async function buildDefaultProfileData(
   profileId: string,
   displayName: string
 ): Promise<AgentProfileRecord> {
@@ -169,13 +220,13 @@ async function buildSeedProfileData(
   };
 }
 
-const CHANNEL_SEED_PROFILES = [
+const CHANNEL_DEFAULT_PROFILES = [
   { profileId: CONFIG_PROFILE_WEB_DEFAULT, displayName: 'Web 默认' },
   { profileId: CONFIG_PROFILE_FEISHU_DEFAULT, displayName: '飞书默认' },
   { profileId: CONFIG_PROFILE_DINGTALK_DEFAULT, displayName: '钉钉默认' }
 ] as const;
 
-const CHANNEL_SEED_ROUTES: Array<{ channel: ConfigChannelId; profileId: string }> = [
+const CHANNEL_DEFAULT_ROUTES: Array<{ channel: ConfigChannelId; profileId: string }> = [
   { channel: 'web', profileId: CONFIG_PROFILE_WEB_DEFAULT },
   { channel: 'feishu', profileId: CONFIG_PROFILE_FEISHU_DEFAULT },
   { channel: 'dingtalk', profileId: CONFIG_PROFILE_DINGTALK_DEFAULT }
@@ -187,8 +238,8 @@ export interface ConfigPlaneSeedResult {
   createdRoutes: number;
 }
 
-async function createSeedProfile(profileId: string, displayName: string): Promise<void> {
-  const profile = await buildSeedProfileData(profileId, displayName);
+async function createDefaultProfile(profileId: string, displayName: string): Promise<void> {
+  const profile = await buildDefaultProfileData(profileId, displayName);
   await prisma.agentProfile.create({
     data: {
       profileId: profile.profileId,
@@ -210,7 +261,7 @@ async function createSeedProfile(profileId: string, displayName: string): Promis
   });
 }
 
-/** 补齐缺失的渠道默认 Profile / Route（含 Web 运行时默认；管理端仅编辑 IM） */
+/** 补齐缺失的渠道默认 Profile / Route */
 export async function ensureChannelDefaultProfilesAndRoutes(): Promise<{
   createdProfiles: number;
   createdRoutes: number;
@@ -218,16 +269,20 @@ export async function ensureChannelDefaultProfilesAndRoutes(): Promise<{
   let createdProfiles = 0;
   let createdRoutes = 0;
 
-  for (const item of CHANNEL_SEED_PROFILES) {
-    const existing = await prisma.agentProfile.findUnique({ where: { profileId: item.profileId } });
+  for (const item of CHANNEL_DEFAULT_PROFILES) {
+    const existing = await prisma.agentProfile.findUnique({
+      where: { profileId: item.profileId }
+    });
     if (existing) continue;
-    await createSeedProfile(item.profileId, item.displayName);
+    await createDefaultProfile(item.profileId, item.displayName);
     createdProfiles += 1;
   }
 
-  for (const route of CHANNEL_SEED_ROUTES) {
-    const existing = await prisma.routeRule.findFirst({
-      where: { channel: route.channel, matchKey: ROUTE_MATCH_ALL, profileId: route.profileId }
+  for (const route of CHANNEL_DEFAULT_ROUTES) {
+    const existing = await prisma.routeRule.findUnique({
+      where: {
+        channel_matchKey: { channel: route.channel, matchKey: ROUTE_MATCH_ALL }
+      }
     });
     if (existing) continue;
     await prisma.routeRule.create({
@@ -252,18 +307,15 @@ export async function ensureChannelDefaultProfilesAndRoutes(): Promise<{
   return { createdProfiles, createdRoutes };
 }
 
-/** 空库时写入默认 Profile/Route（T2-05-03；启动时 initConfigPlane 已调用） */
+/** 空库时写入默认 Profile/Route */
 export async function seedConfigPlaneIfEmpty(): Promise<boolean> {
   const count = await prisma.agentProfile.count();
-  if (count > 0) {
-    return false;
-  }
+  if (count > 0) return false;
 
-  for (const item of CHANNEL_SEED_PROFILES) {
-    await createSeedProfile(item.profileId, item.displayName);
+  for (const item of CHANNEL_DEFAULT_PROFILES) {
+    await createDefaultProfile(item.profileId, item.displayName);
   }
-
-  for (const route of CHANNEL_SEED_ROUTES) {
+  for (const route of CHANNEL_DEFAULT_ROUTES) {
     await prisma.routeRule.create({
       data: {
         channel: route.channel,
@@ -288,23 +340,17 @@ export async function runConfigPlaneSeed(): Promise<ConfigPlaneSeedResult> {
   return { seededEmpty, createdProfiles, createdRoutes };
 }
 
-/** 进程启动：seed（若空）→ 加载内存快照 */
+/** 进程启动：seed（若空）→ 补齐渠道默认方案/通配路由 → 预热快照 */
 export async function initConfigPlane(): Promise<void> {
   await seedConfigPlaneIfEmpty();
-  currentSnapshot = await loadSnapshotFromDb();
-  Logger.info(
-    'CONFIG',
-    `Config plane loaded profiles=${currentSnapshot.profiles.size}`
-  );
+  await ensureChannelDefaultProfilesAndRoutes();
+  const snapshot = await loadChannelSnapshotFromDb();
+  channelSnapshotCache.set(CHANNEL_SNAPSHOT_CACHE_KEY, snapshot);
+  lastGoodChannelSnapshot = snapshot;
+  Logger.info('CONFIG', `Channel config plane loaded profiles=${snapshot.profiles.size}`);
 }
 
-/** 管理端保存后调用：从 DB 重载内存快照 */
-export async function reloadConfigPlaneSnapshot(): Promise<void> {
-  currentSnapshot = await loadSnapshotFromDb();
-  Logger.info('CONFIG', `Config plane reloaded profiles=${currentSnapshot.profiles.size}`);
-}
-
-/** 获取当前内存快照（同步，供 Resolver 热路径使用） */
-export function getConfigPlaneSnapshot(): ConfigPlaneSnapshot {
-  return currentSnapshot;
+/** 渠道配置变更后失效快照缓存 */
+export function reloadConfigPlaneSnapshot(): void {
+  invalidateChannelSnapshot();
 }

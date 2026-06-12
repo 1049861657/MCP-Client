@@ -2,6 +2,8 @@
  * P3-01：聊天内 todo 工具卡 — 单行视觉进度 + 点击打开右侧计划面板
  */
 
+import { escapeAttr, escapeHtml } from '../shared/escape-html.js';
+
 /** @typedef {'pending' | 'in_progress' | 'completed'} TodoStatus */
 /** @typedef {{ id: string, content: string, status: TodoStatus, activeForm?: string }} TodoItem */
 /** @typedef {'idle' | 'active' | 'done' | 'cleared'} TodoCardTone */
@@ -271,21 +273,4 @@ export function bindTodoCardInteraction(cardEl) {
       open();
     }
   });
-}
-
-/**
- * @param {string} text
- */
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-/**
- * @param {string} text
- */
-function escapeAttr(text) {
-  return escapeHtml(text).replace(/"/g, '&quot;');
 }

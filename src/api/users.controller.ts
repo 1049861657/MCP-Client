@@ -3,6 +3,10 @@ import type { Request, Response } from 'express';
 import { SUPERADMIN_ROLE, USER_ROLE } from '../lib/auth.js';
 import { hashPassword } from '../lib/password-hasher.js';
 import { prisma } from '../lib/prisma.js';
+import {
+  getSeedFollowState,
+  setSeedFollowUserId,
+} from '../services/seed-follow.service.js';
 import { Logger } from '../utils/logger.js';
 
 const CREDENTIAL_PROVIDER_ID = 'credential';
@@ -66,6 +70,30 @@ export class UsersController {
       res.json({ success: true });
     } catch (error: unknown) {
       sendError(res, 500, '修改角色失败', getErrorMessage(error));
+    }
+  }
+
+  static async getSeedFollow(_req: Request, res: Response): Promise<void> {
+    try {
+      const state = await getSeedFollowState();
+      res.json(state);
+    } catch (error: unknown) {
+      sendError(res, 500, '获取默认配置归属失败', getErrorMessage(error));
+    }
+  }
+
+  static async setSeedFollow(req: Request, res: Response): Promise<void> {
+    const userId = (req.body as { userId?: unknown })?.userId;
+    if (userId !== null && (typeof userId !== 'string' || !userId.trim())) {
+      sendError(res, 400, '参数无效', 'userId 须为字符串或 null');
+      return;
+    }
+    try {
+      await setSeedFollowUserId(userId === null ? null : userId.trim());
+      const state = await getSeedFollowState();
+      res.json({ success: true, ...state });
+    } catch (error: unknown) {
+      sendError(res, 500, '保存默认配置归属失败', getErrorMessage(error));
     }
   }
 

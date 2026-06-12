@@ -1,0 +1,20 @@
+/**
+ * 可选芯片组（温度 / tokens 预设等）
+ */
+
+@layer components {
+  .ui-chip-group,
+  .settings-chips {
+    @apply flex flex-wrap gap-[7px];
+  }
+
+  .ui-chip,
+  .settings-chip {
+    @apply cursor-pointer rounded-full border border-[rgb(15_23_42/0.1)] bg-white px-[11px] py-[5px] text-xs font-semibold text-[var(--color-text-muted)];
+  }
+
+  .ui-chip.active,
+  .settings-chip.active {
+    @apply border-[rgb(25_118_210/0.35)] bg-[var(--color-brand-light)] text-[var(--color-brand-dark)];
+  }
+}

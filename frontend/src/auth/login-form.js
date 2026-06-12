@@ -20,11 +20,11 @@ const INPUT_CLASS =
 const EMAIL_CLASS = `${INPUT_CLASS} pr-11 read-only:cursor-default read-only:bg-slate-100 read-only:text-slate-500`;
 
 /**
- * @param {{ onSuccess: () => void, lead?: string }} options
+ * @param {{ onSuccess: () => void, lead?: string, initialUsername?: string }} options
  * @returns {HTMLElement}
  */
 export function createAuthPanel(options) {
-  const { onSuccess, lead = '登录后可管理你的配置与历史' } = options;
+  const { onSuccess, lead = '登录后可管理你的配置与历史', initialUsername = '' } = options;
   const wrap = document.createElement('div');
   wrap.innerHTML = `
     <div class="mb-6 flex flex-col items-center gap-2 text-center">
@@ -115,6 +115,11 @@ export function createAuthPanel(options) {
   switchBtn?.addEventListener('click', () => setMode(mode === 'signin' ? 'register' : 'signin'));
   usernameInput?.addEventListener('input', syncEmail);
   emailEditBtn?.addEventListener('click', () => setEmailManual(!emailManual));
+
+  if (initialUsername && usernameInput) {
+    usernameInput.value = initialUsername;
+    syncEmail();
+  }
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();

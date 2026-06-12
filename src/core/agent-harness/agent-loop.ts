@@ -1,6 +1,6 @@
 import { Logger } from '../../utils/logger.js';
 import { ToolsConfig } from '../../config/feature-config.js';
-import { mcpClient } from '../mcp/index.js';
+import { getMcpClientForUser } from '../mcp/index.js';
 import {
   logAgentRunAudit,
   logLlmStepAudit,
@@ -139,6 +139,8 @@ export interface RunAgentLoopParams {
   memoryContext?: MemoryPipelineContext;
   /** T4-03-04：已登录会话落库目标（透传给 SessionEnd 落库 hook）；guest 无此字段 */
   persistContext?: { userId: string; chatSessionId: string };
+  /** T4-06-05：per-user MCP 连接池键；null = seed 池；缺省同 null */
+  configUserId?: string | null;
 }
 
 /**
@@ -161,8 +163,11 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
     provider,
     permission,
     memoryContext,
-    persistContext
+    persistContext,
+    configUserId
   } = params;
+
+  const activeMcpClient = getMcpClientForUser(configUserId ?? null);
 
   const prepareContext = async (round: number): Promise<void> => {
     const compacted = await applyContextBeforeLlm(messages, { requestId, round, summarizeFn });
@@ -244,7 +249,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       codeName: current.codeName,
       serverId: isSystemTool(current.codeName)
         ? null
-        : mcpClient.getServerIdForTool(current.codeName) ?? null
+        : activeMcpClient.getServerIdForTool(current.codeName) ?? null
     };
 
     toolManager.markExecutionStart(globalIndex);
@@ -373,7 +378,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
       const isExecuteApi = current.name === 'executeApi';
       const toolResult = isSystemTool(current.codeName)
         ? await executeSystemTool(current.codeName, current.arguments, systemToolCtx)
-        : await mcpClient.callTool<unknown>(
+        : await activeMcpClient.callTool<unknown>(
           current.codeName,
           current.arguments,
           {
@@ -392,7 +397,7 @@ export async function runAgentLoop(params: RunAgentLoopParams): Promise<ChatResp
         source: isSystemTool(current.codeName) ? 'system' : 'mcp',
         tool: current.name,
         serverId: mcpServerId,
-        serverName: mcpServerId ? mcpClient.getServerName(mcpServerId) : undefined,
+        serverName: mcpServerId ? activeMcpClient.getServerName(mcpServerId) : undefined,
         raw: toolResult
       });
       const materialized = await materializeToolOutput(current.id, unified.preview, {

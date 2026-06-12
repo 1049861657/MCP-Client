@@ -1,3 +1,4 @@
+import { escapeHtml } from '../../shared/escape-html.js';
 import { enhanceCodeBlocks } from '../code-blocks.js';
 import { marked } from '../renderers.js';
 import { bindChatModalClose, openChatModal } from './modal-host.js';
@@ -67,7 +68,7 @@ export function createCompactModalApi(getApp, ui) {
         genBtn.dataset.generating = '1';
         genBtn.classList.add('is-generating');
         genBtn.innerHTML =
-          '<span class="context-btn-spinner" aria-hidden="true"></span>生成中…';
+          '<span class="ui-spinner ui-spinner--sm" aria-hidden="true"></span>生成中…';
         genBtn.disabled = true;
       }
       if (applyBtn) {
@@ -471,14 +472,4 @@ function formatContextMsgMeta(m) {
  */
 function renderContextMarkdown(text) {
   return marked.parse(text);
-}
-
-/**
- * @param {string} text
- */
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }

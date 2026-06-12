@@ -175,7 +175,7 @@ export function renderToolsPanel(container, options) {
 
         <div class="tool-card-toggle">
 
-          <label class="sw" onclick="event.stopPropagation()">
+          <label class="sw" onclick="event.stopPropagation()" data-requires-auth>
 
             <input type="checkbox" data-tool-enable="${index}" ${enabled ? 'checked' : ''}>
 
@@ -201,7 +201,7 @@ export function renderToolsPanel(container, options) {
 
         <div class="tool-card-actions">
 
-          <button type="button" class="tool-action-btn test" data-test="${index}" title="试运行" aria-label="试运行">${ICON_PLAY}</button>
+          <button type="button" class="tool-action-btn test" data-test="${index}" data-requires-auth title="试运行" aria-label="试运行">${ICON_PLAY}</button>
 
           <button type="button" class="tool-action-btn expand tool-expand-icon" data-expand-btn="${index}" title="查看参数" aria-label="查看参数">${ICON_CHEV}</button>
 
