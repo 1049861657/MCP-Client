@@ -286,11 +286,9 @@ export function mountDropdownSelect(nativeSelect, config = {}) {
     (nativeSelect.querySelector('optgroup') ? 'group' : nativeSelect.dataset.dropdownVariant) ??
     'standard';
 
-  const nativeClasses = [...nativeSelect.classList].filter(
-    (name) => name !== 'field-select' && name !== 'fb-select__native',
-  );
   const wrap = document.createElement('div');
-  wrap.className = ['fb-select', config.className, ...nativeClasses].filter(Boolean).join(' ');
+  // 钩子类（channel-cfg-* 等）只留在原生 select 上，避免 querySelector 命中包装 div
+  wrap.className = ['fb-select', config.className].filter(Boolean).join(' ');
   wrap.dataset.fbSelect = '1';
   wrap.dataset.placeholder = placeholder;
   wrap.dataset.variant = variant;

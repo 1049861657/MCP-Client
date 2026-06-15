@@ -348,14 +348,6 @@ export class InfoController {
         return;
       }
       
-      // 安全检查 - 确保至少有一个服务器
-      if (config.servers.length <= 1) {
-        InfoController.sendErrorResponse(
-          res, 400, "删除服务器失败", "无法删除唯一的服务器"
-        );
-        return;
-      }
-      
       // 检查是否正在连接
       const serverInfo = await client.getServerInfo();
       const isConnected = serverInfo.connectedServers?.some(server => 
@@ -363,12 +355,9 @@ export class InfoController {
       );
       
       if (isConnected) {
-        InfoController.sendErrorResponse(
-          res, 400, "删除服务器失败", "无法删除正在连接的服务器"
-        );
-        return;
+        await client.disconnect(serverId, { clearAuth: true });
       }
-      
+
       // 删除服务器
       config.servers.splice(serverIndex, 1);
 

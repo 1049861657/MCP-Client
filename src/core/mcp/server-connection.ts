@@ -42,8 +42,8 @@ import { ToolNameCodec } from "../../utils/tool-name-codec.js";
  * 管理与单个MCP服务器的连接
  */
 export class ServerConnection {
-  private client: Client;
-  private transport: StdioClientTransport | StreamableHTTPClientTransport;
+  private client?: Client;
+  private transport?: StdioClientTransport | StreamableHTTPClientTransport;
   private connectionStatus: McpConnectionStatus = McpConnectionStatus.Disconnected;
   private transportClosed: boolean = false;
   private id: string;
@@ -76,12 +76,10 @@ export class ServerConnection {
     this.connectionType = serverConfig.connectionType;
     
     const transport = this.createClientTransport(serverConfig);
-    if (!transport) {
-      throw new Error(`无法为服务器 ${serverConfig.name} (${serverConfig.serverId}) 创建传输层`);
+    if (transport) {
+      this.transport = transport;
+      this.client = ServerConnection.createClient();
     }
-    
-    this.transport = transport;
-    this.client = ServerConnection.createClient();
     
     // 在构造函数中异步初始化配置
     this.initConfig().catch(error => {
@@ -244,10 +242,16 @@ export class ServerConnection {
       }
 
       await this.rebuildTransportStack();
-      
+
+      const client = this.client;
+      const transport = this.transport;
+      if (!client || !transport) {
+        throw new Error(`创建传输层失败: ${this.id}`);
+      }
+
       // 使用 Promise.race 限制连接建立时间，防止 connect() 无限挂起
       await Promise.race([
-        this.client.connect(this.transport),
+        client.connect(transport),
         new Promise<never>((_, reject) =>
           setTimeout(
             () => reject(new Error(`连接超时（${ServerConnection.CONNECT_TIMEOUT / 1000}s）`)),
@@ -258,8 +262,8 @@ export class ServerConnection {
 
       // 挂载 onclose 钩子：transport 断开时主动更新连接状态
       // SDK 在 connect() 后设置自己的 onclose，此处包装而非覆盖，保留 SDK 原有清理逻辑
-      const sdkOnClose = this.transport.onclose;
-      this.transport.onclose = () => {
+      const sdkOnClose = transport.onclose;
+      transport.onclose = () => {
         if (isMcpConnected(this.connectionStatus)) {
           this.setConnectionStatus(McpConnectionStatus.Disconnected);
           this.transportClosed = true;
@@ -269,19 +273,19 @@ export class ServerConnection {
       };
 
       // 订阅官方 ToolListChangedNotification：服务端主动通知工具列表变更时刷新缓存
-      this.client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+      client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
         Logger.info('SERVER CONNECTION', `[${this.name}] 收到工具列表变更通知，刷新缓存`);
         this.onToolsChanged?.(this.id);
       });
       
-      const serverVersion = this.client.getServerVersion();
+      const serverVersion = client.getServerVersion();
       if (serverVersion) {
         this.name = serverVersion.name || this.name;
         this.version = serverVersion.version || "未知";
       }
 
       // 缓存服务端 instructions（MCP 官方字段，初始化握手时由服务端返回）
-      this.instructions = this.client.getInstructions() ?? undefined;
+      this.instructions = client.getInstructions() ?? undefined;
       if (this.instructions) {
         Logger.debug('SERVER CONNECTION', `服务器 ${this.name} 返回 instructions（${this.instructions.length} 字符）`);
       }
@@ -341,7 +345,7 @@ export class ServerConnection {
    * @returns 是否连接正常
    */
   async ping(): Promise<boolean> {
-    if (!isMcpConnected(this.connectionStatus)) {
+    if (!isMcpConnected(this.connectionStatus) || !this.client) {
       return false;
     }
     
@@ -400,11 +404,12 @@ export class ServerConnection {
   }
 
   async listResources(): Promise<McpResourceInfo[]> {
-    if (!isMcpConnected(this.connectionStatus)) {
+    const client = this.client;
+    if (!isMcpConnected(this.connectionStatus) || !client) {
       return [];
     }
     try {
-      const result = await this.client.listResources();
+      const result = await client.listResources();
       const resources = result.resources ?? [];
       return resources.map((resource) => ({
         uri: resource.uri,
@@ -426,18 +431,20 @@ export class ServerConnection {
   }
 
   async readResource(uri: string): Promise<ReadResourceResult> {
-    if (!isMcpConnected(this.connectionStatus)) {
+    const client = this.client;
+    if (!isMcpConnected(this.connectionStatus) || !client) {
       throw new Error(`服务器 ${this.name} 未连接`);
     }
-    return await this.client.readResource({ uri });
+    return await client.readResource({ uri });
   }
 
   async listPrompts(): Promise<McpPromptInfo[]> {
-    if (!isMcpConnected(this.connectionStatus)) {
+    const client = this.client;
+    if (!isMcpConnected(this.connectionStatus) || !client) {
       return [];
     }
     try {
-      const result = await this.client.listPrompts();
+      const result = await client.listPrompts();
       const prompts = result.prompts ?? [];
       return prompts.map((prompt) => ({
         name: prompt.name,
@@ -458,10 +465,11 @@ export class ServerConnection {
   }
 
   async getPrompt(name: string, args?: Record<string, string>): Promise<GetPromptResult> {
-    if (!isMcpConnected(this.connectionStatus)) {
+    const client = this.client;
+    if (!isMcpConnected(this.connectionStatus) || !client) {
       throw new Error(`服务器 ${this.name} 未连接`);
     }
-    return await this.client.getPrompt({
+    return await client.getPrompt({
       name,
       arguments: args,
     });
@@ -481,12 +489,13 @@ export class ServerConnection {
   }
 
   async getTools(): Promise<ToolInfo[]> {
-    if (!isMcpConnected(this.connectionStatus)) {
+    const client = this.client;
+    if (!isMcpConnected(this.connectionStatus) || !client) {
       return [];
     }
     
     try {
-      const toolsResponse = await this.client.listTools() as any;
+      const toolsResponse = await client.listTools() as any;
       
       if (!toolsResponse?.tools || !Array.isArray(toolsResponse.tools)) {
         return [];
@@ -628,8 +637,13 @@ export class ServerConnection {
     // 这样 _onprogress 能正确匹配 handler 并重置超时计时器。
     let stepStartTime = Date.now();
 
+    const client = this.client;
+    if (!client) {
+      throw new Error(`服务器 ${this.name} 未连接`);
+    }
+
     const executeCall = async (): Promise<T> => {
-      return await this.client.callTool(
+      return await client.callTool(
         { name: toolName, arguments: args },
         undefined,
         {
@@ -683,6 +697,11 @@ export class ServerConnection {
    */
   isConnected(): boolean {
     return isMcpConnected(this.connectionStatus);
+  }
+
+  /** 传输层是否已在当前配置下成功构建（与「未激活跳过连接」同类：无 transport 则不自动连） */
+  isTransportReady(): boolean {
+    return this.transport !== undefined;
   }
 
   markNeedsAuth(): void {

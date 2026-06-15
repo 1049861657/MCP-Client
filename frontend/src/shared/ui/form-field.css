@@ -25,6 +25,12 @@
     box-shadow: 0 0 0 2px rgb(25 118 210 / 0.18);
   }
 
+  .field-input::placeholder,
+  .ui-field-input::placeholder {
+    @apply font-normal text-[var(--color-text-light)];
+    opacity: 1;
+  }
+
   .field-input--textarea,
   .ui-field-input--textarea {
     @apply min-h-[72px] resize-y leading-normal;

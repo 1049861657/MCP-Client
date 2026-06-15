@@ -23,6 +23,23 @@ import { Logger } from '../utils/logger.js';
 import { getOutboundSink } from './outbound-sink-registry.js';
 import { outboundRouter } from './outbound-router.js';
 
+const INBOUND_AI_UNAVAILABLE_MESSAGE =
+  '当前渠道绑定的账号未配置可用的 AI 供应商，请联系管理员。';
+
+function routeInboundError(
+  envelope: AgentMessageEnvelopeSerialized,
+  requestId: string,
+  error: string
+): void {
+  outboundRouter.route({
+    sessionKey: envelope.sessionKey,
+    channel: envelope.channel,
+    requestId,
+    kind: 'error',
+    payload: { requestId, error }
+  });
+}
+
 function isAbortError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
@@ -75,6 +92,7 @@ async function runHarnessForEnvelope(
   const service = await getProviderForUser(configUserId, vendor ?? undefined);
   if (!service) {
     Logger.warn('BUS', `Inbound Worker 跳过：无可用 AI 服务 requestId=${requestId}`);
+    routeInboundError(envelope, requestId, INBOUND_AI_UNAVAILABLE_MESSAGE);
     return;
   }
 
@@ -184,13 +202,7 @@ async function processWebInboundJob(
     const errMessage = error instanceof Error ? error.message : String(error);
     Logger.error('BUS', `Inbound Worker 处理失败 requestId=${requestId}:`, error);
     if (sink && !sink.response.writableEnded) {
-      outboundRouter.route({
-        sessionKey: envelope.sessionKey,
-        channel: 'web',
-        requestId,
-        kind: 'error',
-        payload: { requestId, error: errMessage }
-      });
+      routeInboundError(envelope, requestId, errMessage);
     }
   } finally {
     webAdapter.unregisterSink(requestId);
@@ -209,13 +221,7 @@ async function processFeishuInboundJob(
   } catch (error: unknown) {
     const errMessage = error instanceof Error ? error.message : String(error);
     Logger.error('BUS', `Inbound Worker 飞书处理失败 requestId=${requestId}:`, error);
-    outboundRouter.route({
-      sessionKey: envelope.sessionKey,
-      channel: 'feishu',
-      requestId,
-      kind: 'error',
-      payload: { requestId, error: errMessage }
-    });
+    routeInboundError(envelope, requestId, errMessage);
   } finally {
     feishuAdapter.endReply(requestId);
   }
@@ -233,13 +239,7 @@ async function processDingtalkInboundJob(
   } catch (error: unknown) {
     const errMessage = error instanceof Error ? error.message : String(error);
     Logger.error('BUS', `Inbound Worker 钉钉处理失败 requestId=${requestId}:`, error);
-    outboundRouter.route({
-      sessionKey: envelope.sessionKey,
-      channel: 'dingtalk',
-      requestId,
-      kind: 'error',
-      payload: { requestId, error: errMessage }
-    });
+    routeInboundError(envelope, requestId, errMessage);
   } finally {
     dingtalkAdapter.endReply(requestId);
   }

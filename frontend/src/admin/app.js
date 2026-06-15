@@ -5,7 +5,9 @@ import {
   clampMaxToolCallRounds,
   collectChannelConfigForm,
   flashMcpProbeFailures,
+  getChannelConfigSaveValidationError,
   renderChannelConfigPanel,
+  syncChannelAutoCompactUi,
   syncMcpToolsEnabled,
   syncModelSelects,
   syncToolPromptCharCount,
@@ -17,7 +19,6 @@ import { getSession } from '../auth/session.js';
 import {
   mountDropdownSelectsIn,
   refreshDropdownSelect,
-  syncDropdownSelectState,
 } from '../shared/ui/dropdown-select.js';
 import { renderStatusPill } from '../shared/ui/status-pill.js';
 import { showToast } from '../shared/ui/toast.js';
@@ -244,6 +245,24 @@ function resolveBindingUserId(channel) {
   return fallbackId || null;
 }
 
+/**
+ * @param {string} channel
+ * @returns {Record<string, unknown> | null}
+ */
+function getChannelConfigState(channel) {
+  const entry = state.channelConfigByChannel[channel];
+  if (!entry?.state) return null;
+  const currentBoundUserId = resolveBindingUserId(channel);
+  if (entry.boundUserId !== currentBoundUserId) return null;
+  return entry.state;
+}
+
+function isChannelConfigCacheFresh(channel) {
+  const entry = state.channelConfigByChannel[channel];
+  if (!entry?.state) return false;
+  return entry.boundUserId === resolveBindingUserId(channel);
+}
+
 function usernameById(userId) {
   if (!userId) return null;
   const user = state.allUsers.find((u) => u.id === userId);
@@ -342,6 +361,7 @@ function bindChannelEvents() {
         const channel = select.dataset.channel;
         if (channel) {
           state.bindingDraft[channel] = select.value;
+          invalidateChannelConfig(channel);
           scheduleChannelConfigReload(channel);
         }
         return;
@@ -351,24 +371,17 @@ function bindChannelEvents() {
         const channel = vendorSelect.dataset.channel;
         const panel = vendorSelect.closest('[data-channel-config-panel]');
         if (channel && panel instanceof HTMLElement) {
-          syncModelSelects(panel, state.channelConfigByChannel[channel] ?? {});
+          syncModelSelects(panel, getChannelConfigState(channel) ?? {});
         }
-        return;
-      }
+      return;
+    }
       const autoCompact = event.target.closest('.channel-cfg-auto-compact');
       if (autoCompact instanceof HTMLInputElement) {
         const panel = autoCompact.closest('[data-channel-config-panel]');
-        const wrap = panel?.querySelector('.channel-cfg-compact-wrap');
-        const select = panel?.querySelector('.channel-cfg-compact-model');
-        const on = autoCompact.checked;
-        wrap?.classList.toggle('channel-cfg-compact-wrap--off', !on);
-        if (select instanceof HTMLSelectElement) {
-          const vendorSelect = panel?.querySelector('.channel-cfg-vendor');
-          const hasProviders =
-            vendorSelect instanceof HTMLSelectElement && !vendorSelect.disabled;
-          select.disabled = !on || !hasProviders;
-          syncDropdownSelectState(select);
+        if (panel instanceof HTMLElement) {
+          syncChannelAutoCompactUi(panel);
         }
+        return;
       }
       const enableTools = event.target.closest('.channel-cfg-enable-tools');
       if (enableTools instanceof HTMLInputElement) {
@@ -424,7 +437,7 @@ function bindChannelEvents() {
         const channel = fillBtn.dataset.channel;
         if (!channel) return;
         const panel = getChannelStack(channel)?.querySelector('[data-channel-config-panel]');
-        const cfg = state.channelConfigByChannel[channel];
+        const cfg = getChannelConfigState(channel);
         if (panel instanceof HTMLElement && cfg) {
           applyAccountDefaultsToForm(panel, cfg);
         }
@@ -483,7 +496,7 @@ async function showChannelsTab() {
   updateChannelRailActive();
   try {
     await syncChannelStatus();
-  } catch {
+    } catch {
     refreshChannelRailStatus();
   }
   startChannelStatusPoll();
@@ -584,7 +597,10 @@ function updateConfigPanel(channel, configState) {
   if (!existing) return;
   existing.outerHTML = renderChannelConfigPanel(channel, configState);
   const panel = stack.querySelector('[data-channel-config-panel]');
-  if (panel) mountDropdownSelectsIn(panel);
+  if (panel instanceof HTMLElement) {
+    mountDropdownSelectsIn(panel);
+    syncChannelAutoCompactUi(panel);
+  }
 }
 
 function applyAccountDefaultsToChannelPanel(channel, configState) {
@@ -605,7 +621,10 @@ async function loadChannelConfig(channel) {
   const qs = new URLSearchParams({ channel });
   if (boundUserId) qs.set('boundUserId', boundUserId);
   const configState = await adminFetch('/channel-config?' + qs.toString());
-  state.channelConfigByChannel[channel] = configState;
+  state.channelConfigByChannel[channel] = {
+    boundUserId,
+    state: configState,
+  };
   return configState;
 }
 
@@ -614,10 +633,12 @@ async function ensureChannelConfigForChannel(channel, options = {}) {
   const stack = getChannelStack(channel);
   if (!stack) return null;
 
-  const cached = state.channelConfigByChannel[channel];
-  if (cached && !force) {
-    updateConfigPanel(channel, cached);
-    return cached;
+  if (isChannelConfigCacheFresh(channel) && !force) {
+    const cached = getChannelConfigState(channel);
+    if (cached) {
+      updateConfigPanel(channel, cached);
+      return cached;
+    }
   }
 
   const requestGen = (state.configRequestGen[channel] ?? 0) + 1;
@@ -656,7 +677,6 @@ function scheduleChannelConfigReload(channel) {
   if (prev) clearTimeout(prev);
   state.configDebounceTimers[channel] = setTimeout(() => {
     delete state.configDebounceTimers[channel];
-    invalidateChannelConfig(channel);
     void ensureChannelConfigForChannel(channel, { force: true, applyAccountDefaults: true });
   }, CONFIG_RELOAD_DEBOUNCE_MS);
 }
@@ -697,11 +717,12 @@ async function saveChannelConfig(channel) {
 
   try {
     const boundUserId = resolveBindingUserId(channel);
-    const form = collectChannelConfigForm(panel);
-    if (!form.defaultModel) {
-      setText(errEl, '请选择模型');
+    const validationMessage = getChannelConfigSaveValidationError(panel);
+    if (validationMessage) {
+      showToast(validationMessage, 'error');
       return;
     }
+    const form = collectChannelConfigForm(panel);
     const result = await adminFetch('/channel-config', {
       method: 'PUT',
       body: JSON.stringify({
@@ -711,8 +732,10 @@ async function saveChannelConfig(channel) {
       }),
     });
     if (result?.profile) {
-      const cached = state.channelConfigByChannel[channel] ?? {};
-      state.channelConfigByChannel[channel] = { ...cached, profile: result.profile };
+      const entry = state.channelConfigByChannel[channel];
+      if (entry?.state) {
+        entry.state = { ...entry.state, profile: result.profile };
+      }
     }
     await ensureChannelConfigForChannel(channel, { force: true });
     const freshPanel = stack?.querySelector('[data-channel-config-panel]');
@@ -725,7 +748,9 @@ async function saveChannelConfig(channel) {
     setText(okEl, notice.inline);
     setTimeout(() => setText(okEl, ''), 4000);
   } catch (e) {
-    setText(errEl, e instanceof Error ? e.message : String(e));
+    const message = e instanceof Error ? e.message : String(e);
+    showToast(message, 'error');
+    setText(errEl, message);
   }
 }
 
@@ -864,12 +889,12 @@ function renderUsersList() {
       if (!userId || !role || btn.disabled) return;
       try {
         await usersFetch('/' + encodeURIComponent(userId) + '/role', {
-          method: 'POST',
+            method: 'POST',
           body: JSON.stringify({ role }),
-        });
+          });
         await loadUsersData();
         renderUsersTab();
-      } catch (e) {
+        } catch (e) {
         showToast(e instanceof Error ? e.message : String(e), 'error');
       }
     });
@@ -879,15 +904,15 @@ function renderUsersList() {
     btn.addEventListener('click', async () => {
       const userId = btn.getAttribute('data-reset');
       if (!userId) return;
-      const pwd = window.prompt('输入新密码（至少 8 位）');
-      if (!pwd) return;
-      try {
+        const pwd = window.prompt('输入新密码（至少 8 位）');
+        if (!pwd) return;
+        try {
         await usersFetch('/' + encodeURIComponent(userId) + '/reset-password', {
-          method: 'POST',
+            method: 'POST',
           body: JSON.stringify({ password: pwd }),
-        });
+          });
         showToast('已重置并吊销该用户会话', 'success');
-      } catch (e) {
+        } catch (e) {
         showToast(e instanceof Error ? e.message : String(e), 'error');
       }
     });

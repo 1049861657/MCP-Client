@@ -1,5 +1,5 @@
 import { escapeAttr, escapeHtml } from '../shared/escape-html.js';
-import { refreshDropdownSelect } from '../shared/ui/dropdown-select.js';
+import { refreshDropdownSelect, syncDropdownSelectState } from '../shared/ui/dropdown-select.js';
 import { renderToggleSwitchHtml } from '../shared/ui/toggle.js';
 import { iconConfig } from './icons.js';
 
@@ -22,6 +22,16 @@ function formatToolPromptCharCount(length) {
 }
 
 const MCP_ICON_TONES = ['emerald', 'sky', 'teal', 'violet', 'amber', 'rose'];
+
+/**
+ * @param {ParentNode} panel
+ * @param {string} className
+ * @returns {HTMLSelectElement | null}
+ */
+function queryChannelSelect(panel, className) {
+  const el = panel.querySelector(`select.${className}`);
+  return el instanceof HTMLSelectElement ? el : null;
+}
 
 /**
  * @param {string} name
@@ -138,9 +148,10 @@ export function renderChannelConfigPanel(channel, state) {
     '<span class="field-label">压缩模型</span>' +
     '</div>' +
     '<div class="channel-config-context-row">' +
-    '<label class="channel-config-context-chip channel-toggle">' +
-    `<input type="checkbox" class="channel-cfg-auto-compact"${compactOn ? ' checked' : ''}>` +
-    '<span>自动压缩</span></label>' +
+    '<div class="channel-config-context-chip">' +
+    '<span class="channel-config-context-chip__label">自动压缩</span>' +
+    renderToggleSwitchHtml({ checked: compactOn, inputClass: 'channel-cfg-auto-compact' }) +
+    '</div>' +
     '<div class="channel-cfg-compact-wrap' +
     (compactOn ? '' : ' channel-cfg-compact-wrap--off') +
     '">' +
@@ -191,9 +202,10 @@ export function renderChannelConfigPanel(channel, state) {
     '<div class="channel-cfg-prompt-card" data-account-tool-prompt="' +
     escapeAttr(accountToolPrompt) +
     '">' +
-    '<label class="channel-cfg-prompt-head channel-toggle">' +
-    `<input type="checkbox" class="channel-cfg-enable-prompts"${promptsOn ? ' checked' : ''}>` +
-    '<span class="channel-cfg-prompt-title">用户提示词</span></label>' +
+    '<div class="channel-cfg-prompt-head">' +
+    '<span class="channel-cfg-prompt-title">用户提示词</span>' +
+    renderToggleSwitchHtml({ checked: promptsOn, inputClass: 'channel-cfg-enable-prompts' }) +
+    '</div>' +
     '<div class="channel-cfg-prompt-editor' +
     (promptsOn ? '' : ' channel-cfg-prompt-editor--off') +
     '">' +
@@ -244,22 +256,51 @@ export function syncModelSelects(panel, state) {
   const providers = /** @type {Array<{ name: string; defaultModel: string; models: Array<{ value: string; label: string }> }>} */ (
     resources.providers ?? []
   );
-  const vendorSelect = panel.querySelector('.channel-cfg-vendor');
-  const modelSelect = panel.querySelector('.channel-cfg-model');
-  const compactSelect = panel.querySelector('.channel-cfg-compact-model');
-  if (!(vendorSelect instanceof HTMLSelectElement)) return;
+  const vendorSelect = queryChannelSelect(panel, 'channel-cfg-vendor');
+  const modelSelect = queryChannelSelect(panel, 'channel-cfg-model');
+  const compactSelect = queryChannelSelect(panel, 'channel-cfg-compact-model');
+  if (!vendorSelect) return;
 
   const provider = providers.find((p) => p.name === vendorSelect.value);
-  if (modelSelect instanceof HTMLSelectElement) {
-    const prev = modelSelect.value;
-    modelSelect.innerHTML = renderModelOptions(provider, prev);
+  const resolveSelectedModel = (prev) => {
+    if (!provider) return prev;
+    const allowed = new Set([
+      provider.defaultModel,
+      ...provider.models.map((m) => m.value),
+    ]);
+    return typeof prev === 'string' && allowed.has(prev) ? prev : provider.defaultModel;
+  };
+  if (modelSelect) {
+    const selected = resolveSelectedModel(modelSelect.value);
+    modelSelect.innerHTML = renderModelOptions(provider, selected);
     refreshDropdownSelect(modelSelect);
   }
-  if (compactSelect instanceof HTMLSelectElement) {
-    const prev = compactSelect.value;
-    compactSelect.innerHTML = renderModelOptions(provider, prev);
+  if (compactSelect) {
+    const selected = resolveSelectedModel(compactSelect.value);
+    compactSelect.innerHTML = renderModelOptions(provider, selected);
     refreshDropdownSelect(compactSelect);
   }
+}
+
+/**
+ * 保存前校验；失败时返回提示文案。
+ *
+ * @param {HTMLElement} panel
+ * @returns {string | null}
+ */
+export function getChannelConfigSaveValidationError(panel) {
+  const vendorEl = queryChannelSelect(panel, 'channel-cfg-vendor');
+  const modelEl = queryChannelSelect(panel, 'channel-cfg-model');
+
+  if (!vendorEl || vendorEl.disabled) {
+    return '绑定账号尚未配置 AI 供应商，请先在「配置管理」中配置';
+  }
+
+  if (!modelEl?.value) {
+    return '请选择对话模型';
+  }
+
+  return null;
 }
 
 /**
@@ -267,15 +308,15 @@ export function syncModelSelects(panel, state) {
  * @returns {Record<string, unknown>}
  */
 export function collectChannelConfigForm(panel) {
-  const vendorEl = panel.querySelector('.channel-cfg-vendor');
-  const modelEl = panel.querySelector('.channel-cfg-model');
+  const vendorEl = queryChannelSelect(panel, 'channel-cfg-vendor');
+  const modelEl = queryChannelSelect(panel, 'channel-cfg-model');
   const tempEl = panel.querySelector('.channel-cfg-temperature');
   const maxTokEl = panel.querySelector('.channel-cfg-max-tokens');
   const enableToolsEl = panel.querySelector('.channel-cfg-enable-tools');
   const enablePromptsEl = panel.querySelector('.channel-cfg-enable-prompts');
   const toolPromptEl = panel.querySelector('.channel-cfg-tool-prompt');
   const autoCompactEl = panel.querySelector('.channel-cfg-auto-compact');
-  const compactModelEl = panel.querySelector('.channel-cfg-compact-model');
+  const compactModelEl = queryChannelSelect(panel, 'channel-cfg-compact-model');
   const maxRoundsEl = panel.querySelector('.channel-cfg-max-rounds');
   const permBtn = panel.querySelector('.channel-perm-card.is-selected');
 
@@ -290,8 +331,8 @@ export function collectChannelConfigForm(panel) {
     enablePromptsEl instanceof HTMLInputElement ? enablePromptsEl.checked : false;
 
   const payload = {
-    vendor: vendorEl instanceof HTMLSelectElement && vendorEl.value ? vendorEl.value : null,
-    defaultModel: modelEl instanceof HTMLSelectElement ? modelEl.value : '',
+    vendor: vendorEl?.value ? vendorEl.value : null,
+    defaultModel: modelEl?.value ?? '',
     temperature: tempEl instanceof HTMLInputElement ? Number(tempEl.value) : 0.7,
     maxTokens: maxTokEl instanceof HTMLInputElement ? Number(maxTokEl.value) : 2048,
     enableTools: toolsEnabled,
@@ -299,7 +340,7 @@ export function collectChannelConfigForm(panel) {
     permissionMode: permBtn instanceof HTMLButtonElement ? permBtn.dataset.perm : 'locked',
     enableAutoCompact: autoCompactEl instanceof HTMLInputElement ? autoCompactEl.checked : false,
     compactModel:
-      autoCompactEl instanceof HTMLInputElement && autoCompactEl.checked && compactModelEl instanceof HTMLSelectElement
+      autoCompactEl instanceof HTMLInputElement && autoCompactEl.checked && compactModelEl
         ? compactModelEl.value
         : null,
     mcpServerIds: mcpIds,
@@ -311,6 +352,39 @@ export function collectChannelConfigForm(panel) {
   }
 
   return payload;
+}
+
+/**
+ * 同步「自动压缩」开关与压缩模型下拉的可用态（含 fb-select 触发器）。
+ *
+ * @param {HTMLElement} panel
+ */
+export function syncChannelAutoCompactUi(panel) {
+  const autoCompactEl = panel.querySelector('.channel-cfg-auto-compact');
+  const wrap = panel.querySelector('.channel-cfg-compact-wrap');
+  const select = queryChannelSelect(panel, 'channel-cfg-compact-model');
+  const vendorSelect = queryChannelSelect(panel, 'channel-cfg-vendor');
+  if (!(autoCompactEl instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const on = autoCompactEl.checked;
+  const hasProviders =
+    vendorSelect instanceof HTMLSelectElement && !vendorSelect.disabled;
+
+  wrap?.classList.toggle('channel-cfg-compact-wrap--off', !on);
+  if (!select) {
+    return;
+  }
+
+  const shouldEnable = on && hasProviders;
+  select.disabled = !shouldEnable;
+  if (select.dataset.fbSelectMounted === '1') {
+    syncDropdownSelectState(select);
+    if (shouldEnable) {
+      refreshDropdownSelect(select);
+    }
+  }
 }
 
 /**
@@ -326,9 +400,6 @@ export function syncToolPromptEnabled(panel, enabled) {
   }
 }
 
-/**
- * @param {HTMLElement} panel
- */
 /**
  * @param {HTMLInputElement} input
  */
@@ -386,19 +457,19 @@ export function flashMcpProbeFailures(panel, skipped) {
  */
 export function applyAccountDefaultsToForm(panel, state) {
   const defaults = /** @type {Record<string, unknown>} */ (state.accountDefaults ?? {});
-  const vendorEl = panel.querySelector('.channel-cfg-vendor');
-  if (vendorEl instanceof HTMLSelectElement && typeof defaults.vendor === 'string') {
+  const vendorEl = queryChannelSelect(panel, 'channel-cfg-vendor');
+  if (vendorEl && typeof defaults.vendor === 'string') {
     vendorEl.value = defaults.vendor;
     syncModelSelects(panel, state);
     refreshDropdownSelect(vendorEl);
   }
-  const modelEl = panel.querySelector('.channel-cfg-model');
-  if (modelEl instanceof HTMLSelectElement && typeof defaults.defaultModel === 'string') {
+  const modelEl = queryChannelSelect(panel, 'channel-cfg-model');
+  if (modelEl && typeof defaults.defaultModel === 'string') {
     modelEl.value = defaults.defaultModel;
     refreshDropdownSelect(modelEl);
   }
-  const compactEl = panel.querySelector('.channel-cfg-compact-model');
-  if (compactEl instanceof HTMLSelectElement && typeof defaults.defaultModel === 'string') {
+  const compactEl = queryChannelSelect(panel, 'channel-cfg-compact-model');
+  if (compactEl && typeof defaults.defaultModel === 'string') {
     compactEl.value = defaults.defaultModel;
     refreshDropdownSelect(compactEl);
   }

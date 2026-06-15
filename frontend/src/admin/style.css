@@ -685,11 +685,11 @@
   }
 
   .channel-cfg-prompt-head {
-    @apply m-0 cursor-pointer;
+    @apply m-0 inline-flex items-center gap-2.5;
   }
 
   .channel-cfg-prompt-title {
-    @apply text-sm font-bold text-[var(--color-text)];
+    @apply text-[13px] font-medium text-[var(--color-text)];
   }
 
   .channel-cfg-prompt-editor {
@@ -702,6 +702,11 @@
 
   .channel-cfg-tool-prompt {
     @apply box-border min-h-[120px] w-full resize-y rounded-md border border-[var(--color-border)] bg-[#fafbfc] px-3 py-2.5 pb-7 text-[13px] leading-relaxed text-[var(--color-text)] outline-none transition-[border-color,background];
+  }
+
+  .channel-cfg-tool-prompt::placeholder {
+    @apply font-normal text-[var(--color-text-light)];
+    opacity: 1;
   }
 
   .channel-cfg-tool-prompt:focus {
@@ -725,7 +730,11 @@
   }
 
   .channel-config-context-chip {
-    @apply shrink-0 rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 shadow-[0_1px_2px_rgb(15_23_42/0.03)];
+    @apply inline-flex shrink-0 items-center gap-2.5 py-2;
+  }
+
+  .channel-config-context-chip__label {
+    @apply whitespace-nowrap text-[13px] font-medium text-[var(--color-text)];
   }
 
   .channel-config-context-foot {
@@ -737,7 +746,8 @@
   }
 
   .channel-cfg-compact-wrap .select-wrap,
-  .channel-cfg-compact-wrap .field-select {
+  .channel-cfg-compact-wrap .fb-select,
+  .channel-cfg-compact-wrap .fb-select__trigger {
     @apply h-full min-h-[38px];
   }
 

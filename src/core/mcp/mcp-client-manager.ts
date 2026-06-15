@@ -169,15 +169,10 @@ export class MCPClientManager {
       // 从 McpConfigStore 获取最新 MCP 配置
       this.mcpConfig = await McpConfigStore.get(this.userId ?? undefined);
 
-      // 首先初始化所有服务器的连接对象
-      this.mcpConfig.servers.forEach((serverConfig: MCPServer) => {
-        try {
-          const connection = new ServerConnection(serverConfig, this.userId);
-          this.connections.set(serverConfig.serverId, connection);
-        } catch (error) {
-          Logger.error('MCP CLIENT', `为服务器 ${serverConfig.name} (${serverConfig.serverId}) 创建连接对象失败:`, error);
-        }
-      });
+      for (const serverConfig of this.mcpConfig.servers) {
+        const connection = new ServerConnection(serverConfig, this.userId);
+        this.connections.set(serverConfig.serverId, connection);
+      }
       
       for (const serverConfig of this.mcpConfig.servers) {
         const connection = this.connections.get(serverConfig.serverId);
@@ -195,6 +190,14 @@ export class MCPClientManager {
           Logger.debug(
             'MCP CLIENT',
             `服务器 ${serverConfig.name} (${serverConfig.serverId}) 未激活，跳过连接`,
+          );
+          continue;
+        }
+
+        if (!connection.isTransportReady()) {
+          Logger.debug(
+            'MCP CLIENT',
+            `服务器 ${serverConfig.name} (${serverConfig.serverId}) 传输层不可用，跳过连接`,
           );
           continue;
         }
@@ -708,13 +711,15 @@ export class MCPClientManager {
     };
     this.connections.set(serverId, connection);
 
-    if (serverConfig.enabled) {
+    if (serverConfig.enabled && connection.isTransportReady()) {
       try {
         await connection.connect();
         await this.updateToolServerMap(serverId);
       } catch (error) {
         Logger.error('MCP CLIENT', `重载服务器 ${serverId} 连接失败:`, error);
       }
+    } else if (serverConfig.enabled && !connection.isTransportReady()) {
+      Logger.debug('MCP CLIENT', `服务器 ${serverConfig.name} (${serverConfig.serverId}) 传输层不可用，跳过连接`);
     }
   }
 
