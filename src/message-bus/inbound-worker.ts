@@ -13,6 +13,7 @@ import type { ChunkResponse } from '../core/agent-harness/types.js';
 import { envelopeToHarnessInput } from '../channels/envelope-mapper.js';
 import { resolvePermissionSessionKey } from '../channels/session-key.js';
 import { resolveProfile } from '../config-plane/profile-resolver.js';
+import { McpConnectionService } from '../services/mcp-connection.service.js';
 import { getDingtalkChannelAdapter } from '../channels/dingtalk/dingtalk-channel.adapter.js';
 import { getFeishuChannelAdapter } from '../channels/feishu/feishu-channel.adapter.js';
 import { getWebChannelAdapter } from '../channels/web/web-channel.adapter.js';
@@ -98,9 +99,11 @@ async function runHarnessForEnvelope(
 
   const { messages } = envelopeToHarnessInput(envelope);
   const wallStarted = Date.now();
+  McpConnectionService.beginChatScope(configUserId, requestId);
 
-  const result = await service.chatStream(
-    messages,
+  try {
+    const result = await service.chatStream(
+      messages,
     (chunk, done) => {
       if (done || signal?.aborted) {
         return;
@@ -141,40 +144,43 @@ async function runHarnessForEnvelope(
     }
   );
 
-  if (signal?.aborted) {
-    return;
-  }
-  if (envelope.channel === 'web') {
-    const sink = getOutboundSink(requestId);
-    if (!sink || sink.response.writableEnded) {
+    if (signal?.aborted) {
       return;
     }
-  }
+    if (envelope.channel === 'web') {
+      const sink = getOutboundSink(requestId);
+      if (!sink || sink.response.writableEnded) {
+        return;
+      }
+    }
 
-  const elapsedTime = (Date.now() - wallStarted) / 1000;
-  outboundRouter.route({
-    sessionKey: envelope.sessionKey,
-    channel: envelope.channel,
-    requestId,
-    kind: 'usage',
-    payload: {
+    const elapsedTime = (Date.now() - wallStarted) / 1000;
+    outboundRouter.route({
+      sessionKey: envelope.sessionKey,
+      channel: envelope.channel,
       requestId,
-      ...result.usage,
-      elapsedTime: elapsedTime.toFixed(2),
-      hasReasoning: !!result.reasoning_content,
-      hasTool: Boolean(result.tool_calls && result.tool_calls.length > 0)
-    }
-  });
-  outboundRouter.route({
-    sessionKey: envelope.sessionKey,
-    channel: envelope.channel,
-    requestId,
-    kind: 'done',
-    payload: {
+      kind: 'usage',
+      payload: {
+        requestId,
+        ...result.usage,
+        elapsedTime: elapsedTime.toFixed(2),
+        hasReasoning: !!result.reasoning_content,
+        hasTool: Boolean(result.tool_calls && result.tool_calls.length > 0)
+      }
+    });
+    outboundRouter.route({
+      sessionKey: envelope.sessionKey,
+      channel: envelope.channel,
       requestId,
-      finish_reason: result.finish_reason
-    }
-  });
+      kind: 'done',
+      payload: {
+        requestId,
+        finish_reason: result.finish_reason
+      }
+    });
+  } finally {
+    await McpConnectionService.releaseChatScope(configUserId, requestId);
+  }
 }
 
 async function processWebInboundJob(

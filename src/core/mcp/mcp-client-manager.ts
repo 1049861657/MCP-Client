@@ -11,7 +11,7 @@ import {
   ServerInfo,
   ToolInfo,
 } from "../../types/mcp.types.js";
-import { McpConnectionStatus } from "../../types/mcp-connection.types.js";
+import { McpConnectionStatus, type McpConnectMode, type McpEnsureOptions } from "../../types/mcp-connection.types.js";
 import type { GetPromptResult, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import { ServerConnection } from "./server-connection.js";
 import { ConnectionType } from '../../generated/prisma/client.js';
@@ -25,6 +25,16 @@ import {
   refreshMcpOAuthTokens,
   shouldUseMcpOAuth,
 } from "./mcp-oauth.js";
+
+function resolveConnectMode(options?: McpEnsureOptions): McpConnectMode {
+  if (options?.mode) {
+    return options.mode;
+  }
+  if (options?.chatRequestId) {
+    return 'chat-ephemeral';
+  }
+  return 'admin-probe';
+}
 
 const userMcpClientPool = new LRUCache<string, MCPClientManager>({
   max: McpPoolConfig.maxClients,
@@ -81,6 +91,8 @@ export class MCPClientManager {
   private mcpConfig: MCPConfigType | null = null;
   private reconnectTimer?: NodeJS.Timeout; // 存储定时重连的计时器ID
   private static readonly RECONNECT_INTERVAL = McpPoolConfig.reconnectIntervalMs;
+  /** Web/IM 聊天临时连接：账号 DB 未 enabled 时按需连、轮次结束后释放，不影响 Info 页态 */
+  private readonly chatEphemeralByRequest = new Map<string, Set<string>>();
 
   /** per-user 隔离键；null = seed/guest 全局实例 */
   private readonly userId: string | null;
@@ -88,17 +100,79 @@ export class MCPClientManager {
 
   constructor(userId: string | null = null) {
     this.userId = userId;
-    this.initPromise = this.initializeConnections().catch((error) => {
-      Logger.error('MCP CLIENT', '初始化连接失败:', error);
-    });
+    this.initPromise = this.initializeConnections()
+      .then(() => this.restoreAccountEnabledConnections())
+      .catch((error) => {
+        Logger.error('MCP CLIENT', '初始化连接失败:', error);
+      });
 
     // 启动定时重连功能
     this.startAutoReconnect();
   }
 
+  /** 恢复 DB enabled=true 的账号默认连接（不影响 chat-ephemeral 语义） */
+  private async restoreAccountEnabledConnections(): Promise<void> {
+    if (!this.mcpConfig) {
+      this.mcpConfig = await McpConfigStore.get(this.userId ?? undefined);
+    }
+
+    for (const serverConfig of this.mcpConfig.servers) {
+      if (!serverConfig.enabled) {
+        continue;
+      }
+
+      const connection = this.connections.get(serverConfig.serverId);
+      if (!connection?.isTransportReady()) {
+        Logger.debug(
+          'MCP CLIENT',
+          `服务器 ${serverConfig.name} (${serverConfig.serverId}) 传输层不可用，跳过默认恢复`,
+        );
+        continue;
+      }
+
+      try {
+        await this.ensureServerReachable(serverConfig.serverId, { mode: 'account-default' });
+      } catch (error) {
+        Logger.error(
+          'MCP CLIENT',
+          `恢复账号默认连接 ${serverConfig.serverId} 失败:`,
+          error,
+        );
+      }
+    }
+  }
+
   /** 等待首次（或最近一次 restartAll）连接初始化完成 */
   async ensureReady(): Promise<void> {
     await this.initPromise;
+  }
+
+  /**
+   * Info 页 SSOT：断开 DB enabled=false 却仍连在池内的服（chat 嗅探等残留）。
+   */
+  async reconcilePoolWithDbEnabled(): Promise<void> {
+    this.mcpConfig = await McpConfigStore.get(this.userId ?? undefined);
+
+    for (const serverConfig of this.mcpConfig.servers) {
+      if (serverConfig.enabled) {
+        continue;
+      }
+
+      const connection = this.connections.get(serverConfig.serverId);
+      if (!connection?.isConnected()) {
+        continue;
+      }
+
+      try {
+        await this.disconnect(serverConfig.serverId, { clearAuth: false });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.debug(
+          'MCP CLIENT',
+          `reconcile 断开未启用服 ${serverConfig.serverId} 失败: ${message}`,
+        );
+      }
+    }
   }
 
   /**
@@ -156,7 +230,7 @@ export class MCPClientManager {
   }
 
   /**
-   * 初始化连接对象；默认按需 connect，仅 restartAll 等全量重建时自动连接 enabled 服。
+   * 初始化连接对象；默认仅建连接对象。restartAll 等全量重建时传 connectEnabled: true 恢复 DB enabled 服。
    */
   private async initializeConnections(options?: { connectEnabled?: boolean }): Promise<void> {
     const connectEnabled = options?.connectEnabled ?? false;
@@ -255,6 +329,15 @@ export class MCPClientManager {
     return Date.now() - timestamp > MCPClientManager.TOOLS_CACHE_TTL;
   }
 
+  /** 未连接时复用最近一次 listTools 缓存（供 Web 弹窗工具数展示） */
+  getCachedTools(serverId: string): ToolInfo[] {
+    const cached = this.toolsCache.get(serverId);
+    if (!cached || this.isToolsCacheStale(serverId)) {
+      return [];
+    }
+    return cached;
+  }
+
   /**
    * 检查服务器连接状态
    * @param serverId 服务器ID
@@ -271,19 +354,81 @@ export class MCPClientManager {
 
   /**
    * 确保指定服务器可达：已连接则 ping，未连接则 connect。
-   * 与 MCP 服务页 connect、渠道保存门禁共用同一路径。
+   * chatRequestId：聊天轮次内对账号未 enabled 的服务建临时连接，轮次结束后 releaseChatEphemeralConnections。
    */
-  async ensureServerReachable(serverId: string): Promise<boolean> {
+  beginChatEphemeralScope(chatRequestId: string): void {
+    if (!this.chatEphemeralByRequest.has(chatRequestId)) {
+      this.chatEphemeralByRequest.set(chatRequestId, new Set());
+    }
+  }
+
+  async releaseChatEphemeralConnections(chatRequestId: string): Promise<void> {
+    const serverIds = this.chatEphemeralByRequest.get(chatRequestId);
+    this.chatEphemeralByRequest.delete(chatRequestId);
+    if (!serverIds || serverIds.size === 0) {
+      return;
+    }
+
+    for (const serverId of serverIds) {
+      try {
+        await this.disconnect(serverId, { clearAuth: false });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        Logger.debug('MCP CLIENT', `释放聊天临时连接 ${serverId} 失败: ${message}`);
+      }
+    }
+  }
+
+  private trackChatEphemeralConnection(chatRequestId: string, serverId: string): void {
+    let tracked = this.chatEphemeralByRequest.get(chatRequestId);
+    if (!tracked) {
+      tracked = new Set();
+      this.chatEphemeralByRequest.set(chatRequestId, tracked);
+    }
+    tracked.add(serverId);
+  }
+
+  async ensureServerReachable(
+    serverId: string,
+    options?: McpEnsureOptions
+  ): Promise<boolean> {
+    const mode = resolveConnectMode(options);
+
+    if (!this.mcpConfig) {
+      this.mcpConfig = await McpConfigStore.get(this.userId ?? undefined);
+    }
+    const serverConfig = this.mcpConfig.servers.find((s) => s.serverId === serverId);
+    if (!serverConfig) {
+      return false;
+    }
+
+    if (mode === 'account-default' && !serverConfig.enabled) {
+      return false;
+    }
+
     const connection = this.connections.get(serverId);
     if (!connection) {
       return false;
     }
 
+    const wasConnected = connection.isConnected();
+
     try {
-      if (connection.isConnected()) {
-        return await connection.ping();
+      let ok: boolean;
+      if (wasConnected) {
+        ok = await connection.ping();
+      } else {
+        ok = await this.connect(serverId);
       }
-      return await this.connect(serverId);
+      if (
+        ok &&
+        mode === 'chat-ephemeral' &&
+        options?.chatRequestId &&
+        !serverConfig.enabled
+      ) {
+        this.trackChatEphemeralConnection(options.chatRequestId, serverId);
+      }
+      return ok;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       Logger.debug('MCP CLIENT', `ensureServerReachable ${serverId} 失败: ${message}`);
@@ -297,15 +442,19 @@ export class MCPClientManager {
   /**
    * 按需连接指定服务器（聊天/运行时入口，串行避免 stdio 竞态）。
    */
-  async ensureServersReachable(serverIds: string[]): Promise<void> {
+  async ensureServersReachable(
+    serverIds: string[],
+    options?: McpEnsureOptions
+  ): Promise<void> {
     await this.ensureReady();
     for (const serverId of [...new Set(serverIds)]) {
-      await this.ensureServerReachable(serverId);
+      await this.ensureServerReachable(serverId, options);
     }
   }
 
   async partitionServerIdsByReachability(
     serverIds: string[],
+    options?: McpEnsureOptions
   ): Promise<{ reachableIds: string[]; unreachableIds: string[] }> {
     await this.ensureReady();
 
@@ -318,7 +467,7 @@ export class MCPClientManager {
         continue;
       }
 
-      const ok = await this.ensureServerReachable(serverId);
+      const ok = await this.ensureServerReachable(serverId, options);
       if (ok) {
         reachableIds.push(serverId);
       } else {

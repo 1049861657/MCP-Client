@@ -157,23 +157,12 @@ export class ConfigService {
     return McpConfigStore.get(userId);
   }
 
-  /** 全部已添加的 MCP 服务器（Admin 渠道配置用） */
+  /** 全部已添加的 MCP 服务器（Admin 渠道配置用；读路径 inherit seed） */
   static async listConfiguredMcpServers(userId?: string): Promise<Array<{ serverId: string; name: string }>> {
-    if (userId) {
-      if (!(await McpConfigStore.hasUserOverride(userId))) {
-        return [];
-      }
-      return prisma.mCPServer.findMany({
-        where: { userId },
-        select: { serverId: true, name: true },
-        orderBy: { name: 'asc' }
-      });
-    }
-    return prisma.mCPServer.findMany({
-      where: { userId: null },
-      select: { serverId: true, name: true },
-      orderBy: { name: 'asc' }
-    });
+    const config = await McpConfigStore.get(userId);
+    return config.servers
+      .map((server) => ({ serverId: server.serverId, name: server.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /** 保存 MCP 配置（委托 McpConfigStore） */

@@ -1075,6 +1075,16 @@ async function switchServer(serverId) {
 }
 
 /**
+ * @param {InfoData} data
+ * @param {string} serverId
+ * @returns {string}
+ */
+function resolveServerStatus(data, serverId) {
+  const row = data.availableServers?.find((item) => item.id === serverId);
+  return row?.status ?? data.server.status;
+}
+
+/**
  * @param {string} serverId
  */
 async function connectServer(serverId) {
@@ -1087,9 +1097,10 @@ async function connectServer(serverId) {
   try {
     /** @type {InfoData} */
     const data = await requestJson(`/api/server/connect/${serverId}`, { method: 'POST' });
+    const status = resolveServerStatus(data, serverId);
 
-    if (!isServerConnected(data.server.status)) {
-      if (data.server.status === MCP_STATUS.NeedsAuth) {
+    if (!isServerConnected(status)) {
+      if (status === MCP_STATUS.NeedsAuth) {
         updatePageInfo(data);
         showToast('该服务器需要 OAuth 授权，请点击「授权」', 'info', 6000);
         return;

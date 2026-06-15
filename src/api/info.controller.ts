@@ -125,6 +125,7 @@ export class InfoController {
       if (success) {
         await McpConfigStore.setServerEnabled(configUserId, serverId, true);
         client.syncServerEnabled(serverId, true);
+        client.switchCurrentServer(serverId);
       }
       const info = await McpInfoAssembler.assembleForInfoPage(configUserId);
       const server = info.availableServers?.find((s) => s.id === serverId) ?? info.server;

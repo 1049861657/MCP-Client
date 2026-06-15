@@ -262,7 +262,7 @@ function bindPermissionMode(getApp) {
       }
       getApp().state.permissionMode = mode;
       syncPermissionModeUi(mode);
-      saveSettings();
+      getApp().ui?.saveSettings?.();
     },
   });
 }
@@ -291,7 +291,7 @@ function bindSettingsModalUi(getApp) {
   }
   settingsUiBound = true;
 
-  bindChatModalClose('settings-modal', () => saveSettings());
+  bindChatModalClose('settings-modal', () => getApp().ui?.saveSettings?.());
 
   const app = getApp();
   const { elements } = app;
@@ -565,6 +565,10 @@ export function createSettingsModalApi(getApp, ui) {
       if (settings.model && elements.model?.querySelector(`option[value="${settings.model}"]`)) {
         elements.model.value = settings.model;
         state.model = settings.model;
+      }
+
+      if (settings.compactModel) {
+        state.compactModel = settings.compactModel;
       }
 
       app.updateCompactModelOptions?.();

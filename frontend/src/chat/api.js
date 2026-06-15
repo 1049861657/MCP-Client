@@ -992,7 +992,7 @@ export function createChatApi(deps) {
 
   async function getMCPServers() {
     try {
-      const response = await fetch('/api/mcp/servers');
+      const response = await fetch('/api/mcp/servers?scope=configured');
 
       if (!response.ok) {
         throw new Error(`HTTP错误: ${response.status} ${response.statusText}`);
@@ -1010,6 +1010,19 @@ export function createChatApi(deps) {
       console.error('获取MCP服务器出错:', error);
       return { servers: [] };
     }
+  }
+
+  async function probeMcpServers(serverIds) {
+    const response = await fetch('/api/mcp/probe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ serverIds }),
+    });
+    const data = await response.json();
+    if (!response.ok || data.error) {
+      throw new Error(data.error || `HTTP错误: ${response.status}`);
+    }
+    return data;
   }
 
   function buildOutgoingMessages(app, newUserContent) {
@@ -1291,6 +1304,7 @@ export function createChatApi(deps) {
     handleEventData,
     getAvailableMCPTools,
     getMCPServers,
+    probeMcpServers,
     buildOutgoingMessages,
     buildBaseContextMessages,
     refreshContextPanelPreview,

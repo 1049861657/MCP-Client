@@ -6,6 +6,8 @@ import { ToolPreferencesService } from './tool-preferences.service.js';
 export class McpInfoAssembler {
   static async assembleForInfoPage(configUserId: string | null): Promise<MCPServerInfo> {
     const client = mcpClientForConfigUser(configUserId);
+    await client.ensureReady();
+    await client.reconcilePoolWithDbEnabled();
     const [info, toolPreferences] = await Promise.all([
       client.getServerInfo(),
       ToolPreferencesService.getAll()

@@ -1,6 +1,6 @@
 /**
  * 账号级 MCP 配置 SSOT。
- * 已登录账号无覆盖 → 空；guest/未传 userId → null 基线。含 TTL 缓存与 DB 故障 lastGood 回退。
+ * 已登录无 tombstone → 继承 userId=null 基线；有 tombstone → 读本账号覆盖。含 TTL 缓存与 lastGood 回退。
  */
 import { LRUCache } from 'lru-cache';
 
@@ -33,13 +33,17 @@ async function hasUserMcpTombstone(userId: string): Promise<boolean> {
   return row !== null;
 }
 
+async function loadSeedServerRows(): Promise<Awaited<ReturnType<typeof prisma.mCPServer.findMany>>> {
+  return prisma.mCPServer.findMany({ where: { userId: null } });
+}
+
 async function loadToolPrompt(userId?: string): Promise<string> {
   if (userId) {
     const userRow = await prisma.setting.findFirst({ where: { userId, key: MCP_TOOL_PROMPT_KEY } });
     if (userRow !== null) {
       return userRow.value !== null ? String(userRow.value) : '';
     }
-    return '';
+    // 无 tombstone → inherit seed toolPrompt
   }
   const seedRow = await prisma.setting.findFirst({ where: { userId: null, key: MCP_TOOL_PROMPT_KEY } });
   if (!seedRow || seedRow.value === null) {
@@ -69,10 +73,10 @@ async function loadFromDb(userId?: string): Promise<MCPConfigType> {
     if (await hasUserMcpTombstone(userId)) {
       rows = await prisma.mCPServer.findMany({ where: { userId } });
     } else {
-      rows = [];
+      rows = await loadSeedServerRows();
     }
   } else {
-    rows = await prisma.mCPServer.findMany({ where: { userId: null } });
+    rows = await loadSeedServerRows();
   }
 
   const toolPrompt = await loadToolPrompt(userId);
@@ -155,11 +159,18 @@ export class McpConfigStore {
     }
   }
 
-  /** 切换单服 enabled（connect/disconnect 专用）；要求账号已有 MCP 覆盖且含该 server */
-  static async setServerEnabled(userId: string, serverId: string, enabled: boolean): Promise<void> {
-    if (!(await hasUserMcpTombstone(userId))) {
-      throw new Error(`MCP 服务器不存在: ${serverId}`);
+  /** 首次写入前从 seed 基线 fork 覆盖层（Info connect / 表单保存） */
+  static async forkFromSeedIfNeeded(userId: string): Promise<void> {
+    if (await hasUserMcpTombstone(userId)) {
+      return;
     }
+    const seedConfig = await loadFromDb(undefined);
+    await McpConfigStore.saveFull(seedConfig, userId);
+  }
+
+  /** 切换单服 enabled（connect/disconnect 专用）；无覆盖时先 fork seed */
+  static async setServerEnabled(userId: string, serverId: string, enabled: boolean): Promise<void> {
+    await McpConfigStore.forkFromSeedIfNeeded(userId);
 
     const row = await prisma.mCPServer.findFirst({ where: { userId, serverId } });
     if (!row) {

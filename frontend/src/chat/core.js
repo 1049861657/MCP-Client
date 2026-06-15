@@ -20,6 +20,7 @@ import {
   updateThinkingTime,
 } from './time.js';
 import { createChatUtils } from './utils.js';
+import { filterEnabledToKnownServers, filterServersWithUsableTools, reconcileMcpSelectionFromList } from './mcp-selection.js';
 
 /**
  * @typedef {object} CreateChatAppOptions
@@ -722,7 +723,7 @@ function createAppMethods() {
       }
 
       const models = this.state.providers[provider].models;
-      const prev = this.elements.compactModel.value || this.state.compactModel;
+      const prev = this.state.compactModel || this.elements.compactModel.value;
 
       this.elements.compactModel.innerHTML = '';
       models.forEach((model) => {
@@ -753,8 +754,13 @@ function createAppMethods() {
     },
 
     getSelectableMcpServerIds() {
-      const allowed = new Set((this.state.mcpServers || []).map((server) => server.id));
-      return (this.state.enabledServerIds || []).filter((id) => allowed.has(id));
+      return filterServersWithUsableTools(
+        filterEnabledToKnownServers(
+          this.state.enabledServerIds || [],
+          this.state.mcpServers || [],
+        ),
+        this.state.mcpServers || [],
+      );
     },
 
     scheduleMcpServersReload(attempt = 0) {
@@ -783,6 +789,7 @@ function createAppMethods() {
       try {
         const data = await this.api.getMCPServers();
         this.state.mcpServers = data.servers || [];
+        reconcileMcpSelectionFromList(this, this.ui);
         this.ui.updateMCPButtonCounter?.();
         return data;
       } catch (error) {

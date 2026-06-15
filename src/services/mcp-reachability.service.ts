@@ -1,5 +1,6 @@
 import { getMcpClientForUser } from '../core/mcp/index.js';
 import type { MCPClientManager } from '../core/mcp/mcp-client-manager.js';
+import type { McpEnsureOptions } from '../types/mcp-connection.types.js';
 import { ConfigService } from './config.service.js';
 import { Logger } from '../utils/logger.js';
 
@@ -8,6 +9,11 @@ export type McpReachabilityEntry = { id: string; name: string };
 export type McpReachabilityResult = {
   reachableIds: string[];
   unreachable: McpReachabilityEntry[];
+};
+
+/** Web MCP 弹窗保存嗅探：reachableIds 已排除无启用工具的服 */
+export type McpProbeSelectionResult = McpReachabilityResult & {
+  skippedNoTools: McpReachabilityEntry[];
 };
 
 /** 保存门禁输出：仅 persistIds 写入 Profile，skipped 返回给 UI 提示 */
@@ -58,6 +64,7 @@ export class McpReachabilityService {
   static async filterReachableServerIds(
     serverIds: string[],
     configUserId: string | null = null,
+    options?: McpEnsureOptions,
   ): Promise<McpReachabilityResult> {
     const configured = await ConfigService.listConfiguredMcpServers(configUserId ?? undefined);
     const nameById = new Map(configured.map((row) => [row.serverId, row.name]));
@@ -75,7 +82,14 @@ export class McpReachabilityService {
     }
 
     const client = getMcpClientForUser(configUserId);
-    const { reachableIds, unreachableIds } = await client.partitionServerIdsByReachability(probeIds);
+    await client.ensureReady();
+    const ensureOptions: McpEnsureOptions = options?.chatRequestId
+      ? { mode: options.mode ?? 'chat-ephemeral', chatRequestId: options.chatRequestId }
+      : { mode: options?.mode ?? 'admin-probe' };
+    const { reachableIds, unreachableIds } = await client.partitionServerIdsByReachability(
+      probeIds,
+      ensureOptions,
+    );
 
     const unreachable: McpReachabilityEntry[] = [
       ...unknownIds.map((id) => ({ id, name: id })),

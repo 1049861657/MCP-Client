@@ -1,3 +1,16 @@
+/**
+ * MCP 运行时连接意图（SSOT）。
+ * - account-default：Info 页 / DB enabled 的账号默认连接，不写 ephemeral
+ * - chat-ephemeral：Web/IM 聊天按需连接；账号未 enabled 的服轮次结束释放
+ * - admin-probe：Admin 保存门禁探测，连上后保留在池内
+ */
+export type McpConnectMode = 'account-default' | 'chat-ephemeral' | 'admin-probe';
+
+export interface McpEnsureOptions {
+  mode?: McpConnectMode;
+  chatRequestId?: string;
+}
+
 /** MCP 单服连接状态机（stdio 无 needs-auth） */
 export type McpConnectionStatus =
   | 'disconnected'

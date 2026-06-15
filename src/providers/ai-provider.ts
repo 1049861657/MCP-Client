@@ -33,10 +33,12 @@ import {
   ToolsConfig
 } from '../config/feature-config.js';
 import { getMcpClientForUser } from '../core/mcp/index.js';
+import { McpConnectionService } from '../services/mcp-connection.service.js';
 import { resolveMcpPoolKey } from '../services/mcp-context.service.js';
 import { ChatStore } from '../services/chat-store.service.js';
 import { ConfigService } from '../services/config.service.js';
 import { ToolPolicyService } from '../services/tool-policy.service.js';
+import { ToolPreferencesService } from '../services/tool-preferences.service.js';
 import type { ResolvedChatProfile } from '../types/config-plane.types.js';
 import { AIProvider } from '../types/config.types.js';
 import { Logger } from '../utils/logger.js';
@@ -118,12 +120,23 @@ export class AiProvider {
   private async convertMcpToolsToChatFunctions(
     enabledServerIds?: string[],
     enabledToolCodeNames?: string[],
-    configUserId?: string | null
+    configUserId?: string | null,
+    chatRequestId?: string
   ): Promise<ChatTool[]> {
     try {
       const client = getMcpClientForUser(configUserId ?? null);
+      let activeServerIds = enabledServerIds;
       if (enabledServerIds && enabledServerIds.length > 0) {
-        await client.ensureServersReachable(enabledServerIds);
+        if (chatRequestId) {
+          const { reachableIds } = await McpConnectionService.ensureForChat(
+            enabledServerIds,
+            configUserId ?? null,
+            chatRequestId
+          );
+          activeServerIds = reachableIds;
+        } else {
+          await client.ensureServersReachable(enabledServerIds, { mode: 'admin-probe' });
+        }
       }
       const serverInfo = await client.getServerInfo();
       const mcpTools = serverInfo.tools;
@@ -133,7 +146,7 @@ export class AiProvider {
       }
 
       const filterIds =
-        enabledServerIds ??
+        activeServerIds ??
         (await ConfigService.getMCPConfig(configUserId ?? undefined)).enabledToolServerIds ??
         [];
 
@@ -141,12 +154,14 @@ export class AiProvider {
         return [];
       }
 
-      const enabledSet =
-        enabledToolCodeNames !== undefined && enabledToolCodeNames.length > 0
-          ? new Set(enabledToolCodeNames)
-          : undefined;
-
       const serverToolsMap = serverInfo.serverTools || {};
+      const store = await ToolPreferencesService.getAll();
+      const resolvedCodeNames =
+        enabledToolCodeNames !== undefined
+          ? enabledToolCodeNames
+          : ToolPolicyService.resolveEnabledCodeNames(filterIds, serverToolsMap, store);
+
+      const enabledSet = new Set(resolvedCodeNames);
       const filteredTools = mcpTools.filter((tool) => {
         let onServer = false;
         for (const serverId in serverToolsMap) {
@@ -161,10 +176,7 @@ export class AiProvider {
         if (!onServer) {
           return false;
         }
-        if (enabledSet !== undefined) {
-          return enabledSet.has(tool.codeName);
-        }
-        return true;
+        return enabledSet.has(tool.codeName);
       });
       
       if (filteredTools.length > 0) {
@@ -271,12 +283,6 @@ export class AiProvider {
     });
   }
   
-  private async resolveEnabledToolCodeNames(
-    resolvedProfile?: ResolvedChatProfile
-  ): Promise<string[] | undefined> {
-    return ToolPolicyService.resolveEnabledCodeNamesForProfile(resolvedProfile);
-  }
-
   /**
    * 使用辅助函数获取工具定义列表
    * @param enableMcpTools 是否启用 MCP 工具
@@ -284,7 +290,8 @@ export class AiProvider {
    */
   private async getToolDefinitions(
     enableMcpTools: boolean,
-    resolvedProfile?: ResolvedChatProfile
+    resolvedProfile?: ResolvedChatProfile,
+    chatRequestId?: string
   ): Promise<ChatTool[]> {
     const systemTools = this.resolveSystemToolSchemas(resolvedProfile);
     if (!enableMcpTools) {
@@ -293,10 +300,10 @@ export class AiProvider {
 
     try {
       const serverIds = resolvedProfile?.mcpServerIds ?? [];
-      const enabledCodeNames = await this.resolveEnabledToolCodeNames(resolvedProfile);
+      const explicitToolNames = resolvedProfile?.enabledToolNames;
       const cacheKey = ToolPolicyService.buildEnabledSetHash(
         serverIds,
-        enabledCodeNames ?? []
+        explicitToolNames ?? []
       );
       const cached = this.chatToolsCache.get(cacheKey);
       if (
@@ -312,8 +319,9 @@ export class AiProvider {
       const poolKey = resolveMcpPoolKey(resolvedProfile);
       const mcpTools = await this.convertMcpToolsToChatFunctions(
         serverIds.length > 0 ? serverIds : undefined,
-        enabledCodeNames,
-        poolKey
+        explicitToolNames,
+        poolKey,
+        chatRequestId
       );
       this.chatToolsCache.set(cacheKey, { tools: mcpTools, createdAt: Date.now() });
       if (systemTools.length > 0) {
@@ -782,7 +790,7 @@ export class AiProvider {
         documentSessionId: resolvedProfile?.documentSessionId,
         identityScope: resolvedProfile?.memoryScope
       });
-      const chatTools = await this.getToolDefinitions(enableTools, resolvedProfile);
+      const chatTools = await this.getToolDefinitions(enableTools, resolvedProfile, requestId);
       const summarizeFn = this.resolveSummarizeFn(enableAutoCompact, compactModel, signal);
 
       // T4-03：已登录会话才落库 / 回写压缩基线；guest（无 userId/chatSessionId）零改动

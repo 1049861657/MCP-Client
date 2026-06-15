@@ -587,6 +587,29 @@
       0 6px 20px rgb(217 119 6 / 0.18);
   }
 
+  .mcp-server-item.mcp-server-unreachable {
+    @apply border-[rgb(148_163_184/0.35)] bg-[#f8fafc] opacity-95;
+    box-shadow: none;
+  }
+
+  .mcp-server-item.mcp-server-unreachable:hover {
+    @apply border-[rgb(148_163_184/0.45)] shadow-none;
+  }
+
+  .mcp-server-item.mcp-server-unreachable .mcp-server-select {
+    @apply cursor-not-allowed;
+  }
+
+  .mcp-server-item.mcp-server-unreachable .mcp-server-warn,
+  .mcp-server-warn--visible {
+    @apply h-auto text-[#64748b];
+    visibility: visible;
+  }
+
+  .mcp-server-tools-link--disabled {
+    @apply pointer-events-none border-[rgb(148_163_184/0.25)] bg-[rgb(148_163_184/0.08)] text-[#94a3b8] shadow-none;
+  }
+
   .mcp-server-name {
     @apply block min-w-0 flex-1 truncate text-[0.9375rem] font-semibold text-[var(--color-text)];
   }

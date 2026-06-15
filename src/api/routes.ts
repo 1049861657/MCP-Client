@@ -83,6 +83,7 @@ router.get('/tools/list', AiController.getAvailableTools);
 
 // MCP服务器列表路由
 router.get('/mcp/servers', AiController.getMCPServers);
+router.post('/mcp/probe', AiController.probeMcpServers);
 
 // T4-03 已登录会话与消息（整组需登录；仅当前用户自己的会话）
 router.use('/sessions', requireAuth);

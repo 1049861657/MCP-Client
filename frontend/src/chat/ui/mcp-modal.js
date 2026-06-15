@@ -23,18 +23,48 @@ export function createMcpModalApi(getApp, ui) {
     const modal = document.getElementById('mcp-servers-modal');
     const dismiss = () => closeChatModal('mcp-servers-modal');
 
-    document.getElementById('mcp-save')?.addEventListener('click', () => {
+    document.getElementById('mcp-save')?.addEventListener('click', async () => {
       const app = getApp();
+      const saveBtn = document.getElementById('mcp-save');
+      if (saveBtn instanceof HTMLButtonElement) {
+        saveBtn.disabled = true;
+      }
       try {
-        const enabledIds = commitMcpSelection(
-          app,
-          readEnabledIdsFromMcpCheckboxes(app.state.mcpServers),
-          ui,
-        );
-        ui.showTooltip(`已更新 MCP 选择，当前启用 ${enabledIds.length} 个`);
+        const selectedIds = readEnabledIdsFromMcpCheckboxes(app.state.mcpServers);
+        let reachableIds = [];
+        let unreachableNames = [];
+        let skippedNoToolsNames = [];
+
+        if (selectedIds.length > 0) {
+          ui.showTooltip('正在检测 MCP 连通性…');
+          const probeResult = await app.api.probeMcpServers(selectedIds);
+          reachableIds = Array.isArray(probeResult.reachableIds)
+            ? probeResult.reachableIds.filter((id) => typeof id === 'string')
+            : [];
+          unreachableNames = Array.isArray(probeResult.unreachable)
+            ? probeResult.unreachable.map((row) => row.name || row.id)
+            : [];
+          skippedNoToolsNames = Array.isArray(probeResult.skippedNoTools)
+            ? probeResult.skippedNoTools.map((row) => row.name || row.id)
+            : [];
+        }
+
+        const committed = commitMcpSelection(app, reachableIds, ui);
+        let message = `已保存 MCP 选择，当前可用 ${committed.length} 个`;
+        if (unreachableNames.length > 0) {
+          message += `（${unreachableNames.join('、')} 连接不上，已取消勾选）`;
+        }
+        if (skippedNoToolsNames.length > 0) {
+          message += `（${skippedNoToolsNames.join('、')} 无启用工具，已取消勾选）`;
+        }
+        ui.showTooltip(message);
         dismiss();
       } catch (error) {
         ui.showTooltip(error instanceof Error ? error.message : '保存失败');
+      } finally {
+        if (saveBtn instanceof HTMLButtonElement) {
+          saveBtn.disabled = false;
+        }
       }
     });
 
@@ -51,11 +81,12 @@ export function createMcpModalApi(getApp, ui) {
 
     document.getElementById('mcp-select-all')?.addEventListener('click', () => {
       const app = getApp();
-      if (!app.state.mcpServers.length) {
+      const servers = app.state.mcpServers || [];
+      if (!servers.length) {
         ui.showTooltip('没有可用的服务器');
         return;
       }
-      syncMcpCheckboxes(app.state.mcpServers, app.state.mcpServers.map((s) => s.id));
+      syncMcpCheckboxes(servers, servers.map((server) => server.id));
     });
 
     document.getElementById('mcp-deselect-all')?.addEventListener('click', () => {
@@ -83,7 +114,6 @@ export function createMcpModalApi(getApp, ui) {
       .loadMCPServers()
       .then(() => {
         renderMCPServersList();
-        updateMCPButtonCounter();
       })
       .catch(() => {
         container.innerHTML = '<p class="mcp-servers-empty">加载失败，请稍后重试</p>';
@@ -112,7 +142,7 @@ export function createMcpModalApi(getApp, ui) {
   }
 
   /**
-   * @param {{ id: string, name: string, description?: string, toolsEnabled?: number, toolsTotal?: number }} server
+   * @param {{ id: string, name: string, description?: string, isConnected?: boolean, toolsEnabled?: number, toolsTotal?: number }} server
    * @param {string[]} enabledServerIds
    */
   function createMcpServerItem(server, enabledServerIds) {
@@ -174,7 +204,7 @@ export function createMcpModalApi(getApp, ui) {
     toolsLink.className = 'mcp-server-tools-link';
     toolsLink.href = buildInfoToolsUrl(server.id);
     toolsLink.textContent = ratio;
-    toolsLink.title = '在 MCP 服务页配置工具';
+    toolsLink.title = ratio === '—' ? '保存后将检测连通性并刷新工具数' : '在 MCP 服务页配置工具';
     toolsLink.setAttribute('aria-label', `${server.name} 工具配置 ${ratio}`);
 
     if (noneEnabled) {
@@ -193,8 +223,7 @@ export function createMcpModalApi(getApp, ui) {
     }
 
     btn.querySelector('.counter')?.remove();
-    const selectable = app.getSelectableMcpServerIds?.() ?? app.state.enabledServerIds;
-    const count = selectable.length;
+    const count = app.getSelectableMcpServerIds?.().length ?? 0;
     if (count > 0) {
       const badge = document.createElement('span');
       badge.className = 'counter';
@@ -218,11 +247,14 @@ function buildInfoToolsUrl(serverId) {
 }
 
 /**
- * @param {{ toolsEnabled?: number, toolsTotal?: number }} server
+ * @param {{ isConnected?: boolean, toolsEnabled?: number, toolsTotal?: number }} server
  */
 function formatToolRatio(server) {
-  const enabled = typeof server.toolsEnabled === 'number' ? server.toolsEnabled : 0;
   const total = typeof server.toolsTotal === 'number' ? server.toolsTotal : 0;
+  if (server.isConnected !== true && total === 0) {
+    return '—';
+  }
+  const enabled = typeof server.toolsEnabled === 'number' ? server.toolsEnabled : 0;
   return `${enabled}/${total}`;
 }
 

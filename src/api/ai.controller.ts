@@ -3,6 +3,7 @@ import { Logger } from '../utils/logger.js';
 import { generateRequestId } from '../utils/request-id.js';
 import { getProviderForUser } from '../providers/ai-providers.js';
 import { getMcpClientForUser } from '../core/mcp/index.js';
+import { McpConnectionService } from '../services/mcp-connection.service.js';
 import { resolvePrincipal } from '../services/runtime-context.service.js';
 import type { SessionUser } from '../lib/request-session.js';
 import { InternalMessage } from '../core/agent-harness/types.js';
@@ -15,6 +16,7 @@ import { ConfigService } from '../services/config.service.js';
 import { sanitizeEnabledSystemToolNames } from '../core/agent-harness/system-tools/system-tool-registry.js';
 import { ToolPolicyService } from '../services/tool-policy.service.js';
 import { ToolPreferencesService } from '../services/tool-preferences.service.js';
+import type { ToolInfo } from '../types/mcp.types.js';
 import { getWebChannelAdapter } from '../channels/web/web-channel.adapter.js';
 import { normalizeWebInbound } from '../channels/web/normalize-web-inbound.js';
 import { SSE_KEEP_ALIVE_INTERVAL_MS } from '../channels/web/sse-config.js';
@@ -163,7 +165,7 @@ export class AiController {
         user = principal.user;
         configUserId = principal.configUserId;
         await AiController.sanitizeWebMcpServerIds(body, configUserId);
-        await AiController.sanitizeWebEnabledToolNames(body, configUserId);
+        AiController.sanitizeWebEnabledToolNames(body);
         AiController.sanitizeWebEnabledSystemToolNames(body);
         envelope = await normalizeWebInbound({
           body,
@@ -377,23 +379,41 @@ export class AiController {
       const client = getMcpClientForUser(configUserId);
       const scopeRaw = req.query.scope;
       const scope = typeof scopeRaw === 'string' ? scopeRaw : 'connected';
-      const [serverInfo, store] = await Promise.all([
+      const [serverInfo, store, mcpConfig] = await Promise.all([
         client.getServerInfo(),
-        ToolPreferencesService.getAll()
+        ToolPreferencesService.getAll(),
+        ConfigService.getMCPConfig(configUserId ?? undefined),
       ]);
       const connectedIds = new Set(
         (serverInfo.connectedServers ?? []).map((server) => server.id)
       );
-      const serverTools = serverInfo.serverTools ?? {};
+      const poolEnabledById = new Map(
+        mcpConfig.servers.map((server) => [server.serverId, server.enabled])
+      );
+      const serverTools = { ...(serverInfo.serverTools ?? {}) };
+
+      const resolveToolsForServer = (serverId: string): ToolInfo[] => {
+        if (serverTools[serverId]?.length) {
+          return serverTools[serverId];
+        }
+        const cached = client.getCachedTools(serverId);
+        if (cached.length > 0) {
+          serverTools[serverId] = cached;
+        }
+        return serverTools[serverId] ?? [];
+      };
 
       const toRow = (id: string, name: string, isConnected: boolean) => {
+        resolveToolsForServer(id);
         const { enabled, total } = ToolPolicyService.countEnabledTools(id, serverTools, store);
+        const poolEnabled = poolEnabledById.get(id) ?? false;
         return {
           id,
           name,
           isConnected,
+          poolEnabled,
           toolsEnabled: enabled,
-          toolsTotal: total
+          toolsTotal: total,
         };
       };
 
@@ -424,6 +444,25 @@ export class AiController {
       res.status(500).json({
         error: message
       });
+    }
+  }
+
+  /** Web MCP 弹窗保存：嗅探所选服务器连通性（ephemeral，不改 DB enabled） */
+  static async probeMcpServers(req: Request, res: Response): Promise<void> {
+    try {
+      const body = req.body as { serverIds?: unknown };
+      if (!Array.isArray(body.serverIds)) {
+        res.status(400).json({ error: 'serverIds 必须为数组' });
+        return;
+      }
+      const serverIds = body.serverIds.filter((id): id is string => typeof id === 'string');
+      const { configUserId } = await resolvePrincipal(req);
+      const result = await McpConnectionService.probeForSelection(serverIds, configUserId);
+      res.json({ success: true, ...result });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.error('API', 'MCP 连通性嗅探失败:', error);
+      res.status(500).json({ error: message });
     }
   }
 
@@ -492,7 +531,7 @@ export class AiController {
     return ChatStore.assembleContextMessages(user.id, sessionId, { messageHistoryCount });
   }
 
-  /** Web 请求体 mcpServerIds 仅保留当前已连接的 MCP 服务器 */
+  /** Web 请求体 mcpServerIds：仅保留生效配置中的 ID；建连与可达性由 Harness ensureForChat 负责 */
   static async sanitizeWebMcpServerIds(
     body: Record<string, unknown>,
     configUserId: string | null
@@ -500,12 +539,15 @@ export class AiController {
     if (!Array.isArray(body.mcpServerIds)) {
       return;
     }
-    const serverInfo = await getMcpClientForUser(configUserId).getServerInfo();
-    const connectedIds = new Set(
-      (serverInfo.connectedServers ?? []).map((server) => server.id)
-    );
-    body.mcpServerIds = body.mcpServerIds.filter(
-      (id): id is string => typeof id === 'string' && connectedIds.has(id)
+    const ids = body.mcpServerIds.filter((id): id is string => typeof id === 'string');
+    if (ids.length === 0) {
+      body.mcpServerIds = [];
+      return;
+    }
+    const configuredIds = await McpConnectionService.filterConfiguredServerIds(ids, configUserId);
+    body.mcpServerIds = await McpConnectionService.filterServersWithEnabledTools(
+      configuredIds,
+      configUserId,
     );
   }
 
@@ -519,21 +561,12 @@ export class AiController {
     );
   }
 
-  /** Web 请求体 enabledToolNames 仅保留当前已连接服务器上已启用的 MCP 工具 codeName */
-  static async sanitizeWebEnabledToolNames(
-    body: Record<string, unknown>,
-    configUserId: string | null
-  ): Promise<void> {
+  /** Web 请求体 enabledToolNames：入站仅做字符串合法性；工具存在性由 ensureForChat 后 convertMcpTools 校验 */
+  static sanitizeWebEnabledToolNames(body: Record<string, unknown>): void {
     if (!Array.isArray(body.enabledToolNames)) {
       return;
     }
-    const mcpServerIds = Array.isArray(body.mcpServerIds)
-      ? body.mcpServerIds.filter((id): id is string => typeof id === 'string')
-      : [];
-    body.enabledToolNames = await ToolPolicyService.sanitizeWebEnabledToolNames(
-      body.enabledToolNames.filter((name): name is string => typeof name === 'string'),
-      mcpServerIds,
-      configUserId
-    );
+    const names = body.enabledToolNames.filter((name): name is string => typeof name === 'string' && name.length > 0);
+    body.enabledToolNames = [...new Set(names)];
   }
 } 
