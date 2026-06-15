@@ -1,8 +1,8 @@
 /** @typedef {{ value: string; label: string }} ModelEntry */
 /** @typedef {{ name: string; type: string; apiUrl: string; apiKey: string; defaultModel: string; models: ModelEntry[] }} Provider */
 
-export const PROVIDER_CLIPBOARD_KIND = 'mcp-client/provider';
-export const PROVIDER_CLIPBOARD_VERSION = 1;
+const PROVIDER_CLIPBOARD_KIND = 'mcp-client/provider';
+const PROVIDER_CLIPBOARD_VERSION = 1;
 
 /**
  * @param {Provider} provider

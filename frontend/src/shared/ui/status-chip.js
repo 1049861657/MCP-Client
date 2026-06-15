@@ -1,5 +1,3 @@
-import { escapeHtml } from '../escape-html.js';
-
 /** @typedef {'ok' | 'off' | 'pending' | 'warn' | 'danger'} StatusChipVariant */
 
 /**
@@ -17,19 +15,6 @@ function normalizeStatusChipVariant(value) {
     return value;
   }
   return 'off';
-}
-
-/**
- * @param {string} label
- * @param {StatusChipVariant | 'on' | 'err'} [variant]
- */
-export function renderStatusChipHtml(label, variant = 'off') {
-  const normalized = normalizeStatusChipVariant(variant);
-  return (
-    `<span class="ui-status-chip ui-status-chip--${normalized}" role="status">` +
-    `<span class="ui-status-chip__dot" aria-hidden="true"></span>` +
-    `<span class="ui-status-chip__label">${escapeHtml(label)}</span></span>`
-  );
 }
 
 /**

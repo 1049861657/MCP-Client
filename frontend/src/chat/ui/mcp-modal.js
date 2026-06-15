@@ -131,7 +131,7 @@ export function createMcpModalApi(getApp, ui) {
 
     if (!app.state.mcpServers.length) {
       container.innerHTML =
-        '<p class="mcp-servers-empty">暂无可用服务器<br>请先在 <a href="/info.html">MCP服务</a> 页连接 MCP</p>';
+        '<p class="mcp-servers-empty">暂无已启用的 MCP 服务<br>请先在 <a href="/info.html">MCP服务</a> 页连接并启用 MCP</p>';
       return;
     }
 

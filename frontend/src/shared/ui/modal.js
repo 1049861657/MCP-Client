@@ -83,19 +83,3 @@ export function confirmModal(options) {
     (showCancel ? shell.querySelector('[data-role="cancel"]') : shell.querySelector('[data-role="confirm"]'))?.focus();
   });
 }
-
-/**
- * @param {HTMLElement} panel
- */
-export function hideModal(panel) {
-  panel.classList.add('hidden');
-  panel.setAttribute('aria-hidden', 'true');
-}
-
-/**
- * @param {HTMLElement} panel
- */
-export function showModal(panel) {
-  panel.classList.remove('hidden');
-  panel.setAttribute('aria-hidden', 'false');
-}

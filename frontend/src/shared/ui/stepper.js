@@ -24,13 +24,3 @@ export function bindStepper(display, input, min, max, step) {
     plus.addEventListener('click', () => apply(parseInt(display.textContent ?? '0', 10) + step));
   }
 }
-
-/**
- * @param {HTMLElement | null} display
- * @param {number} value
- */
-export function syncStepperDisplay(display, value) {
-  if (display) {
-    display.textContent = String(value);
-  }
-}

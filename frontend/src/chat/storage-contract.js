@@ -68,25 +68,6 @@ export function compactBaselineStorageKey(sessionId) {
  * @property {boolean} [skipMemory] P3-02-B：本次忽略 Hindsight 跨会话记忆
  */
 
-/** @type {(keyof ChatSettingsStorage)[]} */
-export const CHAT_SETTINGS_FIELDS = [
-  'isStreamMode',
-  'model',
-  'enableAutoCompact',
-  'compactModel',
-  'temperature',
-  'maxTokens',
-  'enableMCPTools',
-  'enablePrompts',
-  'enableMessageHistory',
-  'messageHistoryCount',
-  'maxToolCallRounds',
-  'permissionMode',
-  'enabledServerIds',
-  'enabledSystemToolNames',
-  'skipMemory',
-];
-
 /**
  * @typedef {object} CompactedBaselineStorage
  * @property {string} summaryContent 压缩摘要，作为 API 上下文首条 user 消息

@@ -17,7 +17,7 @@ export function applyAuthDocumentState(user) {
 /**
  * @returns {boolean}
  */
-export function isGuestAuth() {
+function isGuestAuth() {
   return document.documentElement.dataset.auth === 'guest';
 }
 

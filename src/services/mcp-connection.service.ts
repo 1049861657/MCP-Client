@@ -41,6 +41,18 @@ export class McpConnectionService {
     return [...new Set(requestedIds)].filter((id) => allowed.has(id));
   }
 
+  /** Web 聊天 MCP 选择：仅保留账号配置中 enabled=true 的 serverId */
+  static async filterPoolEnabledServerIds(
+    requestedIds: string[],
+    configUserId: string | null,
+  ): Promise<string[]> {
+    const config = await ConfigService.getMCPConfig(configUserId ?? undefined);
+    const allowed = new Set(
+      config.servers.filter((server) => server.enabled).map((server) => server.serverId),
+    );
+    return [...new Set(requestedIds)].filter((id) => allowed.has(id));
+  }
+
   /** 聊天 Harness 建连入口（Web/IM 共用，委托 McpReachabilityService） */
   static async ensureForChat(
     serverIds: string[],

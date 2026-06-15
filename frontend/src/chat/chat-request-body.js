@@ -9,27 +9,6 @@
  */
 
 /**
- * 服务端 `buildChatOptionsFromBody` 识别的 body 键（顺序与 normalize 一致）。
- * @type {readonly string[]}
- */
-export const CHAT_OPTION_BODY_FIELDS = [
-  'enableTools',
-  'enablePrompts',
-  'maxToolCallRounds',
-  'enableAutoCompact',
-  'model',
-  'temperature',
-  'maxTokens',
-  'compactModel',
-  'mcpServerIds',
-  'enabledSystemToolNames',
-  'permissionMode',
-  'skipMemory',
-  'sessionId',
-  'contextOptions',
-];
-
-/**
  * @typedef {object} BuildChatStreamRequestInput
  * @property {string} message 当前轮用户输入（与 messages 并存时服务端优先 messages）
  * @property {object[] | undefined} messages API 上下文（history / compact / override）

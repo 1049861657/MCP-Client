@@ -1,5 +1,3 @@
-import { escapeAttr, escapeHtml } from '../escape-html.js';
-
 /**
  * @typedef {object} SegmentedOption
  * @property {string} value
@@ -8,33 +6,6 @@ import { escapeAttr, escapeHtml } from '../escape-html.js';
  * @property {boolean} [active]
  * @property {string} [title]
  */
-
-/**
- * @param {{
- *   id?: string;
- *   className?: string;
- *   attributeName: string;
- *   options: SegmentedOption[];
- * }} config
- */
-export function renderSegmentedHtml(config) {
-  const { id = '', className = '', attributeName, options } = config;
-  const idAttr = id ? ` id="${escapeAttr(id)}"` : '';
-  const buttons = options
-    .map((opt) => {
-      const active = opt.active ? ' active' : '';
-      const disabled = opt.disabled ? ' disabled' : '';
-      const disabledClass = opt.disabled ? ' is-disabled' : '';
-      const title = opt.title ? ` title="${escapeAttr(opt.title)}"` : '';
-      return (
-        `<button type="button" class="ui-seg-btn${active}${disabledClass}"` +
-        ` data-${escapeAttr(attributeName)}="${escapeAttr(opt.value)}"${disabled}${title}>` +
-        `${escapeHtml(opt.label)}</button>`
-      );
-    })
-    .join('');
-  return `<div class="ui-segmented ${className}"${idAttr} role="group">${buttons}</div>`;
-}
 
 /**
  * @param {HTMLElement | null} container

@@ -24,7 +24,7 @@ export function isEphemeralHarnessMessage(entry) {
  * @param {object} entry
  * @returns {Array<{ role: string; content?: string; tool_calls?: unknown[]; tool_call_id?: string; reasoning_content?: string }>}
  */
-export function entryToApiMessages(entry) {
+function entryToApiMessages(entry) {
   if (!entry || !entry.role) {
     return [];
   }

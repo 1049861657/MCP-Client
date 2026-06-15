@@ -15,7 +15,7 @@ import { createToolCardsUi } from './tool-cards.js';
 /**
  * @param {() => object} getApp
  */
-export function createMinimalChatUi(getApp) {
+function createMinimalChatUi(getApp) {
   const ui = {
     parseMarkdown(text) {
       return marked.parse(text ?? '');

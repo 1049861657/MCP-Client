@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "frontend/index.html",
+    "frontend/admin.html",
+    "frontend/settings.html",
+    "frontend/info.html",
+    "frontend/ai.html",
+    "frontend/src/**/main.js",
+    "frontend/src/admin/app.js",
+    "src/app.ts"
+  ],
+  "project": [
+    "frontend/src/**/*.{js,ts}",
+    "src/**/*.{js,ts}"
+  ],
+  "ignore": ["src/mcp-servers/**"],
+  "ignoreDependencies": ["highlight.js", "marked", "tailwindcss"],
+  "ignoreExportsUsedInFile": true
+}

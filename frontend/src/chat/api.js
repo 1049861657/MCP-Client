@@ -4,19 +4,25 @@
 
 import { buildChatStreamRequestBody } from './chat-request-body.js';
 import {
-  buildApiMessagesFromHistory,
-  buildToolCallsFromStored,
-  stringifyToolContent,
-} from './message-history-builder.js';
-import { applyFinalUsageToMessage, applyStepUsageToMessage } from './usage-telemetry.js';
+  loadCompactedBaselineFromStorage,
+  persistMessageHistory,
+  saveCompactedBaselineToStorage,
+} from './compact-baseline-storage.js';
+import {
+  authedContextFields,
+  buildApiContextMessages,
+  buildBaseContextMessages,
+  buildOutgoingMessages,
+} from './context-messages.js';
+import { parseSseDataPayload } from './sse-parse.js';
+import { createStreamHandler } from './stream-handler.js';
+import { buildToolCallsFromStored, stringifyToolContent } from './message-history-builder.js';
 
 /**
  * @typedef {object} ChatApiDeps
  * @property {() => object} getApp
  * @property {() => object} getUI
  * @property {import('./turn-collector.js').TurnCollector} TurnCollector
- * @property {typeof buildApiMessagesFromHistory} buildApiMessagesFromHistory
- * @property {import('./storage-contract.js').compactBaselineStorageKey} compactBaselineStorageKey
  */
 
 /**
@@ -24,106 +30,20 @@ import { applyFinalUsageToMessage, applyStepUsageToMessage } from './usage-telem
  * @returns {object}
  */
 export function createChatApi(deps) {
-  const {
-    getApp,
-    getUI,
-    TurnCollector,
-    buildApiMessagesFromHistory: buildApiMessages,
-    compactBaselineStorageKey,
-  } = deps;
+  const { getApp, getUI, TurnCollector } = deps;
 
-  /** @type {import('./turn-collector.js').TurnCollector | null} */
-  let turnCollector = null;
-  /** @type {ReadableStreamDefaultReader<Uint8Array> | null} */
-  let currentReader = null;
-  let userAborted = false;
-  /** @type {string | null} */
-  let requestId = null;
+  /** @type {import('./stream-handler.js').StreamRuntime} */
+  const streamRuntime = {
+    turnCollector: null,
+    currentReader: null,
+    userAborted: false,
+    requestId: null,
+    autoCompactSummaryFromStream: null,
+    toolCallArgumentsMap: new Map(),
+  };
+
   /** @type {object | null} */
   let compactConsumeMarker = null;
-  /** @type {string | null} */
-  let autoCompactSummaryFromStream = null;
-
-  /** @type {Map<string, { arguments: string }>} */
-  const toolCallArgumentsMap = new Map();
-
-  /**
-   * @param {object} app
-   */
-  function persistMessageHistory(app) {
-    // authed：服务端轮末落库（SessionEnd 钩子），同一条消息不再写本地 IDB
-    if (app.sessionStore?.isAuthed?.()) {
-      return;
-    }
-    if (typeof app.saveMessageHistory === 'function') {
-      app.saveMessageHistory();
-      return;
-    }
-    if (app.data && typeof app.data.saveMessageHistory === 'function') {
-      app.data.saveMessageHistory();
-    }
-  }
-
-  function saveCompactedBaselineToStorage(app) {
-    // authed：压缩基线只在服务端（ChatSession.compactBaselineJson），本地不留副本
-    if (app.sessionStore?.isAuthed?.()) {
-      return;
-    }
-    if (!app?.state?.sessionId) {
-      return;
-    }
-    const key = compactBaselineStorageKey(app.state.sessionId);
-    if (app.state.compactedBaseline) {
-      localStorage.setItem(key, JSON.stringify(app.state.compactedBaseline));
-    } else {
-      localStorage.removeItem(key);
-    }
-  }
-
-  function loadCompactedBaselineFromStorage(app) {
-    // authed：基线由服务端组上下文使用，本地态恒为 null（不读 localStorage）
-    if (app.sessionStore?.isAuthed?.()) {
-      app.state.compactedBaseline = null;
-      return;
-    }
-    if (!app?.state?.sessionId) {
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(compactBaselineStorageKey(app.state.sessionId));
-      app.state.compactedBaseline = raw ? JSON.parse(raw) : null;
-    } catch {
-      app.state.compactedBaseline = null;
-    }
-  }
-
-  /**
-   * @param {object} app
-   * @param {string | null} newUserContent
-   * @returns {object[]}
-   */
-  function buildApiContextMessages(app, newUserContent) {
-    let messages = [];
-
-    if (app.state.apiContextOverride?.length) {
-      messages = app.state.apiContextOverride.map((m) => ({ ...m }));
-    } else if (app.state.compactedBaseline) {
-      const { summaryContent, historyStartIndex } = app.state.compactedBaseline;
-      const tail = app.state.messageHistory.slice(historyStartIndex);
-      const tailApi = buildApiMessages(
-        tail,
-        Math.max(tail.length, app.state.messageHistoryCount || tail.length),
-      );
-      messages = [{ role: 'user', content: summaryContent }, ...tailApi];
-    } else if (app.state.enableMessageHistory && app.state.messageHistory.length > 0) {
-      messages = buildApiMessages(app.state.messageHistory, app.state.messageHistoryCount);
-    }
-
-    if (newUserContent) {
-      messages.push({ role: 'user', content: newUserContent });
-    }
-    return messages;
-  }
 
   function beginCompactConsumeTracking(app) {
     const hadOverride = !!app.state.apiContextOverride?.length;
@@ -133,13 +53,13 @@ export function createChatApi(deps) {
       hadOverride,
       summaryContent: typeof overrideContent === 'string' ? overrideContent : null,
     };
-    autoCompactSummaryFromStream = null;
+    streamRuntime.autoCompactSummaryFromStream = null;
   }
 
   function consumeContextCompression(app) {
     const UI = getUI();
     const marker = compactConsumeMarker;
-    const autoSummary = autoCompactSummaryFromStream;
+    const autoSummary = streamRuntime.autoCompactSummaryFromStream;
 
     let summaryContent = null;
     let historyStartIndex = null;
@@ -153,7 +73,7 @@ export function createChatApi(deps) {
     }
 
     compactConsumeMarker = null;
-    autoCompactSummaryFromStream = null;
+    streamRuntime.autoCompactSummaryFromStream = null;
 
     if (!summaryContent || historyStartIndex === null || historyStartIndex < 0) {
       return;
@@ -179,521 +99,38 @@ export function createChatApi(deps) {
   }
 
   function shouldConsumeAfterSuccessfulSend() {
-    if (userAborted) {
+    if (streamRuntime.userAborted) {
       return false;
     }
     if (compactConsumeMarker?.hadOverride && compactConsumeMarker.summaryContent) {
       return true;
     }
-    return !!(autoCompactSummaryFromStream && compactConsumeMarker);
+    return !!(streamRuntime.autoCompactSummaryFromStream && compactConsumeMarker);
   }
 
   function abortCurrentStream() {
     const app = getApp();
-    if (currentReader) {
-      userAborted = true;
-      currentReader.cancel().catch(() => {});
-      currentReader = null;
+    if (streamRuntime.currentReader) {
+      streamRuntime.userAborted = true;
+      streamRuntime.currentReader.cancel().catch(() => {});
+      streamRuntime.currentReader = null;
     }
     app.setStreamingState(false);
     app.elements.sendButton.disabled = false;
   }
 
-  /**
-   * @param {string} raw
-   * @returns {object[] | null}
-   */
-  function parseSseDataPayload(raw) {
-    const trimmed = String(raw).trim();
-    if (!trimmed) {
-      return [];
-    }
-    if (!/\}\s*\{/.test(trimmed)) {
-      try {
-        return [JSON.parse(trimmed)];
-      } catch {
-        return null;
-      }
-    }
-    const parts = trimmed.split(/\}\s*\{/);
-    const out = [];
-    try {
-      out.push(JSON.parse(`${parts[0]}}`));
-      for (let k = 1; k < parts.length - 1; k++) {
-        out.push(JSON.parse(`{${parts[k]}}`));
-      }
-      out.push(JSON.parse(`{${parts[parts.length - 1]}`));
-    } catch {
-      return null;
-    }
-    return out;
-  }
-
-  /**
-   * @param {HTMLElement} messageDiv
-   * @param {number} index
-   * @param {string | undefined} toolCallId
-   * @returns {HTMLElement | null}
-   */
-  function resolveToolCallElement(messageDiv, index, toolCallId) {
-    const elements = messageDiv.querySelectorAll('.tool-call');
-    if (!elements.length) {
-      return null;
-    }
-    if (toolCallId) {
-      const byId = Array.from(elements).find((el) => el.dataset.toolId === toolCallId);
-      if (byId instanceof HTMLElement) {
-        return byId;
-      }
-    }
-    if (index >= 0 && elements[index] instanceof HTMLElement) {
-      return elements[index];
-    }
-    const last = elements[elements.length - 1];
-    return last instanceof HTMLElement ? last : null;
-  }
-
-  /**
-   * @param {object} jsonData
-   * @param {HTMLElement} aiMessageDiv
-   * @param {string} fullText
-   * @returns {string}
-   */
-  function applyStreamDataObject(jsonData, aiMessageDiv, fullText) {
-    const UI = getUI();
-
-    if (jsonData.type === 'max_tool_calls_reached') {
-      const count = Array.isArray(jsonData.partialResults) ? jsonData.partialResults.length : 0;
-      const notice = `\n\n[系统: 已达到最大工具调用轮次 ${jsonData.round}，${count} 个后续工具调用未执行]`;
-      const next = fullText + notice;
-      UI.updateAIMessage(aiMessageDiv, next);
-      return next;
-    }
-
-    if (jsonData.reasoning_content) {
-      console.log('jsonData(思考):', jsonData);
-      UI.updateReasoningContent(aiMessageDiv, jsonData.reasoning_content);
-      turnCollector?.onReasoning(jsonData.reasoning_content);
-    }
-
-    if (jsonData.tool_call) {
-      console.log('jsonData(工具调用):', jsonData);
-      const toolInfo = {
-        name: jsonData.tool_call.name || '未命名工具',
-        id: jsonData.tool_call.id,
-        args: jsonData.tool_call.arguments || {},
-        source: jsonData.tool_call.source,
-      };
-      UI.addToolCall(aiMessageDiv, toolInfo);
-      turnCollector?.onToolCall(toolInfo);
-    }
-
-    if (jsonData.tool_call_update) {
-      console.log('jsonData(工具调用更新):', jsonData);
-      const update = jsonData.tool_call_update;
-      const index = update.index ?? 0;
-      const toolCallId = update.tool_call_id;
-
-      if (update.completeArguments && toolCallId) {
-        try {
-          const parsed = JSON.parse(update.completeArguments);
-          const argsStr = JSON.stringify(parsed, null, 2);
-          console.log('收到完整工具参数:', argsStr);
-          toolCallArgumentsMap.set(toolCallId, { arguments: update.completeArguments });
-          turnCollector?.onToolCallUpdate(toolCallId, update.completeArguments);
-
-          const toolElement = resolveToolCallElement(aiMessageDiv, index, toolCallId);
-          const argsElement = toolElement?.querySelector('.tool-call-args');
-          if (argsElement) {
-            argsElement.dataset.complete = 'true';
-            argsElement.textContent = argsStr;
-          }
-        } catch (error) {
-          console.error('解析完整参数失败:', error);
-        }
-      } else if (update.arguments) {
-        const toolElement = resolveToolCallElement(aiMessageDiv, index, toolCallId);
-        const argsElement = toolElement?.querySelector('.tool-call-args');
-        if (argsElement && argsElement.dataset.complete !== 'true') {
-          let argsStr = '';
-          try {
-            const parsed = JSON.parse(update.arguments);
-            argsStr = JSON.stringify(parsed, null, 2);
-          } catch {
-            argsStr = update.arguments;
-          }
-          argsElement.textContent = argsStr;
-          if (!argsElement.dataset.receivingFragments) {
-            argsElement.dataset.receivingFragments = 'true';
-          }
-        }
-      }
-    }
-
-    if (jsonData.tool_progress) {
-      console.log('jsonData(工具进度):', jsonData);
-      UI.updateToolCallProgress(
-        aiMessageDiv,
-        jsonData.tool_progress.index,
-        jsonData.tool_progress.progress,
-        jsonData.tool_progress.total,
-        jsonData.tool_progress.message,
-        jsonData.tool_progress.elapsed_ms,
-      );
-      turnCollector?.onToolProgress(jsonData.tool_progress);
-    }
-
-    if (jsonData.permission_request) {
-      const pr = jsonData.permission_request;
-      UI.showPermissionPrompt(aiMessageDiv, pr, {
-        onApprove: (alwaysAllow) => {
-          void resolveToolPermission(
-            pr.tool_call_id,
-            'approve',
-            alwaysAllow,
-            pr.codeName,
-            pr.permissionSessionKey,
-          );
-        },
-        onDeny: () => {
-          void resolveToolPermission(
-            pr.tool_call_id,
-            'deny',
-            false,
-            pr.codeName,
-            pr.permissionSessionKey,
-          );
-        },
-      });
-    }
-
-    if (jsonData.tool_call_result) {
-      console.log('jsonData(工具调用结果):', jsonData);
-
-      if (jsonData.tool_call_result.name === 'executeApi') {
-        const entry = toolCallArgumentsMap.get(jsonData.tool_call_result.tool_call_id);
-        if (entry) {
-          const parsedArgs = JSON.parse(entry.arguments);
-          window.parent.postMessage(
-            {
-              type: 'ai_tool_call_result',
-              data: {
-                apiId: parsedArgs.apiId,
-                params: parsedArgs.params,
-                result: jsonData.tool_call_result.result,
-              },
-            },
-            '*',
-          );
-          toolCallArgumentsMap.delete(jsonData.tool_call_result.tool_call_id);
-        }
-      }
-
-      turnCollector?.onToolCallResult(jsonData.tool_call_result);
-
-      UI.updateToolCallResult(
-        aiMessageDiv,
-        jsonData.tool_call_result.name,
-        jsonData.tool_call_result.result,
-        jsonData.tool_call_result.error === true,
-        jsonData.tool_call_result.index,
-        jsonData.tool_call_result.tool_call_id,
-        jsonData.tool_call_result.execution_time,
-        jsonData.tool_call_result.artifact ?? null,
-        jsonData.tool_call_result.unified ?? null,
-      );
-    }
-
-    if (jsonData.step_usage) {
-      applyStepUsageToMessage(aiMessageDiv, jsonData.step_usage);
-    }
-
-    if (jsonData.planning_update) {
-      const planItems = jsonData.planning_update.items ?? [];
-      UI.updatePlanningItems?.(planItems);
-      UI.syncTodoCardPlanningSnapshot?.(aiMessageDiv, planItems);
-      turnCollector?.onPlanningSnapshot?.(planItems);
-    }
-
-    if (jsonData.content) {
-      if (aiMessageDiv.querySelector('.ai-thinking')) {
-        UI.hideThinking(aiMessageDiv);
-      }
-      const newFullText = fullText + jsonData.content;
-      UI.updateMainContent(aiMessageDiv, newFullText);
-      return newFullText;
-    }
-
-    if (jsonData.error) {
-      UI.hideThinking(aiMessageDiv);
-      UI.updateAIMessage(aiMessageDiv, `错误: ${jsonData.error}`);
-      UI.finalizeAIMessage(aiMessageDiv, false);
-    }
-
-    return fullText;
-  }
-
-  /**
-   * @param {string} eventName
-   * @param {string} eventData
-   * @param {HTMLElement} aiMessageDiv
-   * @param {string} fullText
-   * @param {number} startTime
-   * @returns {Promise<string>}
-   */
-  async function handleEventData(eventName, eventData, aiMessageDiv, fullText, startTime) {
-    const UI = getUI();
-    const app = getApp();
-    const timeManager = app.timeManager;
-
-    if (eventName === 'begin') {
-      if (eventData) {
-        try {
-          const beginData = JSON.parse(eventData);
-          if (beginData.requestId) {
-            requestId = beginData.requestId;
-            console.debug('[SSE] requestId:', requestId);
-          }
-        } catch (e) {
-          console.warn('解析 begin 事件失败:', e);
-        }
-      }
-      window.parent.postMessage({ type: 'ai_tool_call_begin', requestId }, '*');
-    } else if (eventName === 'context_compacted') {
-      if (eventData) {
-        try {
-          const compactData = JSON.parse(eventData);
-          if (typeof compactData.summaryContent === 'string' && compactData.summaryContent.length > 0) {
-            autoCompactSummaryFromStream = compactData.summaryContent;
-          }
-        } catch (e) {
-          console.warn('解析 context_compacted 失败:', e);
-        }
-      }
-      UI.addContextNotice();
-      return fullText;
-    } else if (eventName === 'error' && eventData) {
-      try {
-        const errPayload = JSON.parse(eventData);
-        const msg = errPayload.error ?? '未知错误';
-        UI.hideThinking(aiMessageDiv);
-        UI.updateAIMessage(aiMessageDiv, `错误: ${msg}`);
-        UI.finalizeAIMessage(aiMessageDiv, false);
-      } catch (e) {
-        console.warn('解析 error 事件失败:', e);
-      }
-      return fullText;
-    } else if (eventName === 'usage' && eventData) {
-      try {
-        const usageData = JSON.parse(eventData);
-        console.log('Usage数据:', usageData);
-
-        applyFinalUsageToMessage(aiMessageDiv, usageData);
-
-        if (usageData.elapsedTime) {
-          const timeInfo = aiMessageDiv.querySelector('.ai-message-meta.message-time')
-            ?? aiMessageDiv.querySelector('.message-time');
-          if (timeInfo) {
-            timeInfo.textContent = `${timeManager.getFullTimeString()} · ${usageData.elapsedTime}秒`;
-          }
-        }
-
-        return fullText;
-      } catch (e) {
-        console.error('解析usage数据出错:', e, '原始数据:', eventData);
-      }
-    } else if (eventName === 'done') {
-      window.parent.postMessage({ type: 'ai_tool_call_done' }, '*');
-      UI.hideThinking(aiMessageDiv);
-      UI.finalizeAIMessage(aiMessageDiv, false);
-    } else if (eventData) {
-      const payloads = parseSseDataPayload(eventData);
-      if (!payloads) {
-        const looksLikeToolProtocol =
-          /"tool_call"/.test(eventData) && eventData.trim().startsWith('{');
-        if (looksLikeToolProtocol) {
-          console.warn('工具协议 data 行解析失败，已忽略以避免污染正文:', eventData.slice(0, 240));
-          return fullText;
-        }
-        if (aiMessageDiv.querySelector('.ai-thinking')) {
-          UI.hideThinking(aiMessageDiv);
-        }
-        const newFullText = fullText + eventData;
-        UI.updateMainContent(aiMessageDiv, newFullText);
-        return newFullText;
-      }
-      let nextText = fullText;
-      for (let i = 0; i < payloads.length; i++) {
-        nextText = applyStreamDataObject(payloads[i], aiMessageDiv, nextText);
-      }
-      return nextText;
-    }
-
-    return fullText;
-  }
-
-  /**
-   * @param {Response} response
-   * @param {HTMLElement} aiMessageDiv
-   * @param {number} startTime
-   */
-  async function processStreamResponse(response, aiMessageDiv, startTime) {
-    const app = getApp();
-    const UI = getUI();
-    const reader = response.body.getReader();
-    currentReader = reader;
-    const decoder = new TextDecoder('utf-8');
-    let fullText = '';
-    let eventName = '';
-    let eventData = '';
-    let buffer = '';
-    let readError = null;
-
-    const chatMessages = app.elements.chatMessages;
-    if (chatMessages) {
-      chatMessages.querySelector('.quick-message-bubbles')?.remove();
-      chatMessages.querySelector('.appended-quick-bubbles')?.remove();
-    }
-
-    try {
-      while (true) {
-        let done;
-        let value;
-        try {
-          ({ done, value } = await reader.read());
-        } catch (e) {
-          if (!userAborted) {
-            readError = e;
-          }
-          break;
-        }
-
-        if (done) {
-          if (buffer.length > 0) {
-            for (const line of `${buffer}\n`.split('\n')) {
-              if (line.startsWith('event:')) {
-                eventName = line.substring(6).trim();
-              } else if (line.startsWith('data:')) {
-                fullText = await handleEventData(
-                  eventName,
-                  line.substring(5).trim(),
-                  aiMessageDiv,
-                  fullText,
-                  startTime,
-                );
-              } else if (!line.trim()) {
-                eventName = '';
-              }
-            }
-            buffer = '';
-          }
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        if (lines.length > 1) {
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            if (line.startsWith('event:')) {
-              eventName = line.substring(6).trim();
-            } else if (line.startsWith('data:')) {
-              eventData = line.substring(5).trim();
-              fullText = await handleEventData(
-                eventName,
-                eventData,
-                aiMessageDiv,
-                fullText,
-                startTime,
-              );
-            } else if (!line.trim()) {
-              eventName = '';
-              eventData = '';
-            }
-          }
-        }
-      }
-    } finally {
-      if (readError) {
-        console.error('读取流出错:', readError);
-        UI.updateAIMessage(aiMessageDiv, `错误: ${readError.message || '读取响应流失败'}`);
-      }
-      UI.hideThinking(aiMessageDiv);
-      UI.finalizeAIMessage(aiMessageDiv);
-
-      if (userAborted) {
-        const last = app.state.messageHistory[app.state.messageHistory.length - 1];
-        if (last?.role === 'user') {
-          app.state.messageHistory.pop();
-        }
-        compactConsumeMarker = null;
-        autoCompactSummaryFromStream = null;
-      } else if (fullText) {
-        const turnEntries = turnCollector?.toHistoryEntries(fullText) ?? [
-          { role: 'assistant', content: fullText },
-        ];
-        for (const entry of turnEntries) {
-          app.state.messageHistory.push(entry);
-        }
-        if (shouldConsumeAfterSuccessfulSend()) {
-          consumeContextCompression(app);
-        }
-        persistMessageHistory(app);
-      }
-      if (fullText || userAborted) {
-        setTimeout(() => UI.showAppendedQuickMessages(), 300);
-      }
-    }
-  }
-
-  /**
-   * @param {object} app
-   * @param {string} message
-   * @param {object[] | undefined} messages
-   * @returns {Record<string, unknown>}
-   */
-  /**
-   * @param {string} toolCallId
-   * @param {'approve'|'deny'} decision
-   * @param {boolean} alwaysAllowSession
-   * @param {string} codeName
-   */
-  async function resolveToolPermission(
-    toolCallId,
-    decision,
-    alwaysAllowSession,
-    codeName,
-    permissionSessionKey,
-  ) {
-    if (!requestId) {
-      console.warn('[permission] 缺少 requestId，无法确认');
-      return;
-    }
-    if (typeof permissionSessionKey !== 'string' || !permissionSessionKey.length) {
-      console.warn('[permission] 缺少 permissionSessionKey，无法确认');
-      return;
-    }
-    try {
-      const res = await fetch('/api/chat/permission-resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requestId,
-          toolCallId,
-          decision,
-          alwaysAllowSession,
-          sessionKey: permissionSessionKey,
-          codeName,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        console.warn('[permission] resolve 失败', data);
-      }
-    } catch (err) {
-      console.error('[permission] resolve 请求异常', err);
-    }
-  }
+  const { applyStreamDataObject, handleEventData, processStreamResponse } = createStreamHandler({
+    getApp,
+    getUI,
+    runtime: streamRuntime,
+    consumeContextCompression,
+    shouldConsumeAfterSuccessfulSend,
+    persistMessageHistory,
+    onStreamAborted: () => {
+      compactConsumeMarker = null;
+      streamRuntime.autoCompactSummaryFromStream = null;
+    },
+  });
 
   function buildStreamRequestBody(app, message, model, temperature, maxTokens, enableMcpTools, messages) {
     const provider = app.elements.provider.value;
@@ -742,9 +179,9 @@ export function createChatApi(deps) {
       return;
     }
 
-    userAborted = false;
-    requestId = null;
-    turnCollector = new TurnCollector();
+    streamRuntime.userAborted = false;
+    streamRuntime.requestId = null;
+    streamRuntime.turnCollector = new TurnCollector();
 
     const startTime = Date.now();
 
@@ -804,7 +241,7 @@ export function createChatApi(deps) {
       }
     } finally {
       app.setStreamingState(false);
-      currentReader = null;
+      streamRuntime.currentReader = null;
     }
   }
 
@@ -992,7 +429,7 @@ export function createChatApi(deps) {
 
   async function getMCPServers() {
     try {
-      const response = await fetch('/api/mcp/servers?scope=configured');
+      const response = await fetch('/api/mcp/servers?scope=pool-enabled');
 
       if (!response.ok) {
         throw new Error(`HTTP错误: ${response.status} ${response.statusText}`);
@@ -1023,30 +460,6 @@ export function createChatApi(deps) {
       throw new Error(data.error || `HTTP错误: ${response.status}`);
     }
     return data;
-  }
-
-  function buildOutgoingMessages(app, newUserContent) {
-    return buildApiContextMessages(app, newUserContent);
-  }
-
-  /**
-   * authed 模式下 context-preview / compact 的服务端取数字段（sessionId + 裁剪参数）；
-   * guest 返回空对象（服务端据无 user 回退 body messages[]）。
-   * @param {object} app
-   * @returns {Record<string, unknown>}
-   */
-  function authedContextFields(app) {
-    if (!app.sessionStore?.isAuthed?.()) {
-      return {};
-    }
-    return {
-      sessionId: app.state.sessionId,
-      contextOptions: { messageHistoryCount: app.state.messageHistoryCount },
-    };
-  }
-
-  function buildBaseContextMessages(app) {
-    return buildApiContextMessages(app, null);
   }
 
   async function refreshContextPanelPreview(options = {}) {
@@ -1247,7 +660,7 @@ export function createChatApi(deps) {
     app.state._lastContextPreview = null;
     app.state.contextCompactedActive = false;
     compactConsumeMarker = null;
-    autoCompactSummaryFromStream = null;
+    streamRuntime.autoCompactSummaryFromStream = null;
 
     if (clearBaseline) {
       app.state.compactedBaseline = null;
@@ -1288,7 +701,7 @@ export function createChatApi(deps) {
   }
 
   return {
-    toolCallArgumentsMap,
+    toolCallArgumentsMap: streamRuntime.toolCallArgumentsMap,
     saveCompactedBaselineToStorage,
     loadCompactedBaselineFromStorage,
     buildApiContextMessages,

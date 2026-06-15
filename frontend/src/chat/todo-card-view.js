@@ -41,7 +41,7 @@ export function normalizePlanningItems(raw) {
  * @param {TodoItem[]} [items]
  * @returns {{ tone: TodoCardTone, total: number, done: number, segments: TodoItem[] }}
  */
-export function resolveTodoCardMetrics(summary, items = []) {
+function resolveTodoCardMetrics(summary, items = []) {
   const list = normalizePlanningItems(items);
   if (list.length > 0) {
     const done = list.filter((i) => i.status === 'completed').length;
@@ -158,7 +158,7 @@ function segmentsHtml(segments, tone) {
  * @param {TodoItem[]} [items]
  * @returns {string}
  */
-export function buildTodoCardHtml(summary, items = []) {
+function buildTodoCardHtml(summary, items = []) {
   const metrics = resolveTodoCardMetrics(summary, items);
 
   return `
@@ -239,7 +239,7 @@ export function renderTodoCard(cardEl, summary, items = []) {
 /**
  * @param {HTMLElement} cardEl
  */
-export function bindTodoCardInteraction(cardEl) {
+function bindTodoCardInteraction(cardEl) {
   if (cardEl.dataset.todoBound === '1') {
     return;
   }

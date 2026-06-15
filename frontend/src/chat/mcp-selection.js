@@ -1,5 +1,6 @@
 /**
  * Web 聊天 MCP 选择 — `enabledServerIds` 为唯一 SSOT（localStorage）。
+ * 可选列表仅含账号配置中已启用的 MCP（API scope=pool-enabled）。
  * 保存时嗅探，仅持久化「连上且启用工具>0」的 reachableIds。
  */
 

@@ -371,6 +371,7 @@ export class AiController {
   /**
    * 获取 MCP 服务器列表。
    * - 默认 `scope=connected`：Web 聊天可选列表，仅已连接（与服务信息页可用一致）
+   * - `scope=pool-enabled`：Web 聊天 MCP 弹窗，仅账号配置中已启用的 MCP
    * - `scope=configured`：Admin 渠道配置，全部已添加的 MCP（与连接状态解耦）
    */
   static async getMCPServers(req: Request, res: Response): Promise<void> {
@@ -426,8 +427,16 @@ export class AiController {
         return;
       }
 
+      if (scope === 'pool-enabled') {
+        const servers = mcpConfig.servers
+          .filter((server) => server.enabled)
+          .map((server) => toRow(server.serverId, server.name, connectedIds.has(server.serverId)));
+        res.json({ success: true, servers });
+        return;
+      }
+
       if (scope !== 'connected') {
-        res.status(400).json({ error: 'scope 须为 connected 或 configured' });
+        res.status(400).json({ error: 'scope 须为 connected、configured 或 pool-enabled' });
         return;
       }
 
@@ -457,7 +466,11 @@ export class AiController {
       }
       const serverIds = body.serverIds.filter((id): id is string => typeof id === 'string');
       const { configUserId } = await resolvePrincipal(req);
-      const result = await McpConnectionService.probeForSelection(serverIds, configUserId);
+      const poolEnabledIds = await McpConnectionService.filterPoolEnabledServerIds(
+        serverIds,
+        configUserId,
+      );
+      const result = await McpConnectionService.probeForSelection(poolEnabledIds, configUserId);
       res.json({ success: true, ...result });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -544,9 +557,9 @@ export class AiController {
       body.mcpServerIds = [];
       return;
     }
-    const configuredIds = await McpConnectionService.filterConfiguredServerIds(ids, configUserId);
+    const poolEnabledIds = await McpConnectionService.filterPoolEnabledServerIds(ids, configUserId);
     body.mcpServerIds = await McpConnectionService.filterServersWithEnabledTools(
-      configuredIds,
+      poolEnabledIds,
       configUserId,
     );
   }
