@@ -6,7 +6,7 @@ import {
   syncDropdownSelectState,
 } from '../shared/ui/dropdown-select.js';
 import { renderEmptyStateHtml } from '../shared/ui/empty-state.js';
-import { confirmModal } from '../shared/ui/modal.js';
+import { confirmModal } from '../shared/ui/confirm-dialog.js';
 import { showToast } from '../shared/ui/toast.js';
 import {
   cloneProviderForImport,

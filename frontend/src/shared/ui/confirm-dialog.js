@@ -1,4 +1,3 @@
-import { Modal } from 'flowbite';
 import { escapeHtml } from '../escape-html.js';
 
 /**
@@ -37,7 +36,6 @@ export function confirmModal(options) {
 
     const shell = document.createElement('div');
     shell.id = modalId;
-    shell.tabIndex = -1;
     shell.setAttribute('aria-hidden', 'true');
     shell.className =
       'fb-confirm-shell fixed top-0 right-0 left-0 z-[120] hidden h-[calc(100%-1rem)] max-h-full w-full overflow-x-hidden overflow-y-auto p-4 md:inset-0';
@@ -58,28 +56,48 @@ export function confirmModal(options) {
 
     document.body.appendChild(shell);
 
-    const modal = new Modal(shell, {
-      placement: 'center',
-      backdrop: 'dynamic',
-      backdropClasses: 'fixed inset-0 z-[119] bg-slate-900/42 backdrop-blur-[3px]',
-      closable: showCancel,
-      onHide: () => {
-        settle(false);
-        modal.destroyAndRemoveInstance();
-        shell.remove();
-      },
-    });
+    /** @type {HTMLElement | null} */
+    let backdrop = null;
 
-    shell.querySelector('[data-role="confirm"]')?.addEventListener('click', () => {
-      settle(true);
-      modal.hide();
-    });
-    shell.querySelector('[data-role="cancel"]')?.addEventListener('click', () => {
-      settle(false);
-      modal.hide();
-    });
+    /** @type {((event: KeyboardEvent) => void) | null} */
+    let onKeydown = null;
 
-    modal.show();
+    const hide = () => {
+      shell.classList.add('hidden');
+      shell.setAttribute('aria-hidden', 'true');
+      backdrop?.remove();
+      backdrop = null;
+      if (onKeydown) {
+        document.removeEventListener('keydown', onKeydown);
+        onKeydown = null;
+      }
+      shell.remove();
+    };
+
+    /** @param {boolean} value */
+    const settleAndHide = (value) => {
+      settle(value);
+      hide();
+    };
+
+    shell.querySelector('[data-role="confirm"]')?.addEventListener('click', () => settleAndHide(true));
+    shell.querySelector('[data-role="cancel"]')?.addEventListener('click', () => settleAndHide(false));
+
+    shell.classList.remove('hidden');
+    shell.setAttribute('aria-hidden', 'false');
+    backdrop = document.createElement('div');
+    backdrop.className = 'fixed inset-0 z-[119] bg-slate-900/42 backdrop-blur-[3px]';
+    document.body.insertBefore(backdrop, shell);
+    if (showCancel) {
+      backdrop.addEventListener('click', () => settleAndHide(false));
+      onKeydown = (event) => {
+        if (event.key === 'Escape') {
+          settleAndHide(false);
+        }
+      };
+      document.addEventListener('keydown', onKeydown);
+    }
+
     (showCancel ? shell.querySelector('[data-role="cancel"]') : shell.querySelector('[data-role="confirm"]'))?.focus();
   });
 }

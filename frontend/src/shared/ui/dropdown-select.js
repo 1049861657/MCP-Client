@@ -1,17 +1,19 @@
-import { Dropdown } from 'flowbite';
 import { escapeHtml } from '../escape-html.js';
 
 const CHECK_ICON =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.485 3.515a1 1 0 0 1 0 1.414l-7.07 7.071-3.536-3.536a1 1 0 1 1 1.414-1.415l2.122 2.122 6.364-6.364a1 1 0 0 1 1.414 0z"/></svg>';
 
-/** @type {WeakMap<HTMLElement, Dropdown>} */
+/**
+ * @typedef {{ close: () => void; destroy: () => void }} DropdownInstance
+ */
+
+/** @type {WeakMap<HTMLElement, DropdownInstance>} */
 const dropdownInstances = new WeakMap();
 
 /**
  * @typedef {object} DropdownSelectOption
  * @property {string} value
  * @property {string} label
- * @property {string} [iconHtml]
  * @property {boolean} [disabled]
  */
 
@@ -25,14 +27,7 @@ const dropdownInstances = new WeakMap();
  * @typedef {object} DropdownSelectConfig
  * @property {string} [placeholder]
  * @property {'standard' | 'icon' | 'group'} [variant]
- * @property {DropdownSelectOption[]} [options]
- * @property {DropdownSelectGroup[]} [groups]
- * @property {string} [value]
- * @property {boolean} [disabled]
  * @property {string} [className]
- * @property {string} [id]
- * @property {string} [name]
- * @property {Record<string, string>} [dataset]
  */
 
 /**
@@ -41,7 +36,7 @@ const dropdownInstances = new WeakMap();
 function destroyDropdownInstance(root) {
   const instance = dropdownInstances.get(root);
   if (instance) {
-    instance.destroyAndRemoveInstance();
+    instance.destroy();
     dropdownInstances.delete(root);
   }
 }
@@ -201,11 +196,63 @@ function syncDropdownLabel(root) {
 }
 
 /**
+ * @param {HTMLElement} menu
+ * @returns {HTMLButtonElement[]}
+ */
+function enabledMenuOptions(menu) {
+  /** @type {HTMLButtonElement[]} */
+  const options = [];
+  for (const node of menu.querySelectorAll('.fb-select__option:not(.is-disabled)')) {
+    if (node instanceof HTMLButtonElement) {
+      options.push(node);
+    }
+  }
+  return options;
+}
+
+/**
+ * @param {HTMLElement} menu
+ * @param {number} index
+ */
+function focusMenuOptionAt(menu, index) {
+  const options = enabledMenuOptions(menu);
+  for (const option of options) {
+    option.classList.remove('is-focused');
+  }
+  const target = options[index];
+  if (target) {
+    target.classList.add('is-focused');
+    target.scrollIntoView({ block: 'nearest' });
+    target.focus();
+  }
+}
+
+/**
  * @param {HTMLElement} root
  * @param {boolean} open
  */
 function setDropdownOpen(root, open) {
   root.classList.toggle('is-open', open);
+  const menu = root.querySelector('.fb-select__menu');
+  const trigger = root.querySelector('.fb-select__trigger');
+  if (menu instanceof HTMLElement) {
+    menu.classList.toggle('hidden', !open);
+  }
+  if (trigger instanceof HTMLButtonElement) {
+    trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+}
+
+/**
+ * @param {HTMLButtonElement} trigger
+ * @param {HTMLElement} menu
+ */
+function positionDropdownMenu(trigger, menu) {
+  const rect = trigger.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.top = `${rect.bottom + 6}px`;
+  menu.style.left = `${rect.left}px`;
+  menu.style.minWidth = `${rect.width}px`;
 }
 
 /**
@@ -223,9 +270,7 @@ function selectDropdownValue(root, value) {
   syncDropdownLabel(root);
   rebuildDropdownMenu(root);
 
-  const instance = dropdownInstances.get(root);
-  instance?.hide();
-  setDropdownOpen(root, false);
+  dropdownInstances.get(root)?.close();
 
   if (prev !== value) {
     nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -243,21 +288,102 @@ function bindDropdownInstance(root) {
 
   destroyDropdownInstance(root);
 
-  const dropdown = new Dropdown(
-    menu,
-    trigger,
-    {
-      placement: 'bottom-start',
-      offsetDistance: 6,
-      strategy: 'fixed',
-      onShow: () => setDropdownOpen(root, true),
-      onHide: () => setDropdownOpen(root, false),
-    },
-    { id: root.dataset.fbSelectId, override: true }
-  );
+  /** @type {number} */
+  let focusedIndex = -1;
 
-  dropdown.init();
-  dropdownInstances.set(root, dropdown);
+  const close = () => {
+    if (!root.classList.contains('is-open')) return;
+    setDropdownOpen(root, false);
+    focusedIndex = -1;
+    for (const option of enabledMenuOptions(menu)) {
+      option.classList.remove('is-focused');
+    }
+  };
+
+  const open = () => {
+    if (nativeSelect instanceof HTMLSelectElement && nativeSelect.disabled) return;
+    positionDropdownMenu(trigger, menu);
+    setDropdownOpen(root, true);
+    focusedIndex = -1;
+  };
+
+  const toggle = () => {
+    if (root.classList.contains('is-open')) {
+      close();
+      return;
+    }
+    open();
+  };
+
+  const onTriggerClick = (event) => {
+    event.stopPropagation();
+    toggle();
+  };
+
+  const onDocumentClick = (event) => {
+    if (event.target instanceof Node && root.contains(event.target)) return;
+    close();
+  };
+
+  const onDocumentKeydown = (event) => {
+    if (!root.classList.contains('is-open')) return;
+
+    const options = enabledMenuOptions(menu);
+    if (options.length === 0) return;
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      close();
+      trigger.focus();
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusedIndex = Math.min(focusedIndex + 1, options.length - 1);
+      focusMenuOptionAt(menu, focusedIndex);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusedIndex = focusedIndex <= 0 ? 0 : focusedIndex - 1;
+      focusMenuOptionAt(menu, focusedIndex);
+      return;
+    }
+
+    if (event.key === 'Enter' && focusedIndex >= 0) {
+      event.preventDefault();
+      const value = options[focusedIndex]?.dataset.value;
+      if (value !== undefined) {
+        selectDropdownValue(root, value);
+      }
+    }
+  };
+
+  const onReposition = () => {
+    if (root.classList.contains('is-open')) {
+      positionDropdownMenu(trigger, menu);
+    }
+  };
+
+  trigger.addEventListener('click', onTriggerClick);
+  document.addEventListener('click', onDocumentClick);
+  document.addEventListener('keydown', onDocumentKeydown);
+  window.addEventListener('resize', onReposition);
+  window.addEventListener('scroll', onReposition, true);
+
+  dropdownInstances.set(root, {
+    close,
+    destroy: () => {
+      close();
+      trigger.removeEventListener('click', onTriggerClick);
+      document.removeEventListener('click', onDocumentClick);
+      document.removeEventListener('keydown', onDocumentKeydown);
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    },
+  });
 
   if (nativeSelect instanceof HTMLSelectElement && nativeSelect.disabled) {
     trigger.disabled = true;
@@ -287,12 +413,10 @@ export function mountDropdownSelect(nativeSelect, config = {}) {
     'standard';
 
   const wrap = document.createElement('div');
-  // 钩子类（channel-cfg-* 等）只留在原生 select 上，避免 querySelector 命中包装 div
   wrap.className = ['fb-select', config.className].filter(Boolean).join(' ');
   wrap.dataset.fbSelect = '1';
   wrap.dataset.placeholder = placeholder;
   wrap.dataset.variant = variant;
-  wrap.dataset.fbSelectId = `fb-select-${Math.random().toString(36).slice(2, 9)}`;
 
   const parent = nativeSelect.parentElement;
   const selectWrap = parent?.classList.contains('select-wrap') ? parent : null;

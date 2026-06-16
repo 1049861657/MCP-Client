@@ -2,7 +2,7 @@ import {
   mountDropdownSelect,
   refreshDropdownSelect,
 } from '../../shared/ui/dropdown-select.js';
-import { confirmModal } from '../../shared/ui/modal.js';
+import { confirmModal } from '../../shared/ui/confirm-dialog.js';
 import { CHAT_QUICK_MESSAGES_KEY } from '../storage-contract.js';
 import { bindChatModalClose, closeChatModal, openChatModal } from './modal-host.js';
 

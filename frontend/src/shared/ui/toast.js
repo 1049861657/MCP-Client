@@ -1,5 +1,3 @@
-import { Dismiss } from 'flowbite';
-
 const DEFAULT_DURATION_MS = 3200;
 
 const CHECK_ICON =
@@ -58,7 +56,6 @@ export function showToast(message, variant = 'info', durationMs = DEFAULT_DURATI
   closeBtn.type = 'button';
   closeBtn.className = 'fb-toast__close';
   closeBtn.setAttribute('aria-label', '关闭');
-  closeBtn.setAttribute('data-dismiss-target', `#${toastId}`);
   closeBtn.innerHTML = CLOSE_ICON;
 
   if (variant === 'success') {
@@ -72,11 +69,13 @@ export function showToast(message, variant = 'info', durationMs = DEFAULT_DURATI
 
   root.appendChild(toast);
 
-  const dismiss = new Dismiss(toast, closeBtn);
-  dismiss.init();
+  let dismissTimer = 0;
 
   const removeToast = () => {
-    dismiss.destroyAndRemoveInstance();
+    if (dismissTimer) {
+      window.clearTimeout(dismissTimer);
+      dismissTimer = 0;
+    }
     toast.remove();
     if (root.childElementCount === 0) {
       root.remove();
@@ -85,5 +84,5 @@ export function showToast(message, variant = 'info', durationMs = DEFAULT_DURATI
   };
 
   closeBtn.addEventListener('click', removeToast);
-  window.setTimeout(removeToast, durationMs);
+  dismissTimer = window.setTimeout(removeToast, durationMs);
 }

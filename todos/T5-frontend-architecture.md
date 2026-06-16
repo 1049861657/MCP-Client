@@ -24,7 +24,6 @@ frontend/
 
 构建：pnpm run build:frontend
 分析：pnpm run analyze:frontend  →  docs/stats.html
-开发：pnpm run dev:frontend      （T5-02-01 新增）
 ```
 
 根目录 `*.html` = 入口；`src/{page}/` = 实现。命名路线图见 §设计定稿。
@@ -82,7 +81,7 @@ frontend/
 
 ## 开发顺序
 
-`T5-01`（部分 ✓）→ `T5-02` → `T5-03`（**G6**，03-01→03-06 顺序不可乱）→ `T5-04`（**G7**）→ `T5-05`（**G8**，05-05 chat 最后）→ `T5-06` → `T5-07`
+`T5-01`（部分 ✓）→ ~~`T5-02`（跳过）~~ → `T5-03`（**G6**，03-01→03-06 顺序不可乱）→ `T5-04`（**G7**）→ `T5-05`（**G8**，05-05 chat 最后）→ `T5-06` → `T5-07`
 
 | 门禁 | 关闭条件 | 阻塞 |
 |------|----------|------|
@@ -110,11 +109,12 @@ frontend/
 
 ---
 
-## T5-02 本地开发
+## T5-02 本地开发 — **已关闭**
 
-- [ ] **T5-02-01** `package.json` 增加 `"dev:frontend": "vite --config frontend/vite.config.ts"`  
-  - **禁止**：改 `vite.config.ts` 的 `outDir` / `input`  
-  - **验收**：`pnpm run dev:frontend`；五页 HTML 均可 HMR
+> **跳过**（2026-06-16）：习惯 `pnpm run build:frontend` 全量构建验证，不引入 `dev:frontend` HMR 流程。
+
+- [x] **T5-02-01** ~~`package.json` 增加 `"dev:frontend"`~~ — **关闭**，不实施（2026-06-16）  
+  - **验收**：`pnpm run build:frontend` + 浏览器手工（同 T5 总体验证）
 
 ---
 
@@ -127,30 +127,30 @@ frontend/
 03-01 toast → 03-02 confirm → 03-03 dropdown → 03-04 JS 审计 → 03-05 CSS+依赖 → 03-06 G6 终验
 ```
 
-- [ ] **T5-03-01** Toast 去 Flowbite  
+- [x] **T5-03-01** Toast 去 Flowbite（2026-06-16）  
   - **改动**：`shared/ui/toast.js` 删 `import { Dismiss } from 'flowbite'`；关闭用 `remove()` + 现有 `setTimeout`  
   - **不动**：`showToast(message, variant, durationMs)`；`fb-toast-*` class  
   - **禁止**：本 PR 动 `post-tailwind.css` / `flowbite.css`  
   - **验收**：`pnpm run build:frontend`；五页各触发 toast 一次
 
-- [ ] **T5-03-02** 确认框 → `confirm-dialog.js`  
+- [x] **T5-03-02** 确认框 → `confirm-dialog.js`（2026-06-16）  
   - **改动**：新建 `confirm-dialog.js`（DOM + `fb-confirm-*`，无 Flowbite `Modal`）；`modal.js` 暂 shim re-export  
   - **消费方**：`info/app.js`、`settings/app.js`、`chat/ui/history-modal.js`、`chat/ui/quickmessage.js`  
   - **下一 PR 或同 PR（diff<150 行）**：改 import 路径；删 `modal.js`  
   - **禁止**：改 `confirmModal` 返回 `Promise<boolean>` 语义  
   - **验收**：删提供商 / 删服务器 / 删会话 / 删快捷消息 — 确认与取消正常
 
-- [ ] **T5-03-03** 下拉自研  
+- [x] **T5-03-03** 下拉自研（2026-06-16）  
   - **改动**：`dropdown-select.js` 自研开闭与键盘（可参考 `tooltip.js`；禁 Popper 新依赖）  
   - **不动**：`mountDropdownSelect` / `mountDropdownSelectsIn` / `refreshDropdownSelect` 签名  
   - **禁止**：本 PR 删 `flowbite.css`  
   - **验收**：admin / settings / chat 设置与快捷消息下拉；`config-fetch` refresh 正常
 
-- [ ] **T5-03-04** JS 零 Flowbite 引用  
+- [x] **T5-03-04** JS 零 Flowbite 引用（2026-06-16）  
   - **改动**：`grep -r "from 'flowbite'" frontend/src` 为零；`modal.js` shim 已删  
   - **验收**：`pnpm run build:frontend`；`navbar-*.js` gzip 较基线下降
 
-- [ ] **T5-03-05** 删 Flowbite CSS 与 npm 依赖 — **仅本 PR 动 CSS 聚合**  
+- [x] **T5-03-05** 删 Flowbite CSS 与 npm 依赖 — **仅本 PR 动 CSS 聚合**（2026-06-16）  
   - **改动**：  
     1. `post-tailwind.css` 去掉 `@import './flowbite.css'`  
     2. 删 `shared/flowbite.css`  
@@ -159,7 +159,7 @@ frontend/
   - **禁止**：顺手做 T5-05 `@source`  
   - **验收**：五页目视无裸 HTML；ai CSS gzip 较基线 36.6 KB 下降
 
-- [ ] **T5-03-06** **G6 关闭** — Flowbite 终验  
+- [x] **T5-03-06** **G6 关闭** — Flowbite 终验（2026-06-16）  
   - **验收**：`grep -ri flowbite frontend/` 为零；`pnpm dlx knip --reporter compact` 无 flowbite；§功能契约五页抽查
 
 ---
@@ -259,26 +259,26 @@ frontend/
 
 | PR | 内容 |
 |----|------|
-| PR-1 | T5-02-01 |
-| PR-2 | T5-03-01 |
-| PR-3 | T5-03-02 |
-| PR-4 | T5-03-03 |
-| PR-5 | T5-03-04 |
-| PR-6 | T5-03-05 + T5-03-06（**高**，CSS） |
-| PR-7 | T5-04-01 |
-| PR-8 | T5-04-02 |
-| PR-9 | T5-04-03 |
-| PR-10 | T5-04-04 |
-| PR-11 | T5-04-05 |
-| PR-12 | T5-04-06 |
-| PR-13 | T5-04-07 |
-| PR-14 | T5-04-08 + T5-04-09 |
-| PR-15 | T5-05-01 |
-| PR-16 | T5-05-02 |
-| PR-17 | T5-05-03 |
-| PR-18 | T5-05-04 |
-| PR-19 | T5-05-05（**高**） |
-| PR-20+ | T5-06-xx |
+| ~~PR-1~~ | ~~T5-02-01~~（跳过） |
+| PR-1 | T5-03-01 |
+| PR-2 | T5-03-02 |
+| PR-3 | T5-03-03 |
+| PR-4 | T5-03-04 |
+| PR-5 | T5-03-05 + T5-03-06（**高**，CSS） |
+| PR-6 | T5-04-01 |
+| PR-7 | T5-04-02 |
+| PR-8 | T5-04-03 |
+| PR-9 | T5-04-04 |
+| PR-10 | T5-04-05 |
+| PR-11 | T5-04-06 |
+| PR-12 | T5-04-07 |
+| PR-13 | T5-04-08 + T5-04-09 |
+| PR-14 | T5-05-01 |
+| PR-15 | T5-05-02 |
+| PR-16 | T5-05-03 |
+| PR-17 | T5-05-04 |
+| PR-18 | T5-05-05（**高**） |
+| PR-19+ | T5-06-xx |
 | PR-final | T5-07 |
 
 **禁止 PR 组合**：T5-03-05 + T5-05-xx；T5-04-02～08 合并；T5-06 + T5-04。

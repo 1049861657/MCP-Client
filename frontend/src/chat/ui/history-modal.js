@@ -1,6 +1,6 @@
 import { escapeHtml } from '../../shared/escape-html.js';
 import { renderEmptyStateHtml } from '../../shared/ui/empty-state.js';
-import { confirmModal } from '../../shared/ui/modal.js';
+import { confirmModal } from '../../shared/ui/confirm-dialog.js';
 import { enhanceCodeBlocks } from '../code-blocks.js';
 import { marked } from '../renderers.js';
 import { bindChatModalClose, closeChatModal, openChatModal } from './modal-host.js';

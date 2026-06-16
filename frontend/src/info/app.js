@@ -1,5 +1,5 @@
 import { isUnauthorizedError } from '../auth/auth-shell.js';
-import { confirmModal } from '../shared/ui/modal.js';
+import { confirmModal } from '../shared/ui/confirm-dialog.js';
 import { renderStatusDotHtml } from '../shared/ui/status-dot.js';
 import { setStatusChipElement } from '../shared/ui/status-chip.js';
 import { showToast } from '../shared/ui/toast.js';
