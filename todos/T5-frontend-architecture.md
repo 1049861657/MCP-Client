@@ -87,14 +87,14 @@ frontend/
 |------|----------|------|
 | **G5** | T5-01 完成 | T5-03～07 |
 | **G6** | T5-03-06 | T5-05、T5-07 终验 |
-| **G7** | T5-04-09 | T5-06-02（chat UI rename） |
+| **G7** | T5-04-02 | T5-06-02（chat UI rename） |
 | **G8** | T5-05-05 | T5-07 体积终验 |
 
 **禁止顺序**
 
 - T5-03-05 早于 T5-03-01～04（会先删 CSS 再断 JS → 全站样式/交互崩）
 - T5-05 早于 T5-03（Flowbite plugin 与 @source 交织，难归因）
-- T5-06 rename 与 T5-04-02～08 同 PR
+- T5-06 rename 与 T5-04-02 同 PR
 
 ---
 
@@ -166,25 +166,32 @@ frontend/
 
 ## T5-04 JS 延迟加载 — **G7**
 
-> **方针**：先 markdown 栈，再 chat 模态（**一子项一 PR**）。  
-> **模式**：`minimal-ui.js` 的 `showXxx` → `await import('./xxx-modal.js')`；须保证 `modal-host` DOM 已注入。
+> **方针**：markdown 栈与 chat 模态拆独立 chunk；**async 边界**集中在生命周期预热与用户打开模态。  
+> **架构（定稿）**：`markdown-stack.js` 门面 + `markdown-stack.bundle.js` chunk；`app.init` 预热；模态 `createLazyModalLoader`。
 
-- [ ] **T5-04-01** Markdown 栈 lazy  
-  - **改动**：`renderers.js` 中 `marked` + `highlight.js` → dynamic import；新建 `chat/markdown-stack.js`  
+### 三层模型
+
+| 层 | 职责 | async |
+|----|------|-------|
+| **markdown 门面** | `warmMarkdownStack` / `parseMarkdown` / `enhanceCodeBlocks` | 仅 warm |
+| **生命周期** | `core.init` → `await warmMarkdownStack()` | init 一处 |
+| **模态** | `showXxx` → `import('./xxx-modal.js')` | show 边界 |
+
+**禁止**：UI 热路径（SSE、`renderConversation`）直接 `import('markdown-stack.bundle')`；`renderers.js` 承载 markdown 加载；未 warm 时静默纯文本兜底。
+
+- [x] **T5-04-01** JS lazy — markdown 栈 + 7 模态（2026-06-16）  
+  - **改动**：`markdown-stack.bundle.js`（marked + hljs）；`renderers` 曾用 dynamic import；`minimal-ui` `createLazyModalLoader` 懒加载 memory-debug / system-tools / compact / mcp / quickmessage / history / settings  
   - **禁止**：改渲染 HTML 结构  
-  - **验收**：独立 `markdown-*.js` chunk；首屏 JS gzip 降；首条 AI 消息后 Markdown/高亮正常
+  - **验收**：独立 `markdown-stack-*.js` + 各 modal chunk；ai 入口 JS gzip 较 T5-03 再降；首条 AI 消息 Markdown/高亮正常；全模态开/关/保存
 
-- [ ] **T5-04-02** lazy `memory-debug-modal`  
-- [ ] **T5-04-03** lazy `system-tools-modal`  
-- [ ] **T5-04-04** lazy `compact-modal`  
-- [ ] **T5-04-05** lazy `mcp-modal`  
-- [ ] **T5-04-06** lazy `quickmessage`  
-- [ ] **T5-04-07** lazy `history-modal`  
-- [ ] **T5-04-08** lazy `settings-modal`（**最后**，最常用）  
-  - **04-02～08 每 PR 验收**：对应模态开/关/保存；其他模态与 SSE 不受影响
-
-- [ ] **T5-04-09** **G7 关闭** — chat 全链路  
-  - **验收**：`/ai.html` 全模态可用；ai 入口 JS gzip 较 T5-03 再降；§功能契约 chat 项全过
+- [x] **T5-04-02** Markdown 门面 + init 预热（**G7 关闭**，2026-06-16）  
+  - **改动**：  
+    1. `markdown-stack.js` — `warmMarkdownStack()` + 同步 `parseMarkdown` / `enhanceCodeBlocks`（未 warm → throw）  
+    2. `core.init` — `await warmMarkdownStack()`（在 `isConfigLoaded` 之前）  
+    3. 收回热路径 async：`minimal-ui`、`stream-handler`、`api`、`data`、`renderers`；compact/history 改调门面  
+    4. 删 `renderers.ensureMarkdownStack`；删 `code-blocks.js`（逻辑并入 `markdown-stack.js`）  
+  - **不动**：modal lazy 与 `createChatApp` 对外行为  
+  - **验收**：`pnpm run build:frontend`；`pnpm exec tsc --noEmit`；§功能契约 chat P0 自测（流式/非流式、历史模态、compact 预览、init 后立即发消息）
 
 ---
 
@@ -265,23 +272,17 @@ frontend/
 | PR-3 | T5-03-03 |
 | PR-4 | T5-03-04 |
 | PR-5 | T5-03-05 + T5-03-06（**高**，CSS） |
-| PR-6 | T5-04-01 |
-| PR-7 | T5-04-02 |
-| PR-8 | T5-04-03 |
-| PR-9 | T5-04-04 |
-| PR-10 | T5-04-05 |
-| PR-11 | T5-04-06 |
-| PR-12 | T5-04-07 |
-| PR-13 | T5-04-08 + T5-04-09 |
-| PR-14 | T5-05-01 |
-| PR-15 | T5-05-02 |
-| PR-16 | T5-05-03 |
-| PR-17 | T5-05-04 |
-| PR-18 | T5-05-05（**高**） |
-| PR-19+ | T5-06-xx |
+| PR-6 | T5-04-01（markdown + 7 modal lazy） |
+| PR-7 | T5-04-02（**G7 关闭**） |
+| PR-8 | T5-05-01 |
+| PR-9 | T5-05-02 |
+| PR-10 | T5-05-03 |
+| PR-11 | T5-05-04 |
+| PR-12 | T5-05-05（**高**） |
+| PR-13+ | T5-06-xx |
 | PR-final | T5-07 |
 
-**禁止 PR 组合**：T5-03-05 + T5-05-xx；T5-04-02～08 合并；T5-06 + T5-04。
+**禁止 PR 组合**：T5-03-05 + T5-05-xx；T5-06 + T5-04-02。
 
 ---
 
@@ -293,7 +294,8 @@ frontend/
 | 单页布局塌 | 该页 `@source` 过窄 | revert 对应 T5-05-xx |
 | 下拉/确认/toast 失效 | T5-03-05 早于 03-01～04 | 检查 03 顺序 |
 | chat 白屏 | rename 断 import / lazy 未 mount | console；恢复 shim |
-| Markdown 纯文本 | T5-04-01 未 await | 修 markdown-stack 加载 |
+| Markdown 纯文本 / throw | T5-04-02 warm 未完成或漏调 | 查 `core.init` 与 `warmMarkdownStack` |
+| `querySelector is not a function` | 把 Promise 当 DOM | 热路径勿 await 已同步的 UI 方法 |
 
 ---
 

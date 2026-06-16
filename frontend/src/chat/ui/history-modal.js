@@ -1,8 +1,7 @@
 import { escapeHtml } from '../../shared/escape-html.js';
 import { renderEmptyStateHtml } from '../../shared/ui/empty-state.js';
 import { confirmModal } from '../../shared/ui/confirm-dialog.js';
-import { enhanceCodeBlocks } from '../code-blocks.js';
-import { marked } from '../renderers.js';
+import { enhanceCodeBlocks, parseMarkdown } from '../markdown-stack.js';
 import { bindChatModalClose, closeChatModal, openChatModal } from './modal-host.js';
 
 const SESSION_BUBBLE_SVG =
@@ -387,7 +386,7 @@ export function createHistoryModalApi(getApp, ui) {
       const timeHtml = formatMessageTime(message.timestamp);
       const contentHtml = isUser
         ? `<div class="history-msg-plain">${escapeHtml(message.content ?? '')}</div>`
-        : `<div class="markdown-content history-msg-markdown">${renderHistoryMarkdown(message.content ?? '')}</div>`;
+        : `<div class="markdown-content history-msg-markdown">${parseMarkdown(message.content ?? '')}</div>`;
 
       row.innerHTML = isUser
         ? `
@@ -410,7 +409,7 @@ export function createHistoryModalApi(getApp, ui) {
 
       const markdownEl = row.querySelector('.history-msg-markdown');
       if (markdownEl instanceof HTMLElement) {
-        processHistoryCodeBlocks(markdownEl);
+        enhanceCodeBlocks(markdownEl);
       }
       messagesEl.appendChild(row);
     }
@@ -508,18 +507,4 @@ function formatMessageTime(value) {
     second: '2-digit',
     hour12: false,
   });
-}
-
-/**
- * @param {string} text
- */
-function renderHistoryMarkdown(text) {
-  return marked.parse(text);
-}
-
-/**
- * @param {HTMLElement} container
- */
-function processHistoryCodeBlocks(container) {
-  enhanceCodeBlocks(container);
 }

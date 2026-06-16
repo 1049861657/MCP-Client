@@ -1,15 +1,8 @@
 import { escapeHtml } from '../../shared/escape-html.js';
 import { showFloatingTooltip } from '../../shared/ui/tooltip.js';
 import { CHAT_TOOLBAR_ICONS } from '../icons.js';
-import { enhanceCodeBlocks } from '../code-blocks.js';
-import { createRenderers, marked } from '../renderers.js';
-import { createCompactModalApi } from './compact-modal.js';
-import { createHistoryModalApi } from './history-modal.js';
-import { createMcpModalApi } from './mcp-modal.js';
-import { createSystemToolsModalApi } from './system-tools-modal.js';
-import { createQuickMessageUi } from './quickmessage.js';
-import { createMemoryDebugModalApi } from './memory-debug-modal.js';
-import { createSettingsModalApi } from './settings-modal.js';
+import { enhanceCodeBlocks, parseMarkdown as parseMarkdownHtml } from '../markdown-stack.js';
+import { createRenderers } from '../renderers.js';
 import { createToolCardsUi } from './tool-cards.js';
 
 /**
@@ -18,7 +11,7 @@ import { createToolCardsUi } from './tool-cards.js';
 function createMinimalChatUi(getApp) {
   const ui = {
     parseMarkdown(text) {
-      return marked.parse(text ?? '');
+      return parseMarkdownHtml(text);
     },
 
     processCodeBlocks(container) {
@@ -152,7 +145,7 @@ function createMinimalChatUi(getApp) {
       const initialContent =
         text === ''
           ? '<div class="ai-thinking"><div class="thinking-spinner"></div>AI正在思考中...</div>'
-          : `<div class="markdown-content">${ui.parseMarkdown(text)}</div><span class="cursor"></span>`;
+          : '<div class="markdown-content"></div><span class="cursor"></span>';
 
       messageDiv.innerHTML = `
         <div class="avatar" aria-hidden="true">AI</div>
@@ -171,6 +164,7 @@ function createMinimalChatUi(getApp) {
 
       const md = messageDiv.querySelector('.markdown-content');
       if (md && text) {
+        md.innerHTML = ui.parseMarkdown(text);
         ui.processCodeBlocks(md);
       }
 
@@ -343,6 +337,52 @@ function createMinimalChatUi(getApp) {
 }
 
 /**
+ * @param {() => Promise<object>} loadApi
+ */
+function createLazyModalLoader(loadApi) {
+  /** @type {object | null} */
+  let api = null;
+  /** @type {Promise<object> | null} */
+  let promise = null;
+
+  function ensure() {
+    if (api) {
+      return Promise.resolve(api);
+    }
+    if (!promise) {
+      promise = loadApi().then((loaded) => {
+        api = loaded;
+        return loaded;
+      });
+    }
+    return promise;
+  }
+
+  return { ensure };
+}
+
+/**
+ * @param {{ ensure: () => Promise<object> }} loader
+ * @param {string[]} methodNames
+ */
+function bindLazyModalMethods(loader, methodNames) {
+  /** @type {Record<string, (...args: unknown[]) => void>} */
+  const bound = {};
+  for (const name of methodNames) {
+    bound[name] = (...args) => {
+      void loader.ensure().then((api) => {
+        const fn = api[name];
+        if (typeof fn !== 'function') {
+          throw new Error(`[chat-ui] lazy modal 缺少方法: ${name}`);
+        }
+        fn(...args);
+      });
+    };
+  }
+  return bound;
+}
+
+/**
  * @param {() => object} getApp
  */
 export function createChatUi(getApp) {
@@ -351,28 +391,103 @@ export function createChatUi(getApp) {
   const toolCards = createToolCardsUi(getApp, ui);
   Object.assign(ui, toolCards);
 
-  const settings = createSettingsModalApi(getApp, ui);
-  const history = createHistoryModalApi(getApp, ui);
-  const mcp = createMcpModalApi(getApp, ui);
-  const systemTools = createSystemToolsModalApi(getApp);
-  const memoryDebug = createMemoryDebugModalApi(getApp);
-  const compact = createCompactModalApi(getApp, ui);
-  const quickMessage = createQuickMessageUi(getApp, () => ui);
+  const memoryDebugLoader = createLazyModalLoader(async () => {
+    const { createMemoryDebugModalApi } = await import('./memory-debug-modal.js');
+    return createMemoryDebugModalApi(getApp);
+  });
+
+  const systemToolsLoader = createLazyModalLoader(async () => {
+    const { createSystemToolsModalApi } = await import('./system-tools-modal.js');
+    return createSystemToolsModalApi(getApp);
+  });
+
+  const compactLoader = createLazyModalLoader(async () => {
+    const { createCompactModalApi } = await import('./compact-modal.js');
+    return createCompactModalApi(getApp, ui);
+  });
+
+  const mcpLoader = createLazyModalLoader(async () => {
+    const { createMcpModalApi } = await import('./mcp-modal.js');
+    return createMcpModalApi(getApp, ui);
+  });
+
+  const quickMessageLoader = createLazyModalLoader(async () => {
+    const { createQuickMessageUi } = await import('./quickmessage.js');
+    return createQuickMessageUi(getApp, () => ui);
+  });
+
+  const historyLoader = createLazyModalLoader(async () => {
+    const { createHistoryModalApi } = await import('./history-modal.js');
+    return createHistoryModalApi(getApp, ui);
+  });
+
+  const settingsLoader = createLazyModalLoader(async () => {
+    const { createSettingsModalApi } = await import('./settings-modal.js');
+    return createSettingsModalApi(getApp, ui);
+  });
 
   Object.assign(ui, {
-    showHistoryModal: history.showHistoryModal,
-    showSettingsModal: settings.showSettingsModal,
-    loadSettings: settings.loadSettings,
-    saveSettings: settings.saveSettings,
-    saveMcpServerIds: settings.saveMcpServerIds,
-    showMCPServersModal: mcp.showMCPServersModal,
-    showSystemToolsModal: systemTools.showSystemToolsModal,
-    showMemoryDebugModal: memoryDebug.showMemoryDebugModal,
-    updateMCPButtonCounter: mcp.updateMCPButtonCounter,
-    showQuickMessagesModal: quickMessage.showQuickMessagesModal,
-    showAppendedQuickMessages: quickMessage.showAppendedQuickMessages,
-    showRandomQuickMessages: quickMessage.showRandomQuickMessages,
-    ...compact,
+    CONTEXT_COMPACTED_LABEL: '已压缩',
+    isContextCompacted() {
+      const app = getApp();
+      return !!(
+        app?.state?.apiContextOverride?.length ||
+        app?.state?.contextCompactedActive
+      );
+    },
+    showMemoryDebugModal: async () => {
+      const api = await memoryDebugLoader.ensure();
+      api.showMemoryDebugModal();
+    },
+    showSystemToolsModal: async () => {
+      const api = await systemToolsLoader.ensure();
+      api.showSystemToolsModal();
+    },
+    showMCPServersModal: async () => {
+      const api = await mcpLoader.ensure();
+      api.showMCPServersModal();
+    },
+    showQuickMessagesModal: async () => {
+      const api = await quickMessageLoader.ensure();
+      await api.showQuickMessagesModal();
+    },
+    showHistoryModal: async () => {
+      const api = await historyLoader.ensure();
+      api.showHistoryModal();
+    },
+    showSettingsModal: async () => {
+      const api = await settingsLoader.ensure();
+      void memoryDebugLoader.ensure();
+      api.showSettingsModal();
+    },
+    loadSettings: () => {
+      void settingsLoader.ensure().then((api) => api.loadSettings());
+    },
+    saveSettings: () => {
+      void settingsLoader.ensure().then((api) => api.saveSettings());
+    },
+    saveMcpServerIds: () => {
+      void settingsLoader.ensure().then((api) => api.saveMcpServerIds());
+    },
+    updateMCPButtonCounter: () => {
+      void mcpLoader.ensure().then((api) => api.updateMCPButtonCounter());
+    },
+    showAppendedQuickMessages: () => {
+      void quickMessageLoader.ensure().then((api) => api.showAppendedQuickMessages());
+    },
+    showRandomQuickMessages: () => {
+      void quickMessageLoader.ensure().then((api) => api.showRandomQuickMessages());
+    },
+    ...bindLazyModalMethods(compactLoader, [
+      'showContextModal',
+      'renderContextPreview',
+      'renderContextPreviewError',
+      'syncContextDraftPreview',
+      'setCompactDraft',
+      'refreshCompactSectionUi',
+      'setContextCompactGenerating',
+      'updateContextCompactControls',
+    ]),
   });
 
   return { ui, renderers };

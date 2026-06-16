@@ -1,6 +1,5 @@
 import { escapeHtml } from '../../shared/escape-html.js';
-import { enhanceCodeBlocks } from '../code-blocks.js';
-import { marked } from '../renderers.js';
+import { enhanceCodeBlocks, parseMarkdown } from '../markdown-stack.js';
 import { bindChatModalClose, openChatModal } from './modal-host.js';
 
 const CONTEXT_COMPACTED_LABEL = '已压缩';
@@ -20,15 +19,6 @@ export function createCompactModalApi(getApp, ui) {
     return !!(
       app?.state?.apiContextOverride?.length ||
       app?.state?.contextCompactedActive
-    );
-  }
-
-  function hasContextCompactState() {
-    const app = getApp();
-    return (
-      isContextCompacted() ||
-      !!app?.state?.compactedBaseline ||
-      !!app?.state?.compactDraft
     );
   }
 
@@ -334,7 +324,7 @@ export function createCompactModalApi(getApp, ui) {
     const isPending = isContextCompacted();
     const hasBaseline = !!getApp()?.state?.compactedBaseline;
 
-    draftEl.innerHTML = hasText ? renderContextMarkdown(text) : '';
+    draftEl.innerHTML = hasText ? parseMarkdown(text) : '';
     wrapEl.classList.toggle('hidden', !hasText);
     wrapEl.hidden = !hasText;
 
@@ -370,7 +360,6 @@ export function createCompactModalApi(getApp, ui) {
   }
 
   return {
-    CONTEXT_COMPACTED_LABEL,
     showContextModal,
     renderContextPreview,
     renderContextPreviewError,
@@ -379,8 +368,6 @@ export function createCompactModalApi(getApp, ui) {
     refreshCompactSectionUi,
     setContextCompactGenerating,
     updateContextCompactControls,
-    isContextCompacted,
-    hasContextCompactState,
   };
 }
 
@@ -465,11 +452,4 @@ function formatContextMsgMeta(m) {
     return `${chars} 字 · 约 ${tokens} tokens`;
   }
   return `约 ${tokens} tokens`;
-}
-
-/**
- * @param {string} text
- */
-function renderContextMarkdown(text) {
-  return marked.parse(text);
 }

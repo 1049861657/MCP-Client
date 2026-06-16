@@ -19,6 +19,7 @@ import {
 } from './time.js';
 import { createChatUtils } from './utils.js';
 import { filterEnabledToKnownServers, filterServersWithUsableTools, reconcileMcpSelectionFromList } from './mcp-selection.js';
+import { warmMarkdownStack } from './markdown-stack.js';
 
 /**
  * @typedef {object} CreateChatAppOptions
@@ -183,6 +184,9 @@ function createAppMethods() {
         ? ''
         : `session_temp_${Date.now().toString(36)}`;
       console.log('会话模式:', this.sessionStore.isAuthed() ? 'authed' : 'guest');
+
+      await warmMarkdownStack();
+      console.log('Markdown 栈预热完成');
 
       this.elements = {
         message: document.getElementById('message'),

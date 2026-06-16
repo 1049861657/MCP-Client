@@ -1,4 +1,38 @@
-import { hljs } from './renderers.js';
+/** @type {import('./markdown-stack.bundle.js') | null} */
+let stack = null;
+
+/** @type {Promise<void> | null} */
+let warmPromise = null;
+
+/**
+ * 预热 marked + highlight.js（独立 markdown chunk）。须在 chat init 完成前 await。
+ */
+export async function warmMarkdownStack() {
+  if (stack) {
+    return;
+  }
+  if (!warmPromise) {
+    warmPromise = import('./markdown-stack.bundle.js').then((loaded) => {
+      stack = loaded;
+    });
+  }
+  await warmPromise;
+}
+
+function assertWarm() {
+  if (!stack) {
+    throw new Error('[markdown-stack] warmMarkdownStack() 未完成');
+  }
+  return stack;
+}
+
+/**
+ * @param {string} text
+ */
+export function parseMarkdown(text) {
+  const { marked } = assertWarm();
+  return marked.parse(text ?? '');
+}
 
 /** @type {Record<string, string>} */
 const LANG_LABELS = {
@@ -42,10 +76,10 @@ function detectLanguage(codeEl) {
 }
 
 /**
- * 将 markdown 中的 pre/code 增强为带语言栏的浅色代码块（GitHub Light 风格）
  * @param {ParentNode} root
  */
 export function enhanceCodeBlocks(root) {
+  const { hljs } = assertWarm();
   root.querySelectorAll('pre').forEach((pre) => {
     if (!(pre instanceof HTMLPreElement)) {
       return;
