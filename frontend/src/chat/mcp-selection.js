@@ -17,6 +17,15 @@ export function filterEnabledToKnownServers(enabledIds, servers) {
   return enabledIds.filter((id) => known.has(id));
 }
 
+/**
+ * 顶栏 MCP 数量：与用户勾选（enabledServerIds）一致，不要求 toolsEnabled>0。
+ * 实际发消息时由 getSelectableMcpServerIds 再过滤可用工具。
+ * @param {string[]} enabledIds @param {{ id: string }[]} servers
+ */
+export function countKnownEnabledMcpServers(enabledIds, servers) {
+  return filterEnabledToKnownServers(enabledIds, servers).length;
+}
+
 /** @param {string[]} enabledIds @param {{ id: string, toolsEnabled?: number }[]} servers */
 export function filterServersWithUsableTools(enabledIds, servers) {
   const byId = new Map(servers.map((server) => [server.id, server]));
@@ -28,24 +37,6 @@ export function filterServersWithUsableTools(enabledIds, servers) {
     const enabled = typeof server.toolsEnabled === 'number' ? server.toolsEnabled : 0;
     return enabled > 0;
   });
-}
-
-/**
- * 列表刷新后对齐 localStorage：去掉无启用工具的服。
- * @param {object} app
- * @param {{ saveMcpServerIds?: () => void, updateMCPButtonCounter?: () => void }} ui
- */
-export function reconcileMcpSelectionFromList(app, ui) {
-  const servers = app.state.mcpServers || [];
-  const before = filterEnabledToKnownServers(app.state.enabledServerIds || [], servers);
-  const after = filterServersWithUsableTools(before, servers);
-  const changed = after.length !== before.length || after.some((id, index) => id !== before[index]);
-  if (changed) {
-    app.state.enabledServerIds = after;
-    ui.saveMcpServerIds?.();
-    ui.updateMCPButtonCounter?.();
-  }
-  return after;
 }
 
 /**

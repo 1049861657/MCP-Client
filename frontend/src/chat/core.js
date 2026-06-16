@@ -18,7 +18,7 @@ import {
   updateThinkingTime,
 } from './time.js';
 import { createChatUtils } from './utils.js';
-import { filterEnabledToKnownServers, filterServersWithUsableTools, reconcileMcpSelectionFromList } from './mcp-selection.js';
+import { filterEnabledToKnownServers, filterServersWithUsableTools } from './mcp-selection.js';
 import { warmMarkdownStack } from './markdown-stack.js';
 
 /**
@@ -262,13 +262,23 @@ function createAppMethods() {
           console.log('供应商配置加载完成，初始化其余功能');
 
           this.updateSessionDisplay();
-          this.ui.loadSettings?.();
-          this.ui.updateMCPButtonCounter?.();
-          this.scheduleMcpServersReload();
 
-          const event = new CustomEvent('AIChatAppInitialized');
-          document.dispatchEvent(event);
-          console.log('已触发AIChatAppInitialized事件');
+          const settingsReady = this.ui.loadSettings?.() ?? Promise.resolve();
+          return settingsReady
+            .then(() => this.loadMCPServers())
+            .catch((error) => {
+              console.error('加载 MCP 服务器列表失败:', error);
+            })
+            .then(() => {
+              this.ui.updateMCPButtonCounter?.();
+              if (!this.state.mcpServers?.length) {
+                this.scheduleMcpServersReload();
+              }
+
+              const event = new CustomEvent('AIChatAppInitialized');
+              document.dispatchEvent(event);
+              console.log('已触发AIChatAppInitialized事件');
+            });
         })
         .catch((error) => {
           console.error('初始化失败:', error);
@@ -521,7 +531,6 @@ function createAppMethods() {
       try {
         const data = await this.api.getMCPServers();
         this.state.mcpServers = data.servers || [];
-        reconcileMcpSelectionFromList(this, this.ui);
         this.ui.updateMCPButtonCounter?.();
         return data;
       } catch (error) {

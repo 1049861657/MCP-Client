@@ -35,7 +35,7 @@ frontend/
 | 主题 | 决策 |
 |------|------|
 | 架构 | 单体 Vite [MPA](https://vite.dev/guide/build.html#multi-page-app)；`outDir: ../public`；`emptyOutDir: false` |
-| 样式 | `src/shared/theme.css`（仅 `@theme`）+ 各页 `style.css`（`@import` theme → tailwind → `@source`）；无 `tailwind.config.ts` |
+| 样式 | `src/shared/theme.css`（仅 `@theme`）+ 各页 `style.css`（`@import` theme → tailwind → post-tailwind）；Tailwind v4 默认 content 扫描（`@tailwindcss/vite`）；无 `tailwind.config.ts` |
 | 逻辑 | 原生 JS + ESM；`createChatApp()` 单对象；settings/info 不 import chat |
 | 导航 | `src/shared/navbar.js`，各页 module 内 import 一次 |
 | 迁移 | Strangler：旧 `public/js` 与 `frontend/` 共存，**仅切流 PR 替换 HTML**；T3-07 删遗留 |

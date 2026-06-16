@@ -12,12 +12,12 @@
 |----------|------|
 | **去掉 Flowbite 改自研是否更好？** | **是。** 项目已 80%+ 自研 UI，Flowbite 仅用于 3 个 API（Modal / Dropdown / Dismiss），却通过 Tailwind plugin 与全包 `@source` 让 **全部 5 个 MPA 页面** 承担 CSS 扫描成本，且 JS 入口含全局副作用。移除 Flowbite、统一到现有 `shared/ui` 原语 ROI 最高。 |
 | **当前前端架构是否合理？** | **方向正确、成熟度中等。** Vite MPA + ESM 工厂 + Chat 分层符合 2026 Vanilla 最佳实践；主要技术债为上帝对象 `app.state`、双 Modal 体系、God Module 与全 eager 加载。不建议引入 React/Vue。 |
-| **如何在不改功能前提下降体积？** | **CSS 优先、JS 次之。** 预估组合优化后 ai 页首屏可从 ~163 KB gzip 降至 ~90–110 KB gzip。优先级：去 Flowbite CSS → lazy markdown/modals → 收窄 Tailwind `@source` → 建立 bundle budget。 |
+| **如何在不改功能前提下降体积？** | **CSS 优先、JS 次之。** 预估组合优化后 ai 页首屏可从 ~163 KB gzip 降至 ~90–110 KB gzip。优先级：去 Flowbite CSS → lazy markdown/modals → 建立 bundle budget。（~~按页收窄 `@source`~~ **跳过**，2026-06-16：原路径为 dead code，默认扫描已覆盖；见 [T5-05](../todos/T5-frontend-architecture.md#t5-05-删除无效-source--g8)） |
 
 ### 建议实施优先级
 
 ```
-P0 度量基线（visualizer）→ P1 去 Flowbite → P2 lazy markdown/modals → P3 收窄 @source → P4 拆 God Module
+P0 度量基线（visualizer）→ P1 去 Flowbite → P2 lazy markdown/modals → ~~P3 收窄 @source~~（跳过，T5-05 删 dead code）→ P4 拆 God Module
 ```
 
 ---
@@ -308,13 +308,13 @@ flowchart TB
 
 | 优先级 | 热点 | 根因 |
 |--------|------|------|
-| 1 | **ai 页 CSS 271 KB raw** | Flowbite `@plugin` + 全包 `@source`；`@source '../../shared/**/*.js'` 过宽；chat 自定义 CSS ~2900 行 |
+| 1 | **ai 页 CSS 271 KB raw** | Flowbite `@plugin` + flowbite `@source`（T5-03 已移除）；曾写 `@source '../../shared/**/*.js'` 为 **dead code**（T5-05 已删）；chat 自定义 CSS ~2900 行 |
 | 2 | **ai 页 JS 296 KB raw** | 全 eager：7 个 modal 模块 + `marked` + `hljs`（`renderers.js` 静态 import） |
 | 3 | **navbar 共享 chunk 148 KB** | auth + Flowbite 副作用 + 跨页共享 |
 | 4 | **零 lazy load** | 全项目无运行时 `import()` |
 | 5 | **无 bundle budget** | 体积回归不可见 |
 
-> **重要**：去 Flowbite 不是唯一手段；**marked/hljs lazy + modal 按需 + 收窄 @source** 的综合收益可能更大。
+> **重要（2026-06-16 更新）**：T5-03/04 已落地去 Flowbite + lazy；**marked/hljs lazy + modal 按需** 为主要收益。~~按页收窄 `@source`~~ 已跳过（dead code 删除，build 验证 CSS 不变）。
 
 ### 4.3 2026 业界做法对照（≥7 条）
 
@@ -325,7 +325,7 @@ flowchart TB
 | 3 | **Tree-shaking + sideEffects 审计** | PkgPulse Bundle Optimization | Flowbite index 副作用；避免 barrel import |
 | 4 | **Bundle analyzer + CI budget** | devsofus Complete Guide | 已加 `vite.analyze.config.ts`；建议 CI 门禁 initial JS gzip <100 KB |
 | 5 | **依赖按需语言包** | PkgPulse Reduce Bundle 2026 | hljs 已 partial（7 语言）；可 lazy 或减语言 |
-| 6 | **CSS purge / 收窄 content paths** | PkgPulse Tailwind v4 | 按页缩小 `@source`；移除 flowbite `@source` |
+| 6 | **CSS purge / content paths** | PkgPulse Tailwind v4 | flowbite `@source` 已移除（T5-03）；按页 `@source` 白名单 **跳过**（T5-05 删 dead code） |
 | 7 | **性能预算** initial JS <100 KB gzip | WebVitals.tools | ai 页当前 125 KB JS gzip，超标 |
 
 ### 4.4 优化路线图（功能不变）
@@ -348,7 +348,7 @@ flowchart TB
 
 | # | 动作 | 预期 |
 |---|------|------|
-| 4 | 各页 `@source` 从 `shared/**/*.js` 收窄到实际 import 路径 | 减少跨页 class 泄漏 |
+| 4 | ~~各页 `@source` 收窄~~ → **删五页无效 `@source` dead code**（T5-05-01 ✓ 2026-06-16；build 验证 CSS 不变） | 代码清晰；**无体积收益** |
 | 5 | 审计 `chat-ui.css` / `style.css` 重复 `@apply` | 减少 ~2900 行自定义 CSS 冗余 |
 
 #### Phase 3 — 结构与缓存
@@ -380,7 +380,7 @@ flowchart TB
 | **P0** | Bundle 可视化 + gzip 基线文档化 | 可量化 | 低 | ✅ 完成 |
 | **P1** | 移除 Flowbite，自研 confirm/toast/dropdown | CSS 显著↓；统一 Modal | 中（5 页 toast/confirm/select 手工回归） | frontend-refactor D |
 | **P2** | lazy marked/hljs + modals | initial JS 显著↓ | 低（首次交互略延迟） | frontend-refactor C |
-| **P3** | 收窄 Tailwind `@source` | 各页 CSS↓ | 中（防 purge 误删 class） | — |
+| **P3** | ~~收窄 Tailwind `@source`~~ → 删无效 `@source`（T5-05 ✓） | 可维护性↑；无 CSS↓ | 低 | [T5-05](../todos/T5-frontend-architecture.md) |
 | **P4** | 拆 core/data/quickmessage | 可维护性↑ | 低（无直接体积收益） | frontend-refactor B |
 
 ```mermaid
@@ -388,7 +388,7 @@ flowchart LR
   P0["P0 度量基线"]
   P1["P1 去 Flowbite"]
   P2["P2 lazy markdown/modals"]
-  P3["P3 收窄 @source"]
+  P3["P3 删无效 @source ✓"]
   P4["P4 拆 God Module"]
   P0 --> P1 --> P2 --> P3 --> P4
 ```

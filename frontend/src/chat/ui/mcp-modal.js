@@ -1,5 +1,6 @@
 import {
   commitMcpSelection,
+  countKnownEnabledMcpServers,
   isMcpServerEnabled,
   MCP_CHECKBOX_PREFIX,
   readEnabledIdsFromMcpCheckboxes,
@@ -223,7 +224,10 @@ export function createMcpModalApi(getApp, ui) {
     }
 
     btn.querySelector('.counter')?.remove();
-    const count = app.getSelectableMcpServerIds?.().length ?? 0;
+    const count = countKnownEnabledMcpServers(
+      app.state.enabledServerIds || [],
+      app.state.mcpServers || [],
+    );
     if (count > 0) {
       const badge = document.createElement('span');
       badge.className = 'counter';

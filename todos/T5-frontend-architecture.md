@@ -36,9 +36,9 @@ frontend/
 |------|------|
 | UI 库 | 移除 Flowbite；全站 SSOT 为 `shared/ui/` 自研原语 |
 | Modal | 大模态：`overlay-modal.js`；确认框：`confirm-dialog.js`（由 `modal.js` 迁移） |
-| 体积 | CSS 优先（去 Flowbite plugin → 收窄 `@source`）；JS 次之（markdown/modal lazy） |
+| 体积 | CSS 优先（去 Flowbite plugin）；JS 次之（markdown/modal lazy）；**不做**按页收窄 `@source` |
 | 架构 | 继续 Vanilla ESM + MPA；不引 React/Vue |
-| 安全 | **一子项一 PR**；CSS/JS 分流；@source 单页单 PR；失败整 PR revert |
+| 安全 | **一子项一 PR**；CSS/JS 分流；失败整 PR revert |
 
 ### 功能契约（不可破坏 — 同 T3）
 
@@ -71,7 +71,7 @@ frontend/
 |---|------|
 | A1 | 一 `T5-xx-yy` 一 PR |
 | A2 | 删 `flowbite.css`（T5-03-05）不得同批改 `toast.js` / `dropdown-select.js` |
-| A3 | T5-05 每次只改 **一个** `{page}/style.css` |
+| A3 | T5-05 仅删无效 `@source`，**禁止**同 PR 引入 `source(none)` 或按页白名单 |
 | A4 | T5-03～05 期间 `fb-*` / `ui-*` / `chat-modal-*` class **名** 只增不删 |
 | A5 | rename 先 shim re-export，再改 import，再删旧文件 |
 | A6 | lazy 不改 `createChatApp` 对外行为 |
@@ -81,19 +81,19 @@ frontend/
 
 ## 开发顺序
 
-`T5-01`（部分 ✓）→ ~~`T5-02`（跳过）~~ → `T5-03`（**G6**，03-01→03-06 顺序不可乱）→ `T5-04`（**G7**）→ `T5-05`（**G8**，05-05 chat 最后）→ `T5-06` → `T5-07`
+`T5-01`（部分 ✓）→ ~~`T5-02`（跳过）~~ → `T5-03`（**G6**，03-01→03-06 顺序不可乱）→ `T5-04`（**G7**）→ `T5-05`（**G8**，删无效 `@source`）→ `T5-06` → `T5-07`
 
 | 门禁 | 关闭条件 | 阻塞 |
 |------|----------|------|
 | **G5** | T5-01 完成 | T5-03～07 |
 | **G6** | T5-03-06 | T5-05、T5-07 终验 |
 | **G7** | T5-04-02 | T5-06-02（chat UI rename） |
-| **G8** | T5-05-05 | T5-07 体积终验 |
+| **G8** | T5-05-01 | T5-07 体积终验 |
 
 **禁止顺序**
 
 - T5-03-05 早于 T5-03-01～04（会先删 CSS 再断 JS → 全站样式/交互崩）
-- T5-05 早于 T5-03（Flowbite plugin 与 @source 交织，难归因）
+- T5-05 早于 T5-03（Flowbite plugin 与 style.css 交织，难归因）
 - T5-06 rename 与 T5-04-02 同 PR
 
 ---
@@ -156,7 +156,7 @@ frontend/
     2. 删 `shared/flowbite.css`  
     3. `flowbite-overrides.css` → `ui-primitives.css`（class 名不变）  
     4. `package.json` 删 `flowbite`；`pnpm install`  
-  - **禁止**：顺手做 T5-05 `@source`  
+  - **禁止**：同 PR 删无效 `@source`（T5-05）  
   - **验收**：五页目视无裸 HTML；ai CSS gzip 较基线 36.6 KB 下降
 
 - [x] **T5-03-06** **G6 关闭** — Flowbite 终验（2026-06-16）  
@@ -195,25 +195,18 @@ frontend/
 
 ---
 
-## T5-05 收窄 Tailwind `@source` — **G8**
+## T5-05 删除无效 `@source` — **G8**
 
-> **高风险**：purge 误删 HTML 字符串内 class（尤其 `modal-host.js`、`tool-cards.js`）→ 整页布局塌。  
-> **铁律**：一子项一 PR；顺序 **landing → settings → info → admin → chat**。
+> **背景（2026-06-16 调研）**：五页 `style.css` 曾写 `@source '../../shared/**/*.js'`（及 `./**/*.{js,html}`）。前者相对 stylesheet 解析为不存在的 `frontend/shared/`，等同 **no-op**；后者与 Tailwind v4 默认扫描重复。  
+> **默认扫描 SSOT**：`@import 'tailwindcss'` + `@tailwindcss/vite`（`frontend/vite.config.ts`）；扫描根为 Vite `root`（`frontend/`），无 `tailwind.config.js`。  
+> **决策**：不做按页 `source(none)` + 白名单收窄（维护成本 > 边际收益）；**仅删 dead code**。
 
-**每 PR 步骤**
-
-1. 备份该页 `style.css` 的 `@source`  
-2. 去掉 `@source '../../shared/**/*.js'`，改为 `@source '../shared/ui/**/*.js'` + 本页 `src/{page}/**` + 显式列出非 ui 的 shared import（如 `navbar.js`）  
-3. `pnpm run build:frontend` → 对比该页 CSS gzip  
-4. 目视该页全部交互  
-5. 失败 → revert 整 PR
-
-- [ ] **T5-05-01** `landing/style.css` — `/` 导航与 navbar  
-- [ ] **T5-05-02** `settings/style.css` — CRUD、dropdown、confirm、toast  
-- [ ] **T5-05-03** `info/style.css` — 服务器 Tab、OAuth、RP 面板  
-- [ ] **T5-05-04** `admin/style.css` — 两 Tab、dropdown、toggle  
-- [ ] **T5-05-05** `chat/style.css` — **必须最后**；须覆盖 `modal-host`、`tool-cards`、`renderers`、`icons` 等 js  
-  - **验收**：chat 全交互 + SSE；**G8 关闭**
+- [x] **T5-05-01** 删除五页 `{page}/style.css` 内全部 `@source` 行（2026-06-16）  
+  - **改动**：`landing` / `settings` / `info` / `admin` / `chat` — 删 `@source '../shared/**/*.js'` 与 `@source './**/*.{js,html}'`  
+  - **不动**：`@import` 顺序（theme → tailwind → post-tailwind）  
+  - **禁止**：同 PR 引入 `source(none)`、`@source not` 或按页白名单  
+  - **验收**：`pnpm run build:frontend` — 五页 CSS hash/gzip 与删前一致；`grep -r '@source' frontend/src` 为零  
+  - **G8 关闭**
 
 ---
 
@@ -274,15 +267,11 @@ frontend/
 | PR-5 | T5-03-05 + T5-03-06（**高**，CSS） |
 | PR-6 | T5-04-01（markdown + 7 modal lazy） |
 | PR-7 | T5-04-02（**G7 关闭**） |
-| PR-8 | T5-05-01 |
-| PR-9 | T5-05-02 |
-| PR-10 | T5-05-03 |
-| PR-11 | T5-05-04 |
-| PR-12 | T5-05-05（**高**） |
-| PR-13+ | T5-06-xx |
+| PR-8 | T5-05-01（删无效 `@source`，**G8 关闭**） |
+| PR-9+ | T5-06-xx |
 | PR-final | T5-07 |
 
-**禁止 PR 组合**：T5-03-05 + T5-05-xx；T5-06 + T5-04-02。
+**禁止 PR 组合**：T5-03-05 + T5-05；T5-06 + T5-04-02。
 
 ---
 
@@ -291,7 +280,7 @@ frontend/
 | 症状 | 优先怀疑 | 动作 |
 |------|----------|------|
 | 全站无 Tailwind | `@import 'tailwindcss'` 顺序错 | 对照 landing `style.css` 模板 |
-| 单页布局塌 | 该页 `@source` 过窄 | revert 对应 T5-05-xx |
+| 单页布局塌 | 误加 `source(none)` 且未补全 `@source` | revert；恢复默认 `@import 'tailwindcss'` |
 | 下拉/确认/toast 失效 | T5-03-05 早于 03-01～04 | 检查 03 顺序 |
 | chat 白屏 | rename 断 import / lazy 未 mount | console；恢复 shim |
 | Markdown 纯文本 / throw | T5-04-02 warm 未完成或漏调 | 查 `core.init` 与 `warmMarkdownStack` |

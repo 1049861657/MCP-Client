@@ -4,9 +4,6 @@
 @import '../shared/post-tailwind.css';
 @import './chat-ui.css';
 
-@source '../../shared/**/*.js';
-@source './**/*.{js,html}';
-
 .hidden {
   @apply !hidden;
 }

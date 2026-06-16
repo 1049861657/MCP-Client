@@ -129,7 +129,7 @@ gantt
 > **T1**：[渠道层 + 消息总线](./T1-channel-bus.md)（**已验收** 2026-06-03；钉钉 E2E 已通过；飞书 E2E T1-07-07 搁置收口）。  
 > **T2**：[配置平面 + 管理员平台](./T2-config-plane.md)（**已验收** 2026-06-03；Profile/Route + Admin，Web 不污染 IM）。  
 > **T3**：[遗留 Web UI 现代化](./T3-frontend-modernization.md)（Vite 8 MPA + Tailwind v4；功能等价、界面可重做）。  
-> **T5**：[前端架构 + 体积优化](./T5-frontend-architecture.md)（去 Flowbite、lazy bundle、@source 收窄；**Agent 任务书**，单子项 PR + 防回归门禁）。
+> **T5**：[前端架构 + 体积优化](./T5-frontend-architecture.md)（去 Flowbite、lazy bundle、删无效 `@source`；**G8 已关闭** 2026-06-16；**Agent 任务书**，单子项 PR + 防回归门禁）。
 
 ## 四、阶段依赖
 

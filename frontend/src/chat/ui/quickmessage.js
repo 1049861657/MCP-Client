@@ -3,6 +3,7 @@ import {
   refreshDropdownSelect,
 } from '../../shared/ui/dropdown-select.js';
 import { confirmModal } from '../../shared/ui/confirm-dialog.js';
+import { inputDialog } from '../../shared/ui/input-dialog.js';
 import { CHAT_QUICK_MESSAGES_KEY } from '../storage-contract.js';
 import { bindChatModalClose, closeChatModal, openChatModal } from './modal-host.js';
 
@@ -392,8 +393,14 @@ export function createQuickMessageUi(getApp, getUi) {
   }
 
   async function renameCategory(oldName) {
-    const next = window.prompt('重命名分类', oldName);
-    if (!next || next.trim() === oldName) {
+    const next = await inputDialog({
+      title: '重命名分类',
+      label: '分类名称',
+      defaultValue: oldName,
+      confirmLabel: '保存',
+      cancelLabel: '取消',
+    });
+    if (next === null || next.trim() === '' || next.trim() === oldName) {
       return;
     }
     const trimmed = next.trim();

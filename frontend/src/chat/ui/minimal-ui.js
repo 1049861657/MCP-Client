@@ -460,9 +460,9 @@ export function createChatUi(getApp) {
       void memoryDebugLoader.ensure();
       api.showSettingsModal();
     },
-    loadSettings: () => {
-      void settingsLoader.ensure().then((api) => api.loadSettings());
-    },
+    loadSettings: () => settingsLoader.ensure().then((api) => {
+      api.loadSettings();
+    }),
     saveSettings: () => {
       void settingsLoader.ensure().then((api) => api.saveSettings());
     },

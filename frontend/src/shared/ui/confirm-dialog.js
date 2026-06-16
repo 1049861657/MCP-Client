@@ -38,20 +38,22 @@ export function confirmModal(options) {
     shell.id = modalId;
     shell.setAttribute('aria-hidden', 'true');
     shell.className =
-      'fb-confirm-shell fixed top-0 right-0 left-0 z-[120] hidden h-[calc(100%-1rem)] max-h-full w-full overflow-x-hidden overflow-y-auto p-4 md:inset-0';
+      'fb-confirm-shell fixed inset-0 z-[120] hidden flex items-center justify-center overflow-y-auto p-4';
+
+    const confirmBtnClass = variant === 'danger' ? 'btn-danger' : 'btn-primary';
 
     shell.innerHTML =
-      '<div class="relative mx-auto w-full max-w-md p-4">' +
-      '<div class="fb-confirm-card relative">' +
-      '<div class="border-b border-[rgb(15_23_42/0.06)] px-5 pt-5 pb-4">' +
+      '<div class="mx-auto w-full max-w-md">' +
+      '<div class="fb-confirm-card">' +
+      '<div class="fb-confirm-body">' +
       `<h2 id="${modalId}-title" class="fb-confirm-title m-0">${escapeHtml(title)}</h2>` +
-      (message ? `<p class="fb-confirm-message m-0 mt-2">${escapeHtml(message)}</p>` : '') +
+      (message ? `<p class="fb-confirm-message m-0">${escapeHtml(message)}</p>` : '') +
       '</div>' +
-      `<div class="flex px-5 py-4 ${showCancel ? 'fb-confirm-actions' : 'fb-confirm-actions fb-confirm-actions--single'}">` +
+      `<div class="fb-confirm-actions${showCancel ? '' : ' fb-confirm-actions--single'}">` +
       (showCancel
-        ? `<button type="button" class="fb-confirm-btn fb-confirm-btn--ghost" data-role="cancel">${escapeHtml(cancelLabel)}</button>`
+        ? `<button type="button" class="btn-secondary" data-role="cancel">${escapeHtml(cancelLabel)}</button>`
         : '') +
-      `<button type="button" class="fb-confirm-btn ${variant === 'danger' ? 'fb-confirm-btn--danger' : 'fb-confirm-btn--primary'}" data-role="confirm">${escapeHtml(confirmLabel)}</button>` +
+      `<button type="button" class="${confirmBtnClass}" data-role="confirm">${escapeHtml(confirmLabel)}</button>` +
       '</div></div></div>';
 
     document.body.appendChild(shell);

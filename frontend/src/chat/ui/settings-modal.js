@@ -640,7 +640,6 @@ export function createSettingsModalApi(getApp, ui) {
       }
 
       syncSettingsUi(getApp);
-      ui.updateMCPButtonCounter?.();
     } catch (error) {
       console.error('加载聊天设置失败:', error);
     }

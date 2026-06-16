@@ -39,46 +39,41 @@
   }
 
   .fb-confirm-shell .fb-confirm-card {
-    @apply rounded-2xl border border-[rgb(15_23_42/0.08)] bg-white shadow-[0_20px_48px_rgb(15_23_42/0.16)];
+    @apply overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white shadow-[0_12px_40px_rgb(0_0_0/0.12)];
+  }
+
+  .fb-confirm-shell .fb-confirm-body {
+    @apply px-6 pt-6 pb-5;
   }
 
   .fb-confirm-shell .fb-confirm-title {
-    @apply text-[17px] font-bold text-[var(--color-text)];
+    @apply text-base font-semibold text-[var(--color-text)];
   }
 
   .fb-confirm-shell .fb-confirm-message {
-    @apply text-sm leading-relaxed text-[var(--color-text-muted)];
+    @apply mt-2.5 text-sm leading-relaxed text-[var(--color-text-muted)];
+  }
+
+  .fb-confirm-shell .fb-confirm-field {
+    @apply mt-4 flex flex-col;
   }
 
   .fb-confirm-actions {
-    @apply flex justify-end gap-2.5;
+    @apply flex justify-end gap-3 border-t border-[var(--color-border)] px-6 py-4;
   }
 
   .fb-confirm-actions--single {
     @apply justify-stretch;
   }
 
-  .fb-confirm-btn {
-    @apply inline-flex min-w-[5.5rem] items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-[background,color,box-shadow,transform];
+  .fb-confirm-actions .btn-primary,
+  .fb-confirm-actions .btn-secondary,
+  .fb-confirm-actions .btn-danger {
+    @apply min-w-[5.5rem];
   }
 
-  .fb-confirm-btn:active {
-    transform: scale(0.98);
-  }
-
-  .fb-confirm-btn--ghost {
-    @apply bg-[#f8fafc] text-[var(--color-text-muted)] shadow-[inset_0_0_0_1px_rgb(15_23_42/0.12)] hover:bg-white hover:text-[var(--color-text)];
-  }
-
-  .fb-confirm-btn--primary {
-    @apply bg-[var(--color-brand)] text-white shadow-[0_2px_10px_rgb(25_118_210/0.28)] hover:bg-[var(--color-brand-strong)];
-  }
-
-  .fb-confirm-btn--danger {
-    @apply bg-red-600 text-white shadow-[0_2px_10px_rgb(220_38_38/0.28)] hover:bg-red-700;
-  }
-
-  .fb-confirm-actions--single .fb-confirm-btn {
+  .fb-confirm-actions--single .btn-primary,
+  .fb-confirm-actions--single .btn-danger {
     @apply flex-1;
   }
 
