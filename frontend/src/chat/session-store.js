@@ -1,7 +1,7 @@
 /**
  * 聊天会话双模式抽象（T4-04）。
  *
- * - guest：委托 `data.js`/IndexedDB，沿用现网 `session_*` 本地会话；
+ * - guest：委托 `session-data.js`/IndexedDB，沿用现网 `session_*` 本地会话；
  * - authed：委托 sessions API（只读历史 + 发新消息），`sessionId` 用服务端 `ChatSession.id`（cuid）。
  *
  * 模式在 init 时经 `getSession()` 判定一次（登录/登出走整页 reload，运行时不切换）。

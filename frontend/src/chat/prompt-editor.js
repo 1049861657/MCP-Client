@@ -3,7 +3,7 @@
  */
 
 import { getSession } from '../auth/session.js';
-import { closeChatModal, openChatModal } from './ui/modal-host.js';
+import { closeChatModal, openChatModal } from './ui/chat-modals-host.js';
 
 /**
  * @returns {Record<string, Function>}

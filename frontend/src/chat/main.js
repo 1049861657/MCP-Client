@@ -1,8 +1,8 @@
 import { mountNavbar } from '../shared/navbar.js';
-import { createChatApp } from './core.js';
+import { createChatApp } from './app-core.js';
 import { mountChatToolbarIcons } from './icons.js';
-import { createChatUi } from './ui/minimal-ui.js';
-import { mountChatModals } from './ui/modal-host.js';
+import { createChatUi } from './ui/chat-shell-ui.js';
+import { mountChatModals } from './ui/chat-modals-host.js';
 import { mountPlanningPanel } from './ui/planning-panel.js';
 import { registerPlanningPanelOpener } from './todo-card-view.js';
 import './style.css';

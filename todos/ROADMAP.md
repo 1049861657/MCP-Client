@@ -124,7 +124,7 @@ gantt
 | **Backlog** | 按需 | 多 Agent、Worktree、CLI | 视产品方向决定 |
 | **T1** | 2–3 周 | 渠道层 + 消息总线（Web + 飞书 + 钉钉） | 各渠道 Envelope + Inbound Queue；Harness 无渠道分支 |
 | **T3** | 4–5 周 | 遗留 Web UI → Vite MPA + Tailwind v4 | URL/API/存储契约不变；`frontend/` SSOT；**已完成**（2026-06-01） |
-| **T5** | 2–3 周 | 前端架构收敛 + 体积优化 + Flowbite 移除 | 见 [T5-frontend-architecture.md](./T5-frontend-architecture.md)；基线 [docs/frontend-audit-2026.md](../docs/frontend-audit-2026.md) |
+| **T5** | 2–3 周 | 前端架构收敛 + 体积优化 + Flowbite 移除 | 见 [T5-frontend-architecture.md](./T5-frontend-architecture.md)（**已完成** 2026-06-16） |
 
 > **T1**：[渠道层 + 消息总线](./T1-channel-bus.md)（**已验收** 2026-06-03；钉钉 E2E 已通过；飞书 E2E T1-07-07 搁置收口）。  
 > **T2**：[配置平面 + 管理员平台](./T2-config-plane.md)（**已验收** 2026-06-03；Profile/Route + Admin，Web 不污染 IM）。  

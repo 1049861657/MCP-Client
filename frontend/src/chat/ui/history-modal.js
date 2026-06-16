@@ -2,7 +2,7 @@ import { escapeHtml } from '../../shared/escape-html.js';
 import { renderEmptyStateHtml } from '../../shared/ui/empty-state.js';
 import { confirmModal } from '../../shared/ui/confirm-dialog.js';
 import { enhanceCodeBlocks, parseMarkdown } from '../markdown-stack.js';
-import { bindChatModalClose, closeChatModal, openChatModal } from './modal-host.js';
+import { bindChatModalClose, closeChatModal, openChatModal } from './chat-modals-host.js';
 
 const SESSION_BUBBLE_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2m0 14H6l-2 2V4h16z"/></svg>';

@@ -4,7 +4,7 @@ import { bindSegmentedControl, syncSegmentedControl } from '../../shared/ui/segm
 import { bindStepper } from '../../shared/ui/stepper.js';
 import { bindToggle, syncToggleFromCheckbox } from '../../shared/ui/toggle.js';
 import { CHAT_SETTINGS_KEY } from '../storage-contract.js';
-import { bindChatModalClose, openChatModal } from './modal-host.js';
+import { bindChatModalClose, openChatModal } from './chat-modals-host.js';
 
 /** @type {boolean} */
 let settingsUiBound = false;

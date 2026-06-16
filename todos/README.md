@@ -57,7 +57,7 @@
 | T2（配置平面+Admin） | 24 | 24 | 100% |
 | T3（前端现代化） | 31 | 31 | 100% |
 | T4（账号+会话） | 28 | 25 | 89% |
-| T5（前端架构+体积） | 19 | 12 | 63% |
+| T5（前端架构+体积） | 19 | 19 | 100% |
 | P0 | 19 | 19 | 100% |
 | P1 | 30 | 30 | 100% |
 | P2 | 20 | 20 | 100% |
@@ -70,7 +70,7 @@
 
 **P3 — Agent 运行时进阶**（主线： [P2-mcp-platform.md](./P2-mcp-platform.md) **已验收** 2026-06-04；[P3-03 Skill](./P3-agent-runtime.md) **暂缓** 2026-06-09；[P0-core-harness.md](./P0-core-harness.md) 完成检查清单仍有未勾 E2E 项）
 
-并行 **T**： [T4-account-session.md](./T4-account-session.md)；[T5-frontend-architecture.md](./T5-frontend-architecture.md)（前端架构/体积，见 [`docs/frontend-audit-2026.md`](../docs/frontend-audit-2026.md)）；T1/T2 **已验收**（2026-06-03）
+并行 **T**： [T4-account-session.md](./T4-account-session.md)；[T5-frontend-architecture.md](./T5-frontend-architecture.md)（**T5 已完成** 2026-06-16）；T1/T2 **已验收**（2026-06-03）
 
 ## 相关代码入口
 
@@ -81,7 +81,6 @@ src/message-bus/            # T1：Inbound Queue、Worker、OutboundRouter、幂
 public/admin.html           # T3/T4-07：高级配置（Vite 构建产物，源码 frontend/src/admin/）
 frontend/src/chat/          # T3：Chat ESM（storage-contract、chat-request-body）
 frontend/                   # T3/T5：单体 Vite MPA 源码（T5 命名 SSOT 见 T5 任务书）
-docs/frontend-audit-2026.md # T5：前端调查基线
 src/core/agent-harness/     # Harness：agent-loop、tool-call-manager、system-tools、types
 src/core/memory/            # P3-02-B：Hindsight recall/retain、memory-debug
 src/api/memory-debug.controller.ts  # P3-02-B-06：/api/memory/debug/*

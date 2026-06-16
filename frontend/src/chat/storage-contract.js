@@ -1,8 +1,8 @@
 /**
  * Chat 页客户端存储契约。
  *
- * 与 `data.js`、设置模态读写逻辑一致；后端不读取这些键。
- * 变更须同步 `frontend/src/chat/data.js`、`ui/settings-modal.js`、`api.js`。
+ * 与 `session-data.js`、设置模态读写逻辑一致；后端不读取这些键。
+ * 变更须同步 `frontend/src/chat/session-data.js`、`ui/settings-modal.js`、`chat-api.js`。
  */
 
 /** IndexedDB 库名（勿改，否则旧会话不可读） */

@@ -6,7 +6,7 @@ import {
   readEnabledIdsFromMcpCheckboxes,
   syncMcpCheckboxes,
 } from '../mcp-selection.js';
-import { closeChatModal, openChatModal } from './modal-host.js';
+import { closeChatModal, openChatModal } from './chat-modals-host.js';
 
 /**
  * @param {() => object} getApp

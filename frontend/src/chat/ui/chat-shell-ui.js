@@ -1,3 +1,6 @@
+/**
+ * Chat 页 UI 壳层：消息渲染热路径 + 各模态 lazy 门面（export `createChatUi`）。
+ */
 import { escapeHtml } from '../../shared/escape-html.js';
 import { showFloatingTooltip } from '../../shared/ui/tooltip.js';
 import { CHAT_TOOLBAR_ICONS } from '../icons.js';

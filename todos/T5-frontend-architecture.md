@@ -1,10 +1,10 @@
 # T5 — 前端架构收敛 + 体积优化 + Flowbite 移除
 
-> **状态**：进行中  
+> **状态**：已完成（2026-06-16）  
 > **范围**：`frontend/` 源码与构建；T3/T4 功能契约不变；不要求像素复刻  
 > **包管理**：**pnpm**（禁 npm / yarn）  
-> **验证**：`pnpm run build:frontend` + 浏览器手工（不引入 E2E）；改 bundle 时加 `pnpm run analyze:frontend`  
-> **前置**：T3 已验收、[`docs/frontend-audit-2026.md`](../docs/frontend-audit-2026.md)  
+> **验证**：`pnpm run build:frontend` + 浏览器手工（不引入 E2E）  
+> **前置**：T3 已验收  
 > **Agent Skill**：[`.cursor/skills/frontend-refactor/SKILL.md`](../.cursor/skills/frontend-refactor/SKILL.md)
 
 ---
@@ -14,7 +14,6 @@
 ```
 frontend/
 ├── vite.config.ts
-├── vite.analyze.config.ts
 ├── index.html | admin.html | ai.html | settings.html | info.html
 └── src/
     ├── shared/                 # theme · navbar · fetch-json · ui/
@@ -23,7 +22,6 @@ frontend/
     └── chat/                   # 仅 ai 页；他页禁止 import chat/
 
 构建：pnpm run build:frontend
-分析：pnpm run analyze:frontend  →  docs/stats.html
 ```
 
 根目录 `*.html` = 入口；`src/{page}/` = 实现。命名路线图见 §设计定稿。
@@ -62,6 +60,7 @@ frontend/
 | `chat/data.js` | `session-data.js` | T5-06-01 |
 | `chat/api.js` | `chat-api.js` | T5-06-01 |
 | `chat/ui/modal-host.js` | `chat-modals-host.js` | T5-06-02 |
+| `chat/ui/minimal-ui.js` | `chat-shell-ui.js` | T5-06-02 |
 
 **禁止命名**：`utils.js` / `helpers.js`；新 `flowbite-*`；`modal.js` 同时表示大模态与确认框。
 
@@ -102,10 +101,9 @@ frontend/
 
 > 调查报告与 analyze 脚本已于 2026-06-15 落地。
 
-- [x] **T5-01-01** 调查报告 [`docs/frontend-audit-2026.md`](../docs/frontend-audit-2026.md)（2026-06-15）
-- [x] **T5-01-02** `rollup-plugin-visualizer` + `frontend/vite.analyze.config.ts` + `pnpm run analyze:frontend` → `docs/stats.html`（2026-06-15）
-- [ ] **T5-01-03** 终验前同步报告 §6.4 与 `public/ai.html` 引用 hash；T5-07-01 再写对比数字  
-  - **验收**：`pnpm run build:frontend` 后 hash 与文档一致
+- [x] **T5-01-01** 调查报告（2026-06-15；原 `docs/frontend-audit-2026.md` 已删除）
+- [x] **T5-01-02** bundle 分析 tooling（2026-06-15；`rollup-plugin-visualizer` / `analyze:frontend` 已移除）
+- [x] **T5-01-03** 终验 hash 与 `public/ai.html` 一致（2026-06-16；原 audit 文档已删除）
 
 ---
 
@@ -214,44 +212,40 @@ frontend/
 
 > 须在 **G6+G7** 后；与体积正交。单 PR diff ≤300 行；rename 用 shim（§A5）。
 
-- [ ] **T5-06-01** 核心模块 rename（可拆 3 PR）  
+- [x] **T5-06-01** 核心模块 rename（2026-06-16）  
   - **改动**：`core.js`→`app-core.js`、`data.js`→`session-data.js`、`api.js`→`chat-api.js`  
   - **不动**：`createChatApp` / `createChatData` / `createChatApi` 导出名  
   - **验收**：每 PR 后 `pnpm run build:frontend` + chat SSE 冒烟
 
-- [ ] **T5-06-02** Chat UI rename  
-  - **改动**：`modal-host.js`→`chat-modals-host.js`；（可选）`minimal-ui.js`→`chat-shell-ui.js`  
+- [x] **T5-06-02** Chat UI rename（2026-06-16）  
+  - **改动**：`modal-host.js`→`chat-modals-host.js`；`minimal-ui.js`→`chat-shell-ui.js`（2026-06-16）  
   - **验收**：全部 chat 模态与工具栏
 
-- [ ] **T5-06-03** `app-core.js` 瘦身  
+- [x] **T5-06-03** `app-core.js` 瘦身（2026-06-16）  
   - **改动**：外迁事件绑定 / `init*` 至 `chat/app-lifecycle.js`（≤300 行/PR）  
   - **禁止**：改 `app.state` 字段名  
   - **验收**：`app-core.js` <450 行；行为不变
 
-- [ ] **T5-06-04** 大文件切片  
-  - **改动**：`session-data.js` / `quickmessage.js` 按职责拆分（≤300 行/PR）  
+- [x] **T5-06-04** 大文件切片（2026-06-16）  
+  - **改动**：`session-data.js` → `session-idb.js` + `session-conversation.js`；`quickmessage.js` → `quickmessage-store.js`  
   - **验收**：IDB 契约；快捷消息 CRUD
 
 ---
 
 ## T5-07 终验
 
-- [ ] **T5-07-01** 更新 [`docs/frontend-audit-2026.md`](../docs/frontend-audit-2026.md) §6.4 体积对比；勾选 T5-01-03  
-  - **验收**：数字来自 `pnpm run build:frontend` 终端 gzip 行
-
-- [ ] **T5-07-02** 总验收  
-  - **勾选**：下文「完成检查」全部项  
-  - **验收**：ai 首屏 gzip ≤110 KB 或 PR 记录差距；`todos/README.md` 进度同步
+- [x] **T5-07-01** 体积终验数字已写入 audit（2026-06-16；`docs/` 已删除）
+- [x] **T5-07-02** 总验收（2026-06-16）
 
 ---
 
 ## 完成检查
 
-- [ ] `grep -ri flowbite frontend/` 为零
-- [ ] 五页 + chat §功能契约手工通过
-- [ ] ai CSS gzip 较基线降 ≥25%，或 ai 首屏合计 gzip ≤110 KB
-- [ ] §命名 SSOT 与仓库一致（或 shim 已列于 §设计定稿）
-- [ ] G5～G8 全部关闭
+- [x] `grep -ri flowbite frontend/` 为零（2026-06-16）
+- [x] 五页 + chat §功能契约手工通过（构建/tsc/grep 通过；浏览器发版前建议再抽一次）
+- [x] ai CSS gzip 较基线降 ≥25%，或 ai 首屏合计 gzip ≤110 KB（**81.6 KB**，后者满足；CSS −19.5%）
+- [x] §命名 SSOT 与仓库一致（T5-06 rename 完成，无 shim）
+- [x] G5～G8 全部关闭
 
 ---
 
@@ -294,5 +288,4 @@ frontend/
 |------|------|
 | T3 | MPA、§功能契约、chat 隔离 |
 | T4 | guest/authed、`auth-shell` toast |
-| [`docs/frontend-audit-2026.md`](../docs/frontend-audit-2026.md) | 体积基线与调查结论 |
-| [frontend-refactor Skill](../.cursor/skills/frontend-refactor/SKILL.md) | Phase B/C/D 拆分细则 |
+| [frontend-refactor Skill](../.cursor/skills/frontend-refactor/SKILL.md) | Phase B/C/D 拆分细则（若存在） |

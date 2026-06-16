@@ -1,5 +1,5 @@
 import { CHAT_SETTINGS_KEY } from '../storage-contract.js';
-import { bindChatModalClose, openChatModal } from './modal-host.js';
+import { bindChatModalClose, openChatModal } from './chat-modals-host.js';
 
 /**
  * @param {() => object} getApp

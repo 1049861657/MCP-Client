@@ -1,6 +1,6 @@
 import { escapeHtml } from '../../shared/escape-html.js';
 import { enhanceCodeBlocks, parseMarkdown } from '../markdown-stack.js';
-import { bindChatModalClose, openChatModal } from './modal-host.js';
+import { bindChatModalClose, openChatModal } from './chat-modals-host.js';
 
 const CONTEXT_COMPACTED_LABEL = '已压缩';
 

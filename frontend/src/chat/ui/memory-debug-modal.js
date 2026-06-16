@@ -1,6 +1,6 @@
 import { fetchJson, postApiJson } from '../../shared/fetch-json.js';
 import { formatMemoryMentionedAt } from '../time.js';
-import { bindChatModalClose, openChatModal } from './modal-host.js';
+import { bindChatModalClose, openChatModal } from './chat-modals-host.js';
 
 const API_BASE = '/api/memory/debug';
 const MODAL_ID = 'memory-debug-modal';

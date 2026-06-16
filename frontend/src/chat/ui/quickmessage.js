@@ -4,8 +4,11 @@ import {
 } from '../../shared/ui/dropdown-select.js';
 import { confirmModal } from '../../shared/ui/confirm-dialog.js';
 import { inputDialog } from '../../shared/ui/input-dialog.js';
-import { CHAT_QUICK_MESSAGES_KEY } from '../storage-contract.js';
-import { bindChatModalClose, closeChatModal, openChatModal } from './modal-host.js';
+import {
+  loadLocalQuickMessages,
+  persistLocalQuickMessages,
+} from './quickmessage-store.js';
+import { bindChatModalClose, closeChatModal, openChatModal } from './chat-modals-host.js';
 
 const ICON_EDIT =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
@@ -14,57 +17,6 @@ const ICON_DELETE =
 
 /** @type {boolean} */
 let qmUiBound = false;
-
-/**
- * @param {unknown} data
- * @returns {{ messages: Array<{ id: string; sortId: number; content: string; result: string; category: string }>; categories: string[] }}
- */
-function parseQuickMessagesResponse(data) {
-  if (!data || typeof data !== 'object') {
-    throw new Error('响应格式无效');
-  }
-  const payload = /** @type {{ messages?: unknown; categories?: unknown }} */ (data);
-  if (!Array.isArray(payload.messages)) {
-    throw new Error('响应缺少 messages');
-  }
-  if (!Array.isArray(payload.categories)) {
-    throw new Error('响应缺少 categories');
-  }
-  return {
-    messages: payload.messages,
-    categories: payload.categories.filter((item) => typeof item === 'string' && item.trim().length > 0),
-  };
-}
-
-/**
- * 本地优先加载快捷消息：localStorage 有则用，无则拉服务端种子并落地（T4-02-04）。
- * @returns {Promise<{ messages: Array<{ id: string; sortId: number; content: string; result: string; category: string }>; categories: string[] }>}
- */
-async function loadLocalQuickMessages() {
-  try {
-    const raw = localStorage.getItem(CHAT_QUICK_MESSAGES_KEY);
-    if (raw) {
-      return parseQuickMessagesResponse(JSON.parse(raw));
-    }
-  } catch {
-    // 本地数据损坏则回落服务端种子
-  }
-  const response = await fetch('/api/config/quick-messages');
-  if (!response.ok) {
-    throw new Error(`请求失败: ${response.status}`);
-  }
-  const seed = parseQuickMessagesResponse(await response.json());
-  persistLocalQuickMessages(seed.messages, seed.categories);
-  return seed;
-}
-
-/**
- * @param {Array<{ id: string; sortId: number; content: string; result: string; category: string }>} messages
- * @param {string[]} categories
- */
-function persistLocalQuickMessages(messages, categories) {
-  localStorage.setItem(CHAT_QUICK_MESSAGES_KEY, JSON.stringify({ messages, categories }));
-}
 
 /**
  * @param {() => object} getApp

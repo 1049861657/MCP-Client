@@ -1,5 +1,5 @@
 /**
- * SSE 流式响应解析与 UI 更新（从 api.js 拆出）
+ * SSE 流式响应解析与 UI 更新（从 chat-api.js 拆出）
  */
 
 import { parseSseDataPayload, resolveToolCallElement } from './sse-parse.js';

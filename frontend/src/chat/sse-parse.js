@@ -1,5 +1,5 @@
 /**
- * SSE data 行解析 — 纯函数，供 chat/api 流式处理使用
+ * SSE data 行解析 — 纯函数，供 chat-api.js 流式处理使用
  */
 
 /**
