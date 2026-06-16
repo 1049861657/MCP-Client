@@ -1,3 +1,4 @@
+import { loadCompactedBaselineFromStorage } from './compact-baseline-storage.js';
 import {
   CHAT_DB_INDEX_PROVIDER,
   CHAT_DB_INDEX_SESSION,
@@ -479,7 +480,7 @@ export function createChatData(app) {
 
     app.state.sessionId = sessionId;
 
-    app.api?.resetContextCompressionState?.();
+    app.api.resetContextCompressionState();
     app.ui?.clearPlanning?.();
 
     app.state.messageHistory = [];
@@ -513,7 +514,7 @@ export function createChatData(app) {
 
       console.log(`正在加载会话 ${sessionId}`);
 
-      app.api?.resetContextCompressionState?.();
+      app.api.resetContextCompressionState();
 
       getSessionMessages(sessionId)
         .then((messages) => {
@@ -583,7 +584,7 @@ export function createChatData(app) {
               _toolResultsExpanded: msg._toolResultsExpanded,
             }));
 
-          app.api?.loadCompactedBaselineFromStorage?.(app);
+          loadCompactedBaselineFromStorage(app);
 
           renderConversation(messages);
 

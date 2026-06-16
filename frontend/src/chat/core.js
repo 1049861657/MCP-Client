@@ -539,21 +539,23 @@ function createAppMethods() {
       const clearBtn = document.getElementById('context-clear-override');
 
       if (genBtn) {
-        genBtn.addEventListener('click', () => this.api?.generateCompactDraft?.());
+        genBtn.addEventListener('click', () => {
+          void this.api.generateCompactDraft();
+        });
       }
       if (applyBtn) {
-        applyBtn.addEventListener('click', () => this.api?.applyCompactOverride?.());
+        applyBtn.addEventListener('click', () => {
+          void this.api.applyCompactOverride();
+        });
       }
       if (clearBtn) {
-        clearBtn.addEventListener('click', () => this.api?.clearContextOverride?.());
+        clearBtn.addEventListener('click', () => {
+          void this.api.clearContextOverride();
+        });
       }
     },
 
     async handleOpenContextPanel() {
-      if (!this.api?.openContextPanel) {
-        this.ui.showTooltip?.('上下文面板未就绪');
-        return;
-      }
       if (this.state.isStreaming) {
         this.ui.showTooltip?.('请等待当前回复完成');
         return;

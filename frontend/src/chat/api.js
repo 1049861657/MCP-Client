@@ -4,17 +4,14 @@
 
 import { buildChatStreamRequestBody } from './chat-request-body.js';
 import {
-  loadCompactedBaselineFromStorage,
   persistMessageHistory,
   saveCompactedBaselineToStorage,
 } from './compact-baseline-storage.js';
 import {
   authedContextFields,
-  buildApiContextMessages,
   buildBaseContextMessages,
   buildOutgoingMessages,
 } from './context-messages.js';
-import { parseSseDataPayload } from './sse-parse.js';
 import { createStreamHandler } from './stream-handler.js';
 import { buildToolCallsFromStored, stringifyToolContent } from './message-history-builder.js';
 
@@ -119,7 +116,7 @@ export function createChatApi(deps) {
     app.elements.sendButton.disabled = false;
   }
 
-  const { applyStreamDataObject, handleEventData, processStreamResponse } = createStreamHandler({
+  const { processStreamResponse } = createStreamHandler({
     getApp,
     getUI,
     runtime: streamRuntime,
@@ -701,25 +698,12 @@ export function createChatApi(deps) {
   }
 
   return {
-    toolCallArgumentsMap: streamRuntime.toolCallArgumentsMap,
-    saveCompactedBaselineToStorage,
-    loadCompactedBaselineFromStorage,
-    buildApiContextMessages,
-    beginCompactConsumeTracking,
-    consumeContextCompression,
-    shouldConsumeAfterSuccessfulSend,
     abortCurrentStream,
-    parseSseDataPayload,
-    applyStreamDataObject,
     sendStreamRequest,
     sendRegularRequest,
-    processStreamResponse,
-    handleEventData,
     getAvailableMCPTools,
     getMCPServers,
     probeMcpServers,
-    buildOutgoingMessages,
-    buildBaseContextMessages,
     refreshContextPanelPreview,
     openContextPanel,
     generateCompactDraft,

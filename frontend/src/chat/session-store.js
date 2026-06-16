@@ -229,7 +229,7 @@ export function createSessionStore(app) {
     }
 
     app.state.isLoading = true;
-    app.api?.resetContextCompressionState?.();
+    app.api.resetContextCompressionState();
     try {
       const entries = await getSessionMessages(sessionId);
       app.state.sessionId = sessionId;
@@ -256,7 +256,7 @@ export function createSessionStore(app) {
     }
     app.state.sessionId = '';
     activeSessionPersisted = false;
-    app.api?.resetContextCompressionState?.();
+    app.api.resetContextCompressionState();
     app.ui?.clearPlanning?.();
     app.state.messageHistory = [];
     if (app.elements.chatMessages) {
